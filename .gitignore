@@ -1,0 +1,15 @@
+# Only the playable game goes in the repository: the page, its scripts and three.js, and the
+# local launcher. The reference sheets, the dev tools (model viewer, contact sheets) and the
+# editor settings stay on this machine.
+/*
+!/README.md
+!/index.html
+!/.nojekyll
+!/.gitignore
+!/Play Trap Trick.bat
+!/css/
+!/js/
+!/lib/
+!/tools/
+/tools/*
+!/tools/serve.py

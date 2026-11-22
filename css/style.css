@@ -1,0 +1,43 @@
+/* Trap Trick — the HUD. Plum panels with a thin lilac rule, like the character sheet. */
+:root {
+  --ink: #f1eaff; --dim: #b9a9de; --line: #8a74c9; --panel: rgba(26, 20, 48, 0.82); --red: #dc2741; --black: #1d1a26;
+  --display: 'Cinzel Decorative', Georgia, serif; --mono: 'IBM Plex Mono', Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #bfe0ff; }
+#view { display: block; width: 100vw; height: 100vh; cursor: grab; }
+#view:active { cursor: grabbing; }
+#boot { position: fixed; inset: 0; display: grid; place-items: center; background: #1a1430; color: var(--dim); font: 600 15px var(--mono); letter-spacing: 0.04em; z-index: 10; }
+#hud { position: fixed; inset: 0; pointer-events: none; font: 12px/1.35 var(--mono); color: var(--ink); }
+.hide { display: none !important; }
+
+#plate { position: absolute; left: 18px; top: 14px; padding: 6px 14px 8px; background: var(--panel); border: 1px solid var(--line); outline: 1px solid rgba(138, 116, 201, 0.35); outline-offset: 3px; }
+#plate .name { font: 700 26px/1 var(--display); color: #efe3ff; text-shadow: 0 2px 0 #3b2a6e; letter-spacing: 0.02em; }
+#plate .suits { display: flex; gap: 7px; margin-top: 5px; }
+#plate svg { width: 11px; height: 11px; }
+#plate .r { fill: var(--red); } #plate .k { fill: #e9e3f6; }
+
+#state { position: absolute; right: 18px; top: 14px; display: flex; gap: 8px; }
+#state .slot { min-width: 128px; padding: 6px 10px 7px; background: var(--panel); border: 1px solid #4a3d73; }
+#state .slot.on { border-color: var(--line); }
+#state .slot span { display: block; font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.12em; }
+#state .slot b { font-weight: 600; font-size: 13px; }
+#state .face { min-width: 92px; }
+
+#help { position: absolute; left: 18px; bottom: 16px; padding: 8px 12px 9px; background: var(--panel); border: 1px solid var(--line); width: 520px; display: grid; grid-template-columns: 1fr 1fr; column-gap: 14px; font-size: 11px; }
+#help .h, #help .tip { grid-column: 1 / -1; }
+#help .h { font: 700 13px var(--display); color: #e6d8ff; margin-bottom: 6px; }
+#help .row { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; margin: 2px 0; }
+#help i { font-style: normal; color: var(--dim); margin-right: 10px; }
+#help .tip { color: #f0c6e2; }
+#help .sep { display: none; }
+kbd { display: inline-block; min-width: 18px; padding: 1px 4px; text-align: center; font: 600 11px var(--mono); color: #1d1a26; background: #ece6f7; border: 1px solid #fff; border-bottom: 2px solid #9d8fc4; }
+
+#prompt { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); padding: 6px 12px; background: var(--panel); border: 1px solid var(--line); font-size: 13px; }
+#skel { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); padding: 5px 12px; background: rgba(10, 18, 40, 0.8); border: 1px solid #5aa6e0; color: #bfe6ff; }
+
+@media (max-width: 760px) {
+  #help { width: auto; right: 18px; font-size: 10.5px; }
+  #state .slot { min-width: 0; }
+  #state .face { display: none; }
+}
