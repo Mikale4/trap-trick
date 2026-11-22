@@ -126,26 +126,21 @@
     }
     return g;
   }
-  const PIP = window.TRAPTRICK.PIP;
+  /* a giant playing card: its face painted finely with the same true suits as her outfit, a lattice back */
   function bigCardGrid(suit, rank) {
     const g = new VX.Grid(); g.jit = 0.02;
-    const W = 15, Hh = 21, red = suit === 'heart' || suit === 'diamond', ink = red ? PAL.RED : 0x19161f;
+    const W = 15, Hh = 21;
     for (let x = 0; x < W; x++) for (let y = 0; y < Hh; y++) {
       const corner = (x === 0 || x === W - 1) && (y === 0 || y === Hh - 1);
       if (corner) continue;
       const edge = x === 0 || x === W - 1 || y === 0 || y === Hh - 1;
-      g.set(x - 7, y, 0, edge ? 0xd8d2ea : PAL.WHITE);
+      g.set(x - 7, y, 0, PAL.WHITE);
       // the back: navy with a white lattice
       const lat = ((x + y) % 4 === 0 || (x - y + 40) % 4 === 0);
       g.set(x - 7, y, -1, edge || x === 1 || y === 1 || x === W - 2 || y === Hh - 2 ? PAL.WHITE : (lat ? 0x3a5fe0 : PAL.NAVY));
     }
-    // the big pip, doubled
-    const bm = PIP[suit];
-    for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++) if (bm[r][c] === '#') for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) g.set(c * 2 + a - 5 + 1 - 1, 15 - r * 2 - b, 1, ink);
-    // corner index: a letter-ish mark and a mini pip
-    const RANKS = { A: ['.#.', '#.#', '###', '#.#', '#.#'], K: ['#.#', '##.', '#..', '##.', '#.#'], Q: ['.#.', '#.#', '#.#', '.#.', '..#'], J: ['..#', '..#', '..#', '#.#', '.#.'] };
-    const R = RANKS[rank] || RANKS.A;
-    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) if (R[r][c] === '#') { g.set(-6 + c, 19 - r, 1, ink); g.set(6 - c, 1 + r, 1, ink); }
+    const face = window.TRAPTRICK.cardFace(W, Hh, suit, rank, { big: 0.6, bigH: 0.44 });
+    g.tex = { test: (x, y, z) => z === 0 ? 3 : 0, color: (px, py, pz) => pz < 0.4 ? -1 : (c => c < 0 ? 0xd8d2ea : c)(face(px + 7.5, py + 0.5)) };
     return g;
   }
   function castleGrid() {

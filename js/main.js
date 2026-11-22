@@ -93,7 +93,7 @@
       run = run || P.b[1] || P.b[10] || Math.hypot(P.lx, P.ly) > 0.92;
       jump = jump || P.hit(0); jumpHeld = jumpHeld || P.b[0];
       if (P.hit(2)) tt.trick(); if (P.hit(3)) tt.toggleOpen();
-      if (P.hit(4)) tt.toggleItem('umbrella'); if (P.hit(5)) tt.toggleItem('cane');
+      if (P.hit(4)) tt.toggleItem('umbrella');
       if (P.hit(6)) tt.cycleTilt(); if (P.hit(7)) tt.toggleCarry();
       if (P.hit(12)) tt.play('wave'); if (P.hit(15)) tt.play('point'); if (P.hit(13)) tt.play('curtsy'); if (P.hit(14)) tt.play('spin');
       if (P.hit(11)) tt.sitToggle(); if (P.hit(9)) toggleHelp();
@@ -104,7 +104,6 @@
     // single-press keys
     for (const code of pressed) {
       if (code === 'Digit1') tt.toggleItem('umbrella');
-      else if (code === 'Digit2') tt.toggleItem('cane');
       else if (code === 'KeyF') tt.toggleOpen();
       else if (code === 'KeyR') tt.cycleTilt();
       else if (code === 'KeyQ') tt.toggleCarry();
@@ -128,9 +127,8 @@
     const s = tt.status();
     const key = JSON.stringify(s) + skel;
     if (key === lastHud) return; lastHud = key;
-    $('st-umb').textContent = s.umbrella; $('st-cane').textContent = s.cane; $('st-face').textContent = s.face;
+    $('st-umb').textContent = s.umbrella; $('st-face').textContent = s.face;
     $('st-umb').parentElement.classList.toggle('on', s.umbrella !== 'Away');
-    $('st-cane').parentElement.classList.toggle('on', s.cane !== 'Away');
     const pr = $('prompt');
     if (s.near) { pr.innerHTML = '<kbd>G</kbd> Sit on the crate'; pr.classList.remove('hide'); }
     else if (s.seat) { pr.innerHTML = '<kbd>G</kbd> Stand up'; pr.classList.remove('hide'); }

@@ -112,10 +112,9 @@
       // face
       this.faceBase = 'smug'; this.blinkT = 2.5; this.blinking = 0;
       // the accessories
-      this.umb = PROPS.umbrella(); this.cane = PROPS.cane();
+      this.umb = PROPS.umbrella();
       this.items = {
         umbrella: { obj: this.umb, st: 'away', open: 0, openT: 0, tilt: 0, vis: 0, side: 'R', grip: new THREE.Group(), spin: 0, cspin: 0, spinV: 0 },
-        cane: { obj: this.cane, st: 'away', vis: 0, side: 'R', grip: new THREE.Group(), spin: 0 },
       };
       for (const k in this.items) { const I = this.items[k]; I.grip.add(I.obj.root); I.grip.visible = false; I.obj.root.scale.setScalar(0.001); }
       // seats (the world fills these in)
@@ -158,11 +157,9 @@
       if (A.start) A.start(this);
     }
     trick() {
-      const U = this.items.umbrella, Cn = this.items.cane;
-      if (Cn.st === 'hold') this.play('caneTwirl');
-      else if (U.st === 'hold' && U.openT > 0.5) this.play('umbrellaTwirl');
+      const U = this.items.umbrella;
+      if (U.st === 'hold' && U.openT > 0.5) this.play('umbrellaTwirl');
       else if (U.st === 'hold' || U.st === 'carry') this.play('enGarde');
-      else if (Cn.st === 'carry') this.play('caneTwirl');
       else this.play('cardFan');
     }
     cancelAction(soft) { if (this.act && (!soft || this.act.cancel !== false)) { if (this.act.end) this.act.end(this); this.act = null; } }
@@ -280,9 +277,8 @@
     }
 
     _fidget() {
-      const U = this.items.umbrella, Cn = this.items.cane;
+      const U = this.items.umbrella;
       const pool = ['lookAround', 'hatFix', 'heelRock'];
-      if (Cn.st === 'hold') pool.push('caneLean', 'caneLean');
       if (U.st === 'hold' && U.openT > 0.5) pool.push('lazyTwirl', 'lazyTwirl');
       this.play(pool[Math.floor(Math.random() * pool.length)]);
     }
@@ -294,10 +290,8 @@
       if (this.fx) this.fx.cardPuff(this._handWorld(I.side), 9);
     }
     _items(dt) {
-      const U = this.items.umbrella, Cn = this.items.cane;
-      Cn.side = 'R';
-      const caneOut = Cn.st !== 'away';
-      U.side = caneOut ? 'L' : 'R';
+      const U = this.items.umbrella;
+      U.side = 'R';
       for (const k in this.items) {
         const I = this.items[k];
         if (I.st === 'leaving') {
@@ -320,12 +314,6 @@
     _holdTarget(name, side) {
       const I = this.items[name], sx = side === 'L' ? 1 : -1, ph = this.phase * TAU, mk = this.moveK;
       const swing = Math.sin(ph + (side === 'R' ? 0 : Math.PI)) * mk;
-      if (name === 'cane') {
-        if (I.st === 'carry') return { g: mir(side, 5, 1.5 + swing * 0.5, 7.5), d: V3(-sx * 0.25, -0.72, 0.62), f: V3(-sx, 0.2, 0) };
-        const lean = this.moveK < 0.3 ? 1 : 0;
-        return { g: mir(side, 10.5 - lean, -7 + swing * 1.2 - lean, 10.5 + swing * 3.5 * (1 - this.runK) + lean), d: V3(sx * 0.03, 1, 0.08 - swing * 0.1), f: V3(-sx, 0, 0.35) };
-      }
-      // umbrella
       if (I.st === 'carry' || (I.open < 0.25 && I.openT < 0.5 && I.st === 'carry')) return { g: mir(side, 5, 1.5 + swing * 0.5, 7.5), d: V3(sx * 0.35, 0.7, -0.62), f: V3(-sx, 0.2, 0) };
       if (I.open < 0.35 && I.openT < 0.5) return { g: mir(side, 10.5, -7 + swing * 1.2, 10.5 + swing * 3.5 * (1 - this.runK)), d: V3(sx * 0.03, -1, 0.1 - swing * 0.1), f: V3(-sx, 0, 0.35) };
       if (this.floating || (!this.onGround && I.open > 0.8)) return { g: mir(side, 8.5, 25, 1.5), d: V3(-sx * 0.16, 1, 0), f: V3(-sx, 0, 0.3) };
@@ -530,7 +518,6 @@
         });
       }
       for (const d of M.dangles) mk(d.name, { k: 40, c: 3.2, follow: 1, inert: 0.02, xMin: -1.2, xMax: 1.2, zLim: 1.0 });
-      mk('__caneCharm', { joint: this.cane.charm, frame: this.cane.charm.parent, k: 40, c: 3, follow: 1, inert: 0.02, xMin: -1.3, xMax: 1.3, zLim: 1.1, own: true });
       this.panels = M.panels.map(p => ({ name: p.name, joint: P[p.name], th: p.th, f: 0, v: 0, dx: Math.sin(p.th), dz: Math.cos(p.th) }));
       this._prevBody = null; this._spinPrev = 0; this.spinRate = 0;
     }
@@ -540,7 +527,6 @@
       const g = V3(0, -9.8, 0);
       for (const d of this.dyn) {
         const fr = d.own ? d.joint.parent : d.frame;
-        if (d.own && !this.items.cane.grip.visible) continue;
         fr.getWorldPosition(_v);
         if (!d.prev) { d.prev = _v.clone(); d.pv = V3(0, 0, 0); }
         const vel = _v2.copy(_v).sub(d.prev).divideScalar(Math.max(dt, 1e-4));
@@ -612,7 +598,7 @@
 
     /* ---------------------------------------------------- skeleton view -- */
     setSkeleton(on) {
-      const mats = [this.rig.mat, this.rig.gmat, this.umb.mat, this.umb.gmat, this.cane.mat, this.cane.gmat];
+      const mats = [this.rig.mat, this.rig.gmat, this.umb.mat, this.umb.gmat];
       for (const m of mats) { m.transparent = on; m.opacity = on ? 0.16 : 1; m.depthWrite = !on; m.needsUpdate = true; }
       if (on && !this.skeleton) {
         const names = Object.keys(this.rig.parts);
@@ -640,16 +626,15 @@
 
     /* the state the HUD shows */
     status() {
-      const U = this.items.umbrella, Cn = this.items.cane;
+      const U = this.items.umbrella;
       const us = U.st === 'away' || U.st === 'leaving' ? 'Away' : U.st === 'carry' ? 'Carried' : (U.openT > 0.5 ? ['Open · shoulder', 'Open · overhead', 'Open · in front'][U.tilt] : 'Closed · in hand');
-      const cs = Cn.st === 'away' || Cn.st === 'leaving' ? 'Away' : Cn.st === 'carry' ? 'Carried' : 'In hand';
-      return { umbrella: us, cane: cs, face: this.faceBase, seat: !!this.seat, near: !this.seat && !!this.nearSeat(), action: this.act ? this.act.name : null, floating: this.floating };
+      return { umbrella: us, face: this.faceBase, seat: !!this.seat, near: !this.seat && !!this.nearSeat(), action: this.act ? this.act.name : null, floating: this.floating };
     }
   }
 
   /* ========================================================== ACTIONS == */
   // run(c, t, O, dur): O.e[part] = [x,y,z] (Euler), O.ik[side] = {g,d,f} (chest space), O.hands[side], O.face, O.spin, O.lift, O.hips
-  const free = c => c.items.cane.st !== 'away' && c.items.cane.st !== 'leaving' ? 'L' : (c.items.umbrella.st !== 'away' && c.items.umbrella.st !== 'leaving' ? 'L' : 'R');
+  const free = c => c.items.umbrella.st !== 'away' && c.items.umbrella.st !== 'leaving' ? 'L' : 'R';
   const ACTIONS = {
     wave: {
       dur: 1.9, lock: false, run(c, t, O) {
@@ -662,7 +647,7 @@
     },
     point: {
       dur: 1.8, lock: false, run(c, t, O) {
-        const s = c.items.cane.st === 'hold' ? 'L' : 'R', sx = s === 'L' ? 1 : -1, o = s === 'L' ? 'R' : 'L';
+        const s = 'R', sx = -1, o = 'L';
         const thrust = Math.min(1, t / 0.25);
         O.ik[s] = { g: mir(s, 8, 4.5, 10 + thrust * 7), d: V3(0, 1, 0), f: V3(0, -0.1, 1), pole: V3(sx, -0.5, -0.5) };
         O.hands[s] = 'point';
@@ -752,42 +737,8 @@
         O.hips = Math.max(0, r) * 1.3;
       },
     },
-    caneLean: {
-      dur: 3.4, lock: false, run(c, t, O, dur) {
-        O.ik.R = { g: V3(-9, -10, 12), d: V3(0.1, 1, 0.2), f: V3(1, 0, 0.3) };
-        if (c.holdW.L < 0.5) { O.ik.L = { g: V3(-5, -8, 13), d: V3(-0.2, 1, 0.1), f: V3(-1, 0, 0.3) }; O.hands.L = 'relax'; }
-        O.e.spine = [0.1, -0.15, 0.05]; O.e.head = [0, 0.2, 0.15]; O.e.thighL = [-0.05, 0, 0.12]; O.e.shinL = [0.15, 0, 0]; O.e.footL = [0, 0, -0.12];
-        O.face = 'smug';
-      },
-    },
     lazyTwirl: {
       dur: 3.0, lock: false, run(c, t, O) { const U = c.items.umbrella; U.spinV = Math.max(U.spinV, 4); O.e.head = [0, 0.2, 0.15]; O.face = 'smile'; },
-    },
-    caneTwirl: {
-      dur: 2.6, lock: true, fi: 0.15, fo: 0.3,
-      start(c) { if (c.items.cane.st === 'carry') c.items.cane.st = 'hold'; },
-      run(c, t, O, dur) {
-        const Cn = c.items.cane;
-        if (t < 1.2) {               // two whole turns, arm out to the side
-          const k = smooth(clamp((t - 0.15) / 0.9, 0, 1));
-          Cn.spin = k * TAU * 2;
-          O.ik.R = { g: V3(-13, 2, 9), d: V3(0, 1, 0), f: V3(1, 0, 0.2), pole: V3(-1, -0.3, -0.4) };
-          O.e.head = [0, -0.25, -0.1]; O.face = 'smile';
-        } else if (t < 1.9) {        // two taps on the ground
-          Cn.spin = 0;
-          const tap = Math.abs(Math.sin((t - 1.2) / 0.7 * Math.PI * 2));
-          O.ik.R = { g: V3(-9, -7 + tap * 3, 13), d: V3(0, 1, 0.05), f: V3(1, 0, 0.3) };
-          O.e.head = [0.12, 0, 0]; O.face = 'smug';
-        } else {                     // and a tip of the hat
-          Cn.spin = 0;
-          O.ik.R = { g: V3(-9, -8, 12), d: V3(0, 1, 0.08), f: V3(1, 0, 0.3) };
-          if (c.holdW.L < 0.5) { O.ik.L = { g: V3(6.5, 22, 7), d: V3(-1, 0.1, 0.2), f: V3(0, 0.3, 1), pole: V3(1, -0.5, -0.3) }; O.hands.L = 'grip'; }
-          const k = Math.sin(clamp((t - 1.9) / (dur - 1.9), 0, 1) * Math.PI);
-          O.e.hat = [0.3 * k, 0, 0.08 * k]; O.e.head = [0.18 * k, 0, 0];
-          O.face = 'wink';
-        }
-      },
-      end(c) { c.items.cane.spin = 0; },
     },
     umbrellaTwirl: {
       dur: 2.6, lock: true, run(c, t, O, dur) {

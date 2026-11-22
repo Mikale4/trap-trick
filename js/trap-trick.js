@@ -29,7 +29,7 @@
     MOUTH: 0xc9506c, MOUTH_D: 0x84253f, TONGUE: 0xf27c93, TEETH: 0xfdf7fb,
     NAVY: 0x1e2260, NAVY_D: 0x131641, NAVY_L: 0x2e3889,
     BLUE: 0x3a5fe0, BLUE_D: 0x243fa6, BLUE_L: 0x7090f4,
-    ICE: 0xc3d0f8, ICE_D: 0x95a7e4,
+    ICE: 0xc3d0f8, ICE_D: 0x95a7e4, PERI: 0x8d9ff0, PERI_D: 0x6c80da,
     WHT: 0xf7f4fd, WHT_D: 0xd8d2ea,
     LILAC: 0xc6a0ee, PINKL: 0xefaedb, PINK: 0xf2659f,
     BLACK: 0x19161f, BLACK_L: 0x302b3b, GREY: 0x5a536a,
@@ -53,6 +53,60 @@
     spade: ['..#..', '.###.', '#####', '..#..', '.###.'], club: ['.###.', '#####', '#####', '..#..', '.###.'],
   };
   const SUIT_RED = { heart: true, diamond: true, spade: false, club: false };
+  /* SUITS DRAWN TRUE: u, v in [-1, 1], v up. Sampled finely on voxel faces (VX tex), so a heart has round lobes and a
+     point, a spade and a club a thin stem on a flared foot, a club three round leaves, as on the character sheet. */
+  const heartIn = (u, v) => { const x = u * 1.14, y = -1 + (v + 1) * 1.115; return (x * x + y * y - 1) ** 3 - x * x * y * y * y <= 0; };
+  const stemIn = (u, v, top) => v >= -1 && v <= top && Math.abs(u) <= 0.07 + Math.max(0, -0.55 - v) * 0.95;
+  const SUIT = {
+    heart: heartIn,
+    diamond: (u, v) => Math.abs(u) * 1.32 + Math.abs(v) <= 1,
+    spade: (u, v) => (v > -0.56 && heartIn(u, -((v + 0.56) / 1.56 * 2 - 1))) || stemIn(u, v, -0.3),
+    club: (u, v) => { const o = (cx, cy) => (u - cx) ** 2 + (v - cy) ** 2 <= 0.37 * 0.37; return o(0, 0.52) || o(-0.43, -0.04) || o(0.43, -0.04) || (Math.abs(u) < 0.2 && v > -0.3 && v < 0.52) || stemIn(u, v, -0.25); },
+  };
+  const GLYPH = { A: ['.#.', '#.#', '###', '#.#', '#.#'], K: ['#.#', '##.', '#..', '##.', '#.#'], Q: ['.#.', '#.#', '#.#', '.#.', '..#'], J: ['..#', '..#', '..#', '#.#', '.#.'] };
+  /* A playing card's face, w x h in voxel units. Returns (cu, cv) -> colour (cu from its left edge, cv from its bottom),
+     or -1 outside its rounded corners. A big suit in the middle; in the top-left corner the rank over a little suit
+     (just the little suit on small cards), and the same upside down in the bottom-right. */
+  function cardFace(w, h, suit, rank, o) {
+    o = o || {};
+    const ink = SUIT_RED[suit] ? C.RED : C.BLACK, paper = C.WHT, edge = C.WHT_D;
+    const r = o.round === false ? 0 : Math.min(w, h) * 0.17, ew = o.edgeW || 0.16;
+    const bw = w * (o.big || 0.62), bh = h * (o.bigH || 0.5), cy0 = h / 2 + (o.lift || 0);
+    const letters = o.index !== false && o.index !== 'pip', pips = o.index !== false;
+    const m = Math.max(0.22, w * 0.07), gw = Math.max(0.6, w * 0.12), gh = gw * 1.6, ps = gw * 1.05;
+    return (cu, cv) => {
+      const dx = Math.max(r - cu, cu - (w - r), 0), dy = Math.max(r - cv, cv - (h - r), 0);
+      const dd = Math.sqrt(dx * dx + dy * dy);
+      if (r && dd > r) return -1;
+      if (Math.min(cu, cv, w - cu, h - cv) < ew || (r && dx > 0 && dy > 0 && dd > r - ew)) return edge;
+      if (SUIT[suit]((cu - w / 2) / (bw / 2), (cv - cy0) / (bh / 2))) return ink;
+      if (pips) for (const flip of [1, -1]) {
+        const lx = flip > 0 ? cu - m : (w - m) - cu, ly = flip > 0 ? (h - m) - cv : cv - m;   // from the corner, inward
+        let top = 0;
+        if (letters) {
+          if (lx >= 0 && lx < gw && ly >= 0 && ly < gh) {
+            const G = GLYPH[rank] || GLYPH.A, row = G[Math.min(4, Math.floor(ly / gh * 5))];
+            return row[Math.min(2, Math.floor(lx / gw * 3))] === '#' ? ink : paper;
+          }
+          top = gh + gw * 0.2;
+        }
+        const sy = ly - top;
+        if (lx >= 0 && lx < ps && sy >= 0 && sy < ps && SUIT[suit]((lx - ps / 2) / (ps / 2), (ps / 2 - sy) / (ps / 2))) return ink;
+      }
+      return paper;
+    };
+  }
+  /* fine paint for cards in a grid: each card is a box of voxels, a face painter, and how a point maps to (cu, cv) */
+  function cardTex(cards, rest) {
+    const inBox = (k, x, y, z, e) => x >= k.x0 - e && x <= k.x1 + e && y >= k.y0 - e && y <= k.y1 + e && z >= k.z0 - e && z <= k.z1 + e;
+    return {
+      test: (x, y, z, v) => { for (const k of cards) if (inBox(k, x, y, z, 0)) return k.n || 4; return rest ? rest.test(x, y, z, v) : 0; },
+      color: (px, py, pz, v) => {
+        for (const k of cards) if (inBox(k, px, py, pz, 0.51)) { const [cu, cv] = k.uv(px, py, pz), c = k.face(cu, cv); return c < 0 ? (k.out != null ? k.out : C.WHT_D) : c; }
+        return rest ? rest.color(px, py, pz, v) : v;
+      },
+    };
+  }
   const pipAt = (bm, col, row) => row >= 0 && row < bm.length && col >= 0 && col < bm[row].length && bm[row][col] === '#';
 
   const H = VX.hash3;
@@ -146,7 +200,7 @@
       if (y >= 42) {                                       // pleats
         if (y === 44) return C.NAVY_D;
         const k = Math.floor((th + Math.PI) * d / 2) % 3;
-        return k === 0 ? C.ICE : (k === 1 ? C.BLUE_L : C.BLUE);
+        return k === 0 ? C.PERI_D : (k === 1 ? C.PERI : (y === 43 ? C.ICE : C.PERI));
       }
       if (y >= 36) {                                       // the card band
         const suit = SUITS[i % 4], row = 41 - y, col = Math.round(u) + 2;
@@ -172,26 +226,41 @@
         skirtG[panelOf(th)].set(x, y, z, c);
       }
     }
-    // a small ice-blue bow at the front of the waist
-    bow(skirtG[0], 0, 43, 10, 3, 2, 'x', 1, [C.ICE, C.ICE_D, C.WHT]);
-    skirtG[0].set(0, 43, 11, C.GEM);
+    // the card band, painted finely: one card per panel, big suit in the middle, little suits in the corners
+    const BAND_W = 6.6, bandFace = SUITS.map(su => cardFace(BAND_W, 6, su, 'A', { index: 'pip', big: 0.64, bigH: 0.56 }));
+    const bandTex = {
+      test: (x, y, z) => { const d = Math.hypot(x, z); return (y >= 36 && y <= 41 && d > SK[y] - 1.0 && d < SK[y] + 0.8) ? 3 : 0; },   // (not the ribbons laid over it)
+      color: (px, py, pz, v) => {
+        const th = Math.atan2(px, pz), i = panelOf(th);
+        let dth = th - i * PW; if (dth > Math.PI) dth -= TAU; if (dth < -Math.PI) dth += TAU;
+        const cv = py - 35.5, c = bandFace[i % 4]((dth / PW + 0.5) * BAND_W, cv);
+        return c >= 0 ? c : (cv < 3 ? C.NAVY : C.PERI_D);          // between the cards' round corners
+      },
+    };
+    for (const g of skirtG) g.tex = bandTex;
+    // the navy bow at the front of the waist with a red gem, its two ribbons falling over the pleats and the cards
+    for (let i = -4; i <= 4; i++) {
+      const a = Math.abs(i); if (!a) continue;
+      const half = a >= 3 ? 2 : 1;
+      for (let j = -half; j <= half; j++) {
+        const y = 43 + j, z = Math.round((SK[y] || 7) + 0.9);
+        skirtG[0].set(i, y, z, a === 4 || Math.abs(j) === half ? C.NAVY_D : (j > 0 ? C.NAVY_L : C.NAVY));
+      }
+    }
+    skirtG[0].set(0, 43, Math.round(SK[43] + 1.9), VX.glow(C.RED)); skirtG[0].set(0, 42, Math.round(SK[42] + 0.9), C.NAVY_D); skirtG[0].set(0, 44, Math.round(SK[44] + 0.9), C.NAVY_D);
+    for (const sd of [1, -1]) for (let y = 36; y <= 41; y++) {
+      const x0 = sd * (1 + Math.floor((41 - y) / 3)), w = y === 36 ? 0 : 1;
+      for (let k = 0; k <= w; k++) { const x = x0 + sd * k, R = SK[y] + 1.2; skirtG[0].set(x, y, Math.round(Math.sqrt(Math.max(0, R * R - x * x))), k === w && w ? C.NAVY_L : C.NAVY); }
+    }
 
     /* cards hanging from the hem at her left and right */
-    const card = (g, put, w, h, suit, mini) => {
-      // put(i, j, colour): i across 0..w-1, j up 0..h-1
-      for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
-        const edge = i === 0 || j === 0 || i === w - 1 || j === h - 1;
-        put(i, j, edge ? C.WHT_D : C.WHT);
-      }
-      const bm = mini ? MINI[suit] : PIP[suit], bw = bm[0].length, bh = bm.length;
-      const ox = Math.floor((w - bw) / 2), oy = Math.floor((h - bh) / 2);
-      for (let r = 0; r < bh; r++) for (let c2 = 0; c2 < bw; c2++) if (bm[r][c2] === '#') put(ox + c2, oy + (bh - 1 - r), SUIT_RED[suit] ? C.RED : C.BLACK);
-    };
     for (const [side, pi] of [[1, 3], [-1, 9]]) {
-      const name = side > 0 ? 'cardL' : 'cardR', x0 = side * 16.4;
-      const g = M.part(name, 'skirt' + pi, [x0, 34, 0], { yaw: pi * PW });
+      const name = side > 0 ? 'cardL' : 'cardR', x0 = side * 16;
+      const g = M.part(name, 'skirt' + pi, [x0, 33.5, 0], { yaw: pi * PW });
       g.set(x0, 33, 0, C.GOLD);
-      card(g, (i, j, c) => g.set(x0, 28 + j, -2 + i, c), 5, 5, side > 0 ? 'heart' : 'club', true);
+      g.box(x0, 26, -2, x0, 32, 2, C.WHT);
+      const face = cardFace(5, 7, side > 0 ? 'heart' : 'club', side > 0 ? 'A' : 'K', { index: 'pip' });
+      g.tex = cardTex([{ x0, x1: x0, y0: 26, y1: 32, z0: -2, z1: 2, n: 4, face, uv: (px, py, pz) => [side > 0 ? 2.5 - pz : pz + 2.5, py - 25.5] }]);
       meta.dangles.push({ name, kind: 'card' });
     }
 
@@ -223,8 +292,11 @@
           t1.set(x, y, z, k === s ? C.BLUE_D : C.BLUE); t1.set(x, y, z - 1, C.BLUE_D);
         }
       }
-      for (let y = 28; y <= 31; y++) for (let k = -1; k <= 1; k++) t2.set(s * 6.5 + k, y, -16, k === s ? C.BLUE_D : C.BLUE);
-      card(t2, (i, j, c) => t2.set(s * 6.5 - 2 + i, 22 + j, -16, c), 5, 6, s > 0 ? 'diamond' : 'heart', false);
+      for (let y = 28; y <= 31; y++) for (let k = -1; k <= 1; k++) t2.set(s * 7 + k, y, -16, k === s ? C.BLUE_D : C.BLUE);
+      const cx = s * 7;
+      t2.box(cx - 2, 21, -16, cx + 2, 27, -16, C.WHT);
+      const face = cardFace(5, 7, s > 0 ? 'diamond' : 'heart', s > 0 ? 'Q' : 'A', { index: 'pip' });
+      t2.tex = cardTex([{ x0: cx - 2, x1: cx + 2, y0: 21, y1: 27, z0: -16, z1: -16, n: 4, face, uv: (px, py) => [cx + 2.5 - px, py - 20.5] }]);
       meta.chains.push({ names: ['tail' + n + '1', 'tail' + n + '2'], kind: 'tail' });
     }
 
@@ -447,15 +519,18 @@
     // a white frill rosette in the bow
     hat.set(8, 77, -2, C.WHT); hat.set(8, 77, -3, C.WHT); hat.set(8, 78, -2, C.PINKL); hat.set(7, 78, -3, C.WHT);
     // the heart card tucked in the band, front and to her right
-    card(hat, (i, j, c) => hat.set(-4 + i, 72 + j, 7, c), 5, 7, 'heart', false);
-    hat.set(-3, 77, 7, C.RED); hat.set(-1, 72, 7, C.RED);   // corner indices
+    hat.box(-4, 72, 7, 0, 78, 7, C.WHT);
     // a spade card tucked in on her right side
-    card(hat, (i, j, c) => hat.set(-7, 72 + j, -2 + i, c), 4, 5, 'spade', true);
+    hat.box(-7, 72, -2, -7, 77, 1, C.WHT);
+    hat.tex = cardTex([
+      { x0: -4, x1: 0, y0: 72, y1: 78, z0: 7, z1: 7, n: 5, face: cardFace(5, 7, 'heart', 'A', { big: 0.7, bigH: 0.5 }), uv: (px, py) => [px + 4.5, py - 71.5] },
+      { x0: -7, x1: -7, y0: 72, y1: 77, z0: -2, z1: 1, n: 4, face: cardFace(4, 6, 'spade', 'A', { index: 'pip' }), uv: (px, py, pz) => [pz + 2.5, py - 71.5] },
+    ]);
     // the little dangling card charm (its own joint)
     const charm = M.part('hatCharm', 'hat', [8.6, 70, 4]);
     charm.box(9, 68, 4, 9, 69, 4, C.GOLD);
-    card(charm, (i, j, c) => charm.set(9, 63 + j, 3 + i, c), 3, 5, 'diamond', true);
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (charm.get(9, 63 + j, 3 + i) === C.WHT_D && (j === 2 && i === 1)) charm.set(9, 63 + j, 3 + i, C.RED);
+    charm.box(9, 63, 3, 9, 67, 5, C.WHT);
+    charm.tex = cardTex([{ x0: 9, x1: 9, y0: 63, y1: 67, z0: 3, z1: 5, n: 4, face: cardFace(3, 5, 'diamond', 'A', { index: false, big: 0.7, bigH: 0.55 }), uv: (px, py, pz) => [5.5 - pz, py - 62.5] }]);
     meta.dangles.push({ name: 'hatCharm', kind: 'card' });
 
     /* ============================================================== ARMS == */
@@ -575,5 +650,5 @@
     return { model: M, meta };
   }
 
-  window.TRAPTRICK = { build, C, PIP, PIP5, MINI, SUIT_RED, S, J };
+  window.TRAPTRICK = { build, C, PIP, PIP5, MINI, SUIT, SUIT_RED, cardFace, cardTex, S, J };
 })();

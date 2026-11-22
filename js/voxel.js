@@ -103,7 +103,10 @@
   ];
   const AO = [0.55, 0.72, 0.87, 1.0];
 
-  /* opts: { jitter, ao, offset:[x,y,z] (subtracted), yaw (the part frame's yaw: positions are turned by -yaw), solid(x,y,z) } */
+  /* opts: { jitter, ao, offset:[x,y,z] (subtracted), yaw (the part frame's yaw: positions are turned by -yaw), solid(x,y,z) }
+     FINE DETAIL: a grid may carry `tex = { test(x,y,z,v) -> n, color(px,py,pz,v) -> colour|-1 }`. A voxel that tests n > 1
+     has each visible face split into n x n smaller squares, each coloured by `color` sampled at its centre (in the same
+     model-space units as the voxels). The shape stays voxel; only the paint gets finer -- suits, card corners, outlines. */
   function meshGrid(grid, s, opts) {
     opts = opts || {};
     const jit = opts.jitter != null ? opts.jitter : grid.jit;
@@ -111,6 +114,27 @@
     const out = { lit: { p: [], n: [], c: [], i: [] }, glow: { p: [], n: [], c: [], i: [] } };
     const solid = opts.solid || ((x, y, z) => grid.has(x, y, z));
     const col = new THREE.Color();
+    const sub = new THREE.Color();
+    /* one face, n x n squares: corners and ambient occlusion interpolate across it; colour comes from the grid's tex */
+    const emitFine = (B, C4, aos, n, F, j, rgb, nx, ny, nz) => {
+      const L = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+      const P = (u, w) => L(L(C4[0], C4[1], u), L(C4[3], C4[2], u), w);
+      const A = (u, w) => { const a0 = AO[aos[0]], a1 = AO[aos[1]], a2 = AO[aos[2]], a3 = AO[aos[3]]; return (a0 + (a1 - a0) * u) * (1 - w) + (a3 + (a2 - a3) * u) * w; };
+      for (let i = 0; i < n; i++) for (let k = 0; k < n; k++) {
+        const u0 = i / n, u1 = (i + 1) / n, w0 = k / n, w1 = (k + 1) / n, mid = P((u0 + u1) / 2, (w0 + w1) / 2);
+        let c = grid.tex.color(mid[0], mid[1], mid[2], rgb);
+        if (c == null || c < 0) c = rgb;
+        sub.setHex(c & 0xffffff);
+        const base = B.p.length / 3;
+        for (const [u, w] of [[u0, w0], [u1, w0], [u1, w1], [u0, w1]]) {
+          const q = P(u, w), px = q[0] - off[0], py = q[1] - off[1], pz = q[2] - off[2];
+          B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s); B.n.push(nx, ny, nz);
+          const kk = F.s * A(u, w) * j;
+          B.c.push(Math.min(1, sub.r * kk), Math.min(1, sub.g * kk), Math.min(1, sub.b * kk));
+        }
+        B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
+      }
+    };
     grid.each((x, y, z, v) => {
       const g = isGlow(v), B = g ? out.glow : out.lit, rgb = v & 0xffffff;
       col.setHex(rgb);
@@ -120,10 +144,12 @@
         if (grid.has(x + dx, y + dy, z + dz)) continue;
         const base = B.p.length / 3, aos = [];
         const nx = dx * cy + dz * sy, nz = -dx * sy + dz * cy;
+        const fine = grid.tex && !g ? grid.tex.test(x, y, z, v) : 0;
+        const corners = [];
         for (const cr of F.c) {
           const px = x - 0.5 + cr[0] - off[0], py = y - 0.5 + cr[1] - off[1], pz = z - 0.5 + cr[2] - off[2];
-          B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s);
-          B.n.push(nx, dy, nz);
+          corners.push([x - 0.5 + cr[0], y - 0.5 + cr[1], z - 0.5 + cr[2]]);
+          if (!fine) { B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s); B.n.push(nx, dy, nz); }
           let a = 3;
           if (!g && opts.ao !== false) {
             const ox = x + dx, oy = y + dy, oz = z + dz;
@@ -137,9 +163,11 @@
             a = s1 && s2 ? 0 : 3 - (s1 + s2 + sc);
           }
           aos.push(a);
+          if (fine) continue;
           const k = (g ? 1 : F.s * AO[a]) * j;
           B.c.push(Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k));
         }
+        if (fine) { emitFine(B, corners, aos, fine, F, j, rgb, nx, dy, nz); continue; }
         if (aos[0] + aos[2] > aos[1] + aos[3]) B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
         else B.i.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
       }

@@ -2,11 +2,11 @@
 
 A fully jointed voxel model of **Trap Trick** (stage name), playable in an open garden plaza. Her look follows the
 two character sheets in `reference/`: a magenta curly-haired performer in a black top hat (heart card in the band, a big
-blue bow, a dangling card charm), a navy puff-sleeved bodice with a jabot and a gem bow tie, a black corset with pink
-buttons, a poofy tiered skirt with a playing-card band (hearts, spades, diamonds, clubs) over blue, white, navy and
-lilac ruffles, a big back bow whose tails end in cards, mismatched stockings (dark argyle on her right, white
-harlequin lattice on her left), blue ankle bows and black platform Mary Janes. She carries a **playing-card umbrella**
-and a **playing-card cane**.
+blue bow, a dangling card charm), a flat-faced head with a V chin, a navy puff-sleeved bodice with a jabot and a gem
+bow tie, a black corset with pink buttons, a navy waist bow with a red gem and ribbons, a poofy tiered skirt (periwinkle
+pleats, a band of playing cards, then blue, white, navy and lilac ruffles), a big back bow whose tails end in cards,
+mismatched stockings (dark argyle on her right, white harlequin lattice on her left), blue ankle bows and black platform
+Mary Janes. She carries a **playing-card umbrella**.
 
 ## Play
 
@@ -24,9 +24,8 @@ and a **playing-card cane**.
 | `1` | umbrella out / away (it appears and vanishes in a puff of cards) |
 | `F` | open / close the umbrella (takes it out if needed) |
 | `R` | tilt the open umbrella: over the shoulder → overhead → in front |
-| `2` | cane out / away |
-| `Q` | carry / hold: shoulders whatever she holds, or takes it back in hand |
-| `E` | trick: cane twirl and taps with a hat tip · umbrella twirl · en-garde with the closed umbrella · card fan (empty hands) |
+| `Q` | carry / hold: shoulders the umbrella, or takes it back in hand |
+| `E` | trick: umbrella twirl (open) · en-garde with the closed umbrella · card fan (empty hands) |
 | `Z X C V B T` | wave · point · curtsy · spin · peace-sign pose · hat tip |
 | `G` | sit on a crate (the four single crates around the plaza) / stand up |
 | `3`–`7` | expression: smug, smile, happy, pout, surprised |
@@ -34,10 +33,10 @@ and a **playing-card cane**.
 | `H` | hide the controls |
 
 A gamepad works too: left stick moves, right stick turns the camera, A jumps (hold to float), B runs, X trick,
-Y open/close, LB umbrella, RB cane, LT tilt, RT carry, d-pad emotes, R3 sit, Start help.
+Y open/close, LB umbrella, LT tilt, RT carry, d-pad emotes, R3 sit, Start help.
 
-With nothing pressed for a while she fidgets: looks around, fixes her hat, rocks on her heels, leans on the cane, or
-idly twirls the open umbrella. She blinks.
+With nothing pressed for a while she fidgets: looks around, fixes her hat, rocks on her heels, or idly
+twirls the open umbrella. She blinks.
 
 ## The skeleton
 
@@ -61,11 +60,18 @@ hips (root)
 Faces (smug, smile, happy, pout, surprised, wink, blink) and hand shapes (relax, grip, point, peace, open) are swappable
 meshes on the head and hands.
 
-The **umbrella** is its own rig: a grip, a canopy that spins about the shaft, and eight canopy panels, each on a hinge at
-the top of the shaft that folds it down and narrows it when closing. The **cane** is a rigid card-tile crook and shaft
-with a swinging card charm. Both are built around the grip point; a held item rides a socket in the fist, and the arm
-reaches for it with two-bone IK (shoulder, elbow, wrist), so a pose only has to say where the fist goes and which way
-the item points.
+The **umbrella** is its own rig: a grip, a canopy that spins about the shaft, eight deep navy and indigo panels (each
+on a hinge at the top of the shaft that folds it down and narrows it when closing), a pink-and-white frilled rim, and a
+big four-loop bow on top that folds away when it closes. It is built around its grip point: in hand it rides a socket in
+the fist, and the arm reaches for it with two-bone IK (shoulder, elbow, wrist), so a pose only has to say where the fist
+goes and which way the umbrella points.
+
+**The cards.** Everywhere a playing card appears (the skirt's card band, the hanging and bow-tail cards, the hat cards,
+the umbrella's panels, the magic-puff cards, the giant cards in the garden) its face is painted finely on the voxel
+faces, three to five squares per voxel, from true suit outlines: round-lobed hearts with a point, spades and clubs with a
+thin stem on a flared foot, three-leaf clubs, clean diamonds, on rounded-corner cards with small corner suits and, on
+the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex` in `js/voxel.js`, `cardFace` in
+`js/trap-trick.js`).
 
 ## How the animation works (`js/anim.js`)
 
@@ -84,9 +90,9 @@ the item points.
 | | |
 |---|---|
 | `index.html`, `css/style.css` | the page and HUD |
-| `js/voxel.js` | the voxel kit: grid, AO mesher, jointed model builder |
+| `js/voxel.js` | the voxel kit: grid, AO mesher (with fine face paint), jointed model builder |
 | `js/trap-trick.js` | her model, part by part |
-| `js/props.js` | the umbrella and the cane |
+| `js/props.js` | the umbrella, and the little cards of her magic puffs |
 | `js/anim.js` | the character: movement, poses, IK, actions, springs, skeleton view |
 | `js/world.js` | the garden plaza, castle, trees, crates, giant cards |
 | `js/fx.js` | card puffs, dust, the card fan |

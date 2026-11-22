@@ -1,22 +1,22 @@
 /* ============================================================================
-   props.js -- Trap Trick's two signature accessories, each its own jointed
-   voxel object (same 2.4 cm voxels as she is).
+   props.js -- Trap Trick's signature accessory, the playing-card umbrella,
+   a jointed voxel object of its own (same 2.4 cm voxels as she is), and the
+   little cards of her magic puffs.
 
-   Both are built around their GRIP: the item's origin is the point her fist
-   closes on, and its +Y runs up the shaft toward the canopy / crook. The
-   animation parents the item to a hand (or a carry point) and turns it.
+   The umbrella is built around its GRIP: its origin is the point her fist
+   closes on, and its +Y runs up the shaft toward the canopy. The animation
+   parents it to a hand and turns it.
 
    UMBRELLA  root (grip) -> canopy (spins for a twirl) -> 8 panels
              each panel: a hinge at the top of the shaft (frame, turned to its
              own heading) and a fold joint (rotation x + squeeze x): open, the
              panels make the dome; closed, they fold down along the shaft.
-   CANE      root (grip) -> charm (a little card on a ribbon, swings)
+             canopy -> bow (the big four-loop bow on top; it folds away when closed)
    ========================================================================== */
 (function () {
   'use strict';
   const T = window.TRAPTRICK, C = T.C, S = T.S, H = VX.hash3, TAU = Math.PI * 2;
-  const MINI = T.MINI, SUIT_RED = T.SUIT_RED;
-  const PURPLE = 0x4a3a8f, PURPLE_L = 0x7a65c8, PURPLE_D = 0x2c2160;
+  const PURPLE = 0x4a3a8f, PURPLE_L = 0x7a65c8;
 
   const mesh = (g, mat, gmat) => VX.meshPair(VX.meshGrid(g, S, {}), mat, { glowMat: gmat });
 
@@ -27,21 +27,23 @@
     // kind 0..3: navy+club, blue+heart, navy+spade, blue+diamond
     const g = new VX.Grid(); g.jit = 0.04;
     const dark = (kind & 1) === 0, suit = ['club', 'heart', 'spade', 'diamond'][kind];
-    const base = dark ? C.NAVY : 0x2f47b5, base2 = dark ? C.NAVY_L : 0x3b56c8, rib = dark ? C.NAVY_D : 0x22358f;
-    const bm = T.PIP5[suit];
+    // deep navy and indigo panels, as on the sheet
+    const base = dark ? C.NAVY : 0x2b2670, base2 = dark ? 0x262b74 : 0x352f80, rib = dark ? C.NAVY_D : 0x1a1650;
+    // the card on each panel, painted finely: its top toward the rim
+    const face = T.cardFace(7, 7, suit, ['A', 'K', 'Q', 'J'][kind], { index: 'pip', big: 0.62, bigH: 0.56 });
+    g.tex = {
+      test: (x, y, r) => (r >= 7 && r <= 13 && Math.abs(x) <= 3) ? 3 : 0,
+      color: (px, py, pz) => { const c = face(px + 3.5, pz - 6.5); return c < 0 ? base : c; },
+    };
     let prev = {};
     for (let r = 1; r <= CAN_R; r++) {
       const w = r * Math.tan(SPAN / 2) + 0.35, y = Math.round(drop(r));
       for (let x = -Math.floor(w); x <= Math.floor(w); x++) {
         let c = (Math.abs(x) >= Math.floor(w) && r > 2) ? rib : ((x + r) % 4 === 0 ? base2 : base);
         if (r <= 3) c = r === 1 ? C.BLUE_D : C.BLUE;
-        else if (r === 13) c = C.BLUE_L;
-        else if (r >= 14) c = r === 14 ? C.ICE : C.WHT;
-        else if (r >= 6 && r <= 12 && Math.abs(x) <= 3) {            // a little white card with its pip
-          c = (r === 6 || r === 12 || Math.abs(x) === 3) ? C.WHT_D : C.WHT;
-          const row = 11 - r, col = x + 2;                           // (row 0 is the pip's top, toward the rim)
-          if (row >= 0 && row < 5 && col >= 0 && col < 5 && bm[4 - row][col] === '#') c = SUIT_RED[suit] ? C.RED : C.BLACK;
-        }
+        else if (r === 14) c = C.LILAC;                                 // the rim: a lilac line, then a pink-and-white frill
+        else if (r >= 15) c = r === 15 ? C.PINKL : ((x + r) % 3 === 0 ? C.PINKL : C.WHT);
+        else if (r >= 7 && r <= 13 && Math.abs(x) <= 3) c = C.WHT;   // a card (painted finely below)
         const y0 = prev[x] != null ? prev[x] : y;
         for (let yy = Math.min(y, y0); yy <= Math.max(y, y0); yy++) g.set(x, yy, r, c);
         prev[x] = y;
@@ -84,8 +86,21 @@
     top.disc(0, 0, 1.6, 0, 1, C.BLUE_D); top.disc(0, 0, 0.8, 2, 2, C.BLUE);
     for (let y = 3; y <= 6; y++) top.set(0, y, 0, y >= 5 ? C.ICE : PURPLE_L);
     top.set(0, 7, 0, VX.glow(0xfff4ff)); top.set(0, 3, 1, VX.glow(C.RED));
-    for (let i = -3; i <= 3; i++) { const a = Math.abs(i); if (!a) continue; for (let j = -Math.min(1, a - 1); j <= Math.min(1, a - 1); j++) top.set(i, 3 + j, 0, a === 3 ? C.BLUE_D : C.BLUE); }
     canopy.add(mesh(top, mat, gmat));
+    // the big four-loop bow lying on the dome, a red gem in its knot (as on the sheet's top view)
+    const bw = new VX.Grid(); bw.jit = 0.05;
+    const HW = [1, 2, 2, 2, 2, 1];
+    for (let q = 0; q < 4; q++) {
+      const a = q * Math.PI / 2 + Math.PI / 4, dx = Math.sin(a), dz = Math.cos(a), px = Math.cos(a), pz = -Math.sin(a);
+      for (let t = 1; t <= 6; t++) for (let k = -HW[t - 1]; k <= HW[t - 1]; k += 0.5) {
+        const x = Math.round(dx * t + px * k), z = Math.round(dz * t + pz * k), r = Math.hypot(x, z);
+        const y = Math.round(drop(r)) + 1, edge = Math.abs(k) >= HW[t - 1] - 0.25 || t === 6;
+        bw.set(x, y, z, edge ? C.BLUE_D : (Math.abs(k) < 0.6 ? C.BLUE_L : C.BLUE));
+        if (!edge) bw.set(x, y + 1, z, Math.abs(k) < 0.6 ? C.BLUE_L : C.BLUE);   // the loops puff up
+      }
+    }
+    bw.box(-1, 1, -1, 1, 3, 1, C.BLUE_D); bw.set(0, 4, 0, VX.glow(C.RED)); bw.set(0, 3, 1, C.BLUE); bw.set(0, 3, -1, C.BLUE); bw.set(1, 3, 0, C.BLUE); bw.set(-1, 3, 0, C.BLUE);
+    const bowTop = mesh(bw, mat, gmat); canopy.add(bowTop);
     const panels = [];
     for (let i = 0; i < 8; i++) {
       const frame = new THREE.Group(); frame.rotation.y = i * SPAN; canopy.add(frame);
@@ -100,63 +115,10 @@
       const e = t * t * (3 - 2 * t);
       const ang = (1 - e) * 0.98, sq = 0.13 + 0.87 * Math.pow(e, 0.7);
       for (const p of panels) { p.rotation.x = ang; p.scale.set(sq, 1, 1 - (1 - e) * 0.08); }
+      bowTop.scale.setScalar(0.25 + 0.75 * e);
     };
     U.setOpen(0);
     return U;
-  }
-
-  /* ------------------------------------------------------------- cane -- */
-  function cane() {
-    const mat = VX.litMat().clone(), gmat = VX.glowMat().clone();
-    const root = new VX.Grid(); root.jit = 0.04;
-    // the shaft: dark violet, a plus-shaped section, with white diamonds and red pips spiralling down it
-    for (let y = -37; y <= 1; y++) {
-      const inner = y >= -3;
-      root.set(0, y, 0, PURPLE_D);
-      if (inner) continue;
-      const k = ((y % 6) + 6) % 6;
-      for (const [dx, dz, face] of [[1, 0, 0], [0, 1, 1], [-1, 0, 2], [0, -1, 3]]) {
-        let c = PURPLE_D;
-        if ((k === 0 || k === 1) && ((Math.floor(y / 6) + face) & 1)) c = C.WHT;
-        else if (k === 3 && ((Math.floor(y / 6) + face) % 4 === 0)) c = C.RED;
-        else if (k === 4) c = PURPLE;
-        root.set(dx, y, dz, c);
-      }
-    }
-    // the tip: a silver ferrule with a blue gem
-    root.box(-1, -40, -1, 1, -38, 1, (x, y, z) => (Math.abs(x) + Math.abs(z) === 2) ? -1 : (y === -40 ? C.GREY : C.ICE));
-    root.set(0, -39, 2, VX.glow(C.GEM)); root.set(0, -39, -2, VX.glow(C.GEM));
-    // the crook: white card tiles with red and black pips, a rectangular hook opening forward
-    const path = [];
-    for (let y = 2; y <= 8; y++) path.push([0, y, 0]);
-    for (let z = 1; z <= 7; z++) path.push([0, 8, z]);
-    for (let y = 7; y >= 4; y--) path.push([0, y, 7]);
-    path.forEach(([x, y, z], i) => {
-      const sep = i % 3 === 2;
-      for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) {
-        const vertical = i < 7 || i >= 14;
-        const px = x + a, py = vertical ? y : y + b, pz = vertical ? z + b : z;
-        const edge = Math.abs(a) === 1 && Math.abs(b) === 1;
-        let c = sep ? C.PINKL : C.WHT;
-        if (edge) c = sep ? C.PINKL : C.WHT_D;
-        if (!sep && Math.abs(a) === 1 && b === 0 && i % 3 === 0) c = (i % 6 === 0) ? C.RED : C.BLACK;
-        root.set(px, py, pz, c);
-      }
-    });
-    // the blue bow under the crook with a gem
-    for (let i = -4; i <= 4; i++) { const a = Math.abs(i); if (!a) continue; const h = a >= 3 ? 2 : 1; for (let j = -h; j <= h; j++) root.set(i, -1 + j, 1, a === 4 || Math.abs(j) === h ? C.BLUE_D : (j > 0 ? C.BLUE_L : C.BLUE)); }
-    root.box(0, -2, 1, 0, 0, 2, C.BLUE_D); root.set(0, -1, 2, VX.glow(C.GEM));
-    const group = new THREE.Group(); group.name = 'cane';
-    const body = VX.meshPair(VX.meshGrid(root, S, {}), mat, { glowMat: gmat }); group.add(body);
-    // the dangling card charm (its own joint)
-    const ch = new VX.Grid();
-    ch.box(0, -1, 0, 0, -2, 0, C.BLUE);
-    for (let i = 0; i < 3; i++) for (let j = 0; j < 4; j++) ch.set(i - 1, -6 + j, 0, (i === 1 && (j === 1 || j === 2)) ? C.RED : (j === 0 || j === 3 ? C.WHT_D : C.WHT));
-    ch.set(0, -3, 0, C.WHT_D);
-    const charm = new THREE.Group(); charm.position.set(0, -2 * S, 2 * S);
-    charm.add(VX.meshPair(VX.meshGrid(ch, S, {}), mat, { glowMat: gmat }));
-    group.add(charm);
-    return { kind: 'cane', root: group, charm, mat, gmat, length: 49 * S, tip: -40 };
   }
 
   /* -------------------------------------------- a single playing card -- */
@@ -165,14 +127,14 @@
   function cardMesh(suit, mat) {
     if (!CARD_GEO[suit]) {
       const g = new VX.Grid(); g.jit = 0.02;
-      for (let i = 0; i < 7; i++) for (let j = 0; j < 9; j++) g.set(i - 3, j - 4, 0, (i === 0 || i === 6 || j === 0 || j === 8) ? C.WHT_D : C.WHT);
-      const bm = T.PIP[suit];
-      for (let r = 0; r < 6; r++) for (let c = 0; c < 5; c++) if (bm[r][c] === '#') g.set(c - 2, 2 - r, 0, SUIT_RED[suit] ? C.RED : C.BLACK);
+      g.box(-3, -4, 0, 3, 4, 0, C.WHT);
+      const face = T.cardFace(7, 9, suit, 'A', {});
+      g.tex = { test: () => 3, color: (px, py) => { const c = face(px + 3.5, py + 4.5); return c < 0 ? C.WHT_D : c; } };
       CARD_GEO[suit] = VX.meshGrid(g, S * 1.1, { ao: false });
     }
     const m = new THREE.Mesh(CARD_GEO[suit].lit, mat || VX.litMat());
     return m;
   }
 
-  window.PROPS = { umbrella, cane, cardMesh, HUB_Y, CAN_R };
+  window.PROPS = { umbrella, cardMesh, HUB_Y, CAN_R };
 })();
