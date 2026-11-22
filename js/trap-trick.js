@@ -105,7 +105,11 @@
     else { g.set(cx, cy, cz, BD); g.set(cx + out, cy, cz, B); g.set(cx, cy - 1, cz, BD); g.set(cx, cy + 1, cz, BD); }
   }
 
-  function build() {
+  /* The head is one flat-fronted block: the face sits on a single plane, chin to brow.
+     opts.blockFace = false brings back the first version, whose jaw stepped back twice below the eyes. */
+  function build(opts) {
+    opts = opts || {};
+    const BLOCK = opts.blockFace !== false;
     const M = new VX.Model(S);
     const meta = { S, J, C, panels: [], chains: [], dangles: [], sockets: {} };
 
@@ -280,8 +284,10 @@
 
     /* ============================================================== HEAD == */
     const head = M.part('head', 'neck', [0, J.head, 0], { defaultVariant: 'smug' });
-    const SKULL = { 57: [2, -1, 3], 58: [4, -3, 4], 59: [5, -4, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 4], 69: [5, -4, 3] };
-    const inPlate = (x, y, z) => (y >= 59 && y <= 65 && z === 5 && Math.abs(x) <= 5) || (y === 58 && z === 4 && Math.abs(x) <= 4);
+    const SKULL = BLOCK ? { 57: [6, -5, 5], 58: [6, -5, 5], 59: [6, -5, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 5], 69: [6, -5, 5] }
+                        : { 57: [2, -1, 3], 58: [4, -3, 4], 59: [5, -4, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 4], 69: [5, -4, 3] };
+    const MOUTH_Z = BLOCK ? 5 : 4;   // the mouth row sits on the face plane, or a step back on the jaw
+    const inPlate = (x, y, z) => (y >= 59 && y <= 65 && z === 5 && Math.abs(x) <= 5) || (y === 58 && z === MOUTH_Z && Math.abs(x) <= (BLOCK ? 5 : 4)) || (BLOCK && y === 57 && z === 5 && Math.abs(x) <= 5);
     const inSkull = (x, y, z) => {
       const S2 = SKULL[y]; if (!S2) return false;
       const [w, z0, z1] = S2;
@@ -291,7 +297,7 @@
     };
     for (let y = 57; y <= 69; y++) for (let x = -6; x <= 6; x++) for (let z = -5; z <= 5; z++) {
       if (!inSkull(x, y, z) || inPlate(x, y, z)) continue;
-      head.set(x, y, z, z === 5 || (y <= 58) ? C.SKIN : C.SKIN2);
+      head.set(x, y, z, z === 5 || (!BLOCK && y <= 58) ? C.SKIN : C.SKIN2);
     }
     head.set(7, 61, 0, C.SKIN2); head.set(-7, 61, 0, C.SKIN2);   // ears (mostly under hair)
 
@@ -337,8 +343,8 @@
     };
     for (const name in faceDefs) {
       const v = M.variant('head', name);
-      for (let x = -5; x <= 5; x++) { for (let y = 59; y <= 65; y++) v.set(x, y, 5, C.SKIN); if (Math.abs(x) <= 4) v.set(x, 58, 4, C.SKIN); }
-      faceDefs[name]((x, y, c) => { const z = y === 58 ? 4 : 5; if (inPlate(x, y, z)) v.set(x, y, z, c); });
+      for (let x = -5; x <= 5; x++) for (let y = 57; y <= 65; y++) { const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, C.SKIN); }
+      faceDefs[name]((x, y, c) => { const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, c); });
       FACE[name] = v;
     }
     meta.faces = Object.keys(faceDefs);
