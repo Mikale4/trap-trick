@@ -636,13 +636,23 @@
   // run(c, t, O, dur): O.e[part] = [x,y,z] (Euler), O.ik[side] = {g,d,f} (chest space), O.hands[side], O.face, O.spin, O.lift, O.hips
   const free = c => c.items.umbrella.st !== 'away' && c.items.umbrella.st !== 'leaving' ? 'L' : 'R';
   const ACTIONS = {
+    /* a real wave: the elbow out to her side at about shoulder height, held still, and the forearm swinging side to
+       side about it; the hand stays in line with the forearm, palm out, and flicks a little behind each swing */
     wave: {
-      dur: 1.9, lock: false, run(c, t, O) {
+      dur: 2.2, lock: false, fi: 0.25, fo: 0.3, run(c, t, O, dur) {
         const s = free(c), sx = s === 'L' ? 1 : -1;
-        O.ik[s] = { g: mir(s, 12.5, 15, 4), d: V3(0, 1, 0.1), f: V3(sx * 0.4, 1, 0.2), pole: V3(sx, -0.6, -0.2) };
-        O.e['hand' + s] = [0, 0, sx * Math.sin(t * 11) * 0.45];
+        const w = 12.5, ph = Math.max(0, t - 0.2) * w, ramp = Math.min(1, t / 0.35);
+        const a = 0.42 * Math.sin(ph) * ramp;                          // the forearm's swing about the elbow
+        const b = a + 0.2 * Math.sin(ph - 1.2) * ramp;                 // the hand trails it a little (follow-through)
+        const Sh = SH[s], E = Sh.clone().add(V3(sx * 0.6, -0.65, 0.45).normalize().multiplyScalar(UPPER));
+        const fore = V3(sx * Math.sin(a), Math.cos(a), 0.12).normalize();
+        const W = E.clone().addScaledVector(fore, FORE);               // the wrist, on the forearm's circle
+        const f = V3(sx * Math.sin(b), Math.cos(b), 0.12).normalize(); // fingers up, in line with the forearm
+        const d = V3(-sx * Math.cos(b), Math.sin(b), 0);               // thumb toward her head, square to the fingers
+        O.ik[s] = { g: W.clone().addScaledVector(f, GRIP), d, f, pole: E.clone().sub(Sh.clone().add(W).multiplyScalar(0.5)) };
         O.hands[s] = 'open'; O.face = 'smile';
-        O.e.head = [-0.04, sx * 0.15, sx * 0.12];
+        O.e.head = [-0.03, sx * 0.12, sx * 0.16];
+        O.e.chest = [0, sx * 0.08, -sx * 0.04];
       },
     },
     point: {
