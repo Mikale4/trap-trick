@@ -26,7 +26,7 @@
     SKIN: 0xfadfd2, SKIN2: 0xf1c6b6, BLUSH: 0xf49db2,
     HAIR: 0xd8479c, HAIR_L: 0xf27dc4, HAIR_D: 0xa93079, HAIR_DD: 0x7a1d58,
     EYE_D: 0x4b0c46, EYE: 0xb52282, EYE_L: 0xf36fcb, LASH: 0x2b1429, WHITE: 0xffffff,
-    MOUTH: 0xc9506c, MOUTH_D: 0x84253f, TONGUE: 0xf27c93,
+    MOUTH: 0xc9506c, MOUTH_D: 0x84253f, TONGUE: 0xf27c93, TEETH: 0xfdf7fb,
     NAVY: 0x1e2260, NAVY_D: 0x131641, NAVY_L: 0x2e3889,
     BLUE: 0x3a5fe0, BLUE_D: 0x243fa6, BLUE_L: 0x7090f4,
     ICE: 0xc3d0f8, ICE_D: 0x95a7e4,
@@ -284,10 +284,11 @@
 
     /* ============================================================== HEAD == */
     const head = M.part('head', 'neck', [0, J.head, 0], { defaultVariant: 'smug' });
-    const SKULL = BLOCK ? { 57: [6, -5, 5], 58: [6, -5, 5], 59: [6, -5, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 5], 69: [6, -5, 5] }
+    const SKULL = BLOCK ? { 56: [1, -1, 5], 57: [3, -2, 5], 58: [4, -3, 5], 59: [5, -4, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 5], 69: [6, -5, 5] }
                         : { 57: [2, -1, 3], 58: [4, -3, 4], 59: [5, -4, 5], 60: [6, -5, 5], 61: [6, -5, 5], 62: [6, -5, 5], 63: [6, -5, 5], 64: [6, -5, 5], 65: [6, -5, 5], 66: [6, -5, 5], 67: [6, -5, 5], 68: [6, -5, 4], 69: [5, -4, 3] };
     const MOUTH_Z = BLOCK ? 5 : 4;   // the mouth row sits on the face plane, or a step back on the jaw
-    const inPlate = (x, y, z) => (y >= 59 && y <= 65 && z === 5 && Math.abs(x) <= 5) || (y === 58 && z === MOUTH_Z && Math.abs(x) <= (BLOCK ? 5 : 4)) || (BLOCK && y === 57 && z === 5 && Math.abs(x) <= 5);
+    const JAW = { 56: 1, 57: 3, 58: 4 };   // the block face's half-width on its bottom rows: a V-shaped chin
+    const inPlate = (x, y, z) => (y >= 59 && y <= 65 && z === 5 && Math.abs(x) <= 5) || (y === 58 && z === MOUTH_Z && Math.abs(x) <= 4) || (BLOCK && (y === 57 || y === 56) && z === 5 && Math.abs(x) <= JAW[y]);
     const inSkull = (x, y, z) => {
       const S2 = SKULL[y]; if (!S2) return false;
       const [w, z0, z1] = S2;
@@ -295,14 +296,14 @@
       if (Math.abs(x) === w && (z === z0 || z === z1) && w >= 5) return false;   // round the corners
       return true;
     };
-    for (let y = 57; y <= 69; y++) for (let x = -6; x <= 6; x++) for (let z = -5; z <= 5; z++) {
+    for (let y = BLOCK ? 56 : 57; y <= 69; y++) for (let x = -6; x <= 6; x++) for (let z = -5; z <= 5; z++) {
       if (!inSkull(x, y, z) || inPlate(x, y, z)) continue;
       head.set(x, y, z, z === 5 || (!BLOCK && y <= 58) ? C.SKIN : C.SKIN2);
     }
     head.set(7, 61, 0, C.SKIN2); head.set(-7, 61, 0, C.SKIN2);   // ears (mostly under hair)
 
     /* the faces: each draws the whole plate (skin + features) */
-    const FACE = {};
+    const FACE = {}, MOUTHS = new Set([C.MOUTH, C.MOUTH_D, C.TONGUE, C.TEETH]);
     const eyeOpen = (put, s) => {            // s = +1 her left eye (x 1..4), -1 her right; 4 rows of iris under the lash
       const X = i => s * (2 + i);            // i 0 inner .. 2 outer
       for (let i = -1; i <= 3; i++) put(s * (2 + i), 64, C.LASH);
@@ -333,18 +334,25 @@
     };
     const blush = put => { for (const s of [1, -1]) { put(s * 4, 59, C.BLUSH); put(s * 5, 59, C.BLUSH); put(s * 5, 60, C.BLUSH); } };
     const faceDefs = {
-      smug: put => { eyeHalf(put, 1); eyeHalf(put, -1); blush(put); put(0, 58, C.MOUTH); put(1, 58, C.MOUTH); put(2, 59, C.MOUTH); },
+      smug: put => { eyeHalf(put, 1); eyeHalf(put, -1); blush(put); put(-1, 58, C.MOUTH); put(0, 58, C.MOUTH); put(1, 59, C.MOUTH); },   // a centred smirk, one corner up
       smile: put => { eyeOpen(put, 1); eyeOpen(put, -1); blush(put); put(-1, 58, C.MOUTH); put(0, 58, C.MOUTH); put(1, 58, C.MOUTH); },
       happy: put => { eyeClosedArc(put, 1); eyeClosedArc(put, -1); blush(put); put(-2, 59, C.MOUTH_D); put(-1, 59, C.MOUTH_D); put(0, 59, C.MOUTH_D); put(1, 59, C.MOUTH_D); put(2, 59, C.MOUTH_D); put(-1, 58, C.MOUTH_D); put(0, 58, C.TONGUE); put(1, 58, C.MOUTH_D); },
       pout: put => { eyeCross(put, 1); eyeCross(put, -1); for (const s of [1, -1]) { put(s * 3, 59, C.BLUSH); put(s * 4, 59, C.BLUSH); put(s * 5, 59, C.BLUSH); } put(-1, 58, C.MOUTH); put(0, 58, C.MOUTH_D); put(1, 58, C.MOUTH); },
-      surprised: put => { eyeOpen(put, 1); eyeOpen(put, -1); put(0, 58, C.MOUTH_D); put(0, 59, C.MOUTH_D); put(-1, 58, C.MOUTH); put(1, 58, C.MOUTH); },
+      surprised: put => {
+        eyeOpen(put, 1); eyeOpen(put, -1);
+        if (BLOCK) {   // as on the sheet's "!?" face: a small open mouth, upper teeth over a dark inside (drawn a row high; mouths drop a row)
+          put(-2, 59, C.MOUTH); put(-1, 59, C.TEETH); put(0, 59, C.TEETH); put(1, 59, C.TEETH); put(2, 59, C.MOUTH);
+          put(-1, 58, C.MOUTH_D); put(0, 58, C.TONGUE); put(1, 58, C.MOUTH_D);
+        } else { put(0, 58, C.MOUTH_D); put(0, 59, C.MOUTH_D); put(-1, 58, C.MOUTH); put(1, 58, C.MOUTH); }
+      },
       wink: put => { eyeOpen(put, 1); eyeClosedArc(put, -1); blush(put); put(-2, 59, C.MOUTH); put(-1, 58, C.MOUTH); put(0, 58, C.MOUTH_D); put(1, 58, C.TONGUE); put(2, 59, C.MOUTH); },
-      blink: put => { eyeShut(put, 1); eyeShut(put, -1); blush(put); put(0, 58, C.MOUTH); put(1, 58, C.MOUTH); put(2, 59, C.MOUTH); },
+      blink: put => { eyeShut(put, 1); eyeShut(put, -1); blush(put); put(-1, 58, C.MOUTH); put(0, 58, C.MOUTH); put(1, 59, C.MOUTH); },
     };
     for (const name in faceDefs) {
       const v = M.variant('head', name);
-      for (let x = -5; x <= 5; x++) for (let y = 57; y <= 65; y++) { const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, C.SKIN); }
-      faceDefs[name]((x, y, c) => { const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, c); });
+      for (let x = -5; x <= 5; x++) for (let y = 56; y <= 65; y++) { const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, C.SKIN); }
+      // on the block face every mouth sits a row lower than it's drawn, leaving a clear row under the eyes and a chin below
+      faceDefs[name]((x, y, c) => { if (BLOCK && MOUTHS.has(c)) y -= 1; const z = y === 58 ? MOUTH_Z : 5; if (inPlate(x, y, z)) v.set(x, y, z, c); });
       FACE[name] = v;
     }
     meta.faces = Object.keys(faceDefs);
@@ -361,7 +369,7 @@
     // puffy sides over the ears
     for (const s of [1, -1]) head.ell(s * 7.6, 61.5, -0.8, 2.3, 4.6, 3.6, (x, y, z) => inSkull(x, y, z) ? -1 : curl(x, y, z));
     // the bangs: a fringe at z 6 with jagged strands
-    const BANG = { '-7': 57, '-6': 58, '-5': 62, '-4': 65, '-3': 66, '-2': 64, '-1': 65, '0': 66, '1': 65, '2': 64, '3': 66, '4': 65, '5': 62, '6': 58, '7': 57 };
+    const BANG = { '-7': BLOCK ? 58 : 57, '-6': BLOCK ? 59 : 58, '-5': 62, '-4': 65, '-3': 66, '-2': 64, '-1': 65, '0': 66, '1': 65, '2': 64, '3': 66, '4': 65, '5': 62, '6': BLOCK ? 59 : 58, '7': BLOCK ? 58 : 57 };
     for (let x = -7; x <= 7; x++) {
       const bottom = BANG[x];
       for (let y = bottom; y <= 69; y++) {
