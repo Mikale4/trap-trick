@@ -118,10 +118,11 @@
     ankle: 7.5, knee: 20.5, hip: 34.5, legX: 3,
     pelvis: 37.5, waist: 42.5, chest: 47.5, neck: 54.5, head: 56.5, hat: 70,
     shoulder: 53.5, elbow: 44.5, wrist: 36.5, armX: 8,
-    skirtTop: 44.5, skirtHinge: 6,
+    skirtTop: 44.5, skirtHinge: 4.5,
   };
-  /* the skirt's outer radius, row by row (a poofy bell: waist 44 to hem 30) */
-  const SK = { 44: 7.0, 43: 8.8, 42: 10.2, 41: 11.3, 40: 12.1, 39: 12.7, 38: 13.1, 37: 13.4, 36: 13.6, 35: 14.1, 34: 14.5, 33: 14.8, 32: 15.1, 31: 15.3, 30: 15.6 };
+  /* the skirt's outer radius, row by row: it starts AT her narrow waist (row 44) and domes out over the pleated
+     top tier to the card band (40-35), then the ruffles flare to the hem (29), as on the sheet */
+  const SK = { 44: 5.0, 43: 7.0, 42: 8.9, 41: 10.4, 40: 11.6, 39: 12.4, 38: 12.9, 37: 13.3, 36: 13.6, 35: 13.9, 34: 14.4, 33: 14.7, 32: 15.0, 31: 15.3, 30: 15.6, 29: 15.8 };
   const PANELS = 12, PW = TAU / PANELS;
   const panelOf = th => Math.floor((((th + PW / 2) % TAU) + TAU) % TAU / PW) % PANELS;
 
@@ -172,12 +173,12 @@
     // bloomers
     hips.ell(0, 37.5, 0, 5.5, 5, 4, (x, y, z) => y < 32 ? -1 : (y < 34 ? C.WHT_D : C.WHT));
     // the petticoat under the panels (shows in the gaps when the skirt flares)
-    for (let y = 31; y <= 43; y++) {
+    for (let y = 30; y <= 42; y++) {
       const R = SK[y] - 2.2;
       ringRow(hips, 0, 0, R - 0.8, R, y, (x, yy, z) => {
         const th = Math.atan2(x, z);
-        if (yy === 31) return Math.cos(th * 30) > 0 ? C.PINKL : -1;
-        return yy < 34 ? ((Math.cos(th * 30) > 0.3) ? C.PINKL : C.WHT) : C.WHT_D;
+        if (yy === 30) return Math.cos(th * 30) > 0 ? C.PINKL : -1;
+        return yy < 33 ? ((Math.cos(th * 30) > 0.3) ? C.PINKL : C.WHT) : C.WHT_D;
       });
     }
 
@@ -197,30 +198,24 @@
       const th = Math.atan2(x, z), i = panelOf(th), thc = i * PW;
       let dth = th - thc; if (dth > Math.PI) dth -= TAU; if (dth < -Math.PI) dth += TAU;
       const u = dth * d;                                   // arc offset from the panel's middle, in voxels
-      if (y >= 42) {                                       // pleats
+      if (y >= 41) {                                       // pleats
         if (y === 44) return C.NAVY_D;
         const k = Math.floor((th + Math.PI) * d / 2) % 3;
         return k === 0 ? C.PERI_D : (k === 1 ? C.PERI : (y === 43 ? C.ICE : C.PERI));
       }
-      if (y >= 36) {                                       // the card band
-        const suit = SUITS[i % 4], row = 41 - y, col = Math.round(u) + 2;
-        if (Math.abs(u) > 2.9) return y === 36 ? C.NAVY : C.ICE_D;     // card edges
-        if (y === 36) return Math.abs(u) > 2.4 ? C.NAVY : C.WHT;
-        if (pipAt(PIP[suit], col, row)) return SUIT_RED[suit] ? C.RED : C.BLACK;
-        return C.WHT;
-      }
-      if (y >= 34) return y === 34 ? (scal ? C.BLUE_D : -1) : (Math.cos(th * 36) > 0.2 ? C.BLUE_L : C.BLUE);
-      if (y >= 32) return y === 32 ? (scal ? C.PINKL : -1) : C.WHT;
-      return y === 30 ? (scal ? C.LILAC : -1) : C.NAVY;
+      if (y >= 35) return C.WHT;                           // the card band (painted finely, below)
+      if (y >= 33) return y === 33 ? (scal ? C.BLUE_D : -1) : (Math.cos(th * 36) > 0.2 ? C.BLUE_L : C.BLUE);
+      if (y >= 31) return y === 31 ? (scal ? C.PINKL : -1) : C.WHT;
+      return y === 29 ? (scal ? C.LILAC : -1) : C.NAVY;
     };
-    for (let y = 30; y <= 44; y++) {
+    for (let y = 29; y <= 44; y++) {
       const R = SK[y];
       for (let x = -17; x <= 17; x++) for (let z = -17; z <= 17; z++) {
         const d = Math.hypot(x, z), th = Math.atan2(x, z);
         const scal = Math.cos(th * 36) > -0.25;              // scallops on the ruffles' lower rows
-        const bump = (y === 35 || y === 33 || y === 31) ? 0.6 : 0;   // each ruffle's frill stands proud
-        const Ro = R + bump + (scal && (y === 34 || y === 32 || y === 30) ? 0.4 : 0);
-        if (d > Ro + 0.45 || d < Ro - 1.9) continue;
+        const bump = (y === 34 || y === 32 || y === 30) ? 0.6 : 0;   // each ruffle's frill stands proud
+        const Ro = R + bump + (scal && (y === 33 || y === 31 || y === 29) ? 0.4 : 0);
+        if (d > Ro + 0.45 || d < Ro - (y === 44 ? 1.2 : 1.9)) continue;   // (the waistband is thin: it hugs the corset)
         const c = skirtColour(x, y, z, d, R, scal);
         if (c == null || c < 0) continue;
         skirtG[panelOf(th)].set(x, y, z, c);
@@ -229,27 +224,18 @@
     // the card band, painted finely: one card per panel, big suit in the middle, little suits in the corners
     const BAND_W = 6.6, bandFace = SUITS.map(su => cardFace(BAND_W, 6, su, 'A', { index: 'pip', big: 0.64, bigH: 0.56 }));
     const bandTex = {
-      test: (x, y, z) => { const d = Math.hypot(x, z); return (y >= 36 && y <= 41 && d > SK[y] - 1.0 && d < SK[y] + 0.8) ? 3 : 0; },   // (not the ribbons laid over it)
+      test: (x, y, z) => { const d = Math.hypot(x, z); return (y >= 35 && y <= 40 && d > SK[y] - 1.0 && d < SK[y] + 0.8) ? 3 : 0; },   // (not the ribbons laid over it)
       color: (px, py, pz, v) => {
         const th = Math.atan2(px, pz), i = panelOf(th);
         let dth = th - i * PW; if (dth > Math.PI) dth -= TAU; if (dth < -Math.PI) dth += TAU;
-        const cv = py - 35.5, c = bandFace[i % 4]((dth / PW + 0.5) * BAND_W, cv);
+        const cv = py - 34.5, c = bandFace[i % 4]((dth / PW + 0.5) * BAND_W, cv);
         return c >= 0 ? c : (cv < 3 ? C.NAVY : C.PERI_D);          // between the cards' round corners
       },
     };
     for (const g of skirtG) g.tex = bandTex;
-    // the navy bow at the front of the waist with a red gem, its two ribbons falling over the pleats and the cards
-    for (let i = -4; i <= 4; i++) {
-      const a = Math.abs(i); if (!a) continue;
-      const half = a >= 3 ? 2 : 1;
-      for (let j = -half; j <= half; j++) {
-        const y = 43 + j, z = Math.round((SK[y] || 7) + 0.9);
-        skirtG[0].set(i, y, z, a === 4 || Math.abs(j) === half ? C.NAVY_D : (j > 0 ? C.NAVY_L : C.NAVY));
-      }
-    }
-    skirtG[0].set(0, 43, Math.round(SK[43] + 1.9), VX.glow(C.RED)); skirtG[0].set(0, 42, Math.round(SK[42] + 0.9), C.NAVY_D); skirtG[0].set(0, 44, Math.round(SK[44] + 0.9), C.NAVY_D);
-    for (const sd of [1, -1]) for (let y = 36; y <= 41; y++) {
-      const x0 = sd * (1 + Math.floor((41 - y) / 3)), w = y === 36 ? 0 : 1;
+    // two navy ribbons from the waist bow (on the corset) down over the pleats and the cards
+    for (const sd of [1, -1]) for (let y = 35; y <= 43; y++) {
+      const x0 = sd * (1 + Math.floor((43 - y) / 3)), w = y === 35 ? 0 : 1;
       for (let k = 0; k <= w; k++) { const x = x0 + sd * k, R = SK[y] + 1.2; skirtG[0].set(x, y, Math.round(Math.sqrt(Math.max(0, R * R - x * x))), k === w && w ? C.NAVY_L : C.NAVY); }
     }
 
@@ -265,28 +251,30 @@
     }
 
     /* ============================================================ BACK BOW == */
-    const bowG = M.part('bow', 'hips', [0, 43, -10]);
-    const outside = (x, y) => { const R = (SK[y] || 7) + 0.8; return Math.abs(x) >= R ? 0 : -Math.sqrt(R * R - x * x); };
+    const bowG = M.part('bow', 'hips', [0, 42, -12.6]);
+    const zPlane = y => -12.6 + (y - 42) * 0.55;   // the bow stands nearly upright, leaning back a little toward the waist
+    const outside = (x, y) => { if (y > 44) return -4.4; const R = SK[y] + 0.8; return Math.abs(x) >= R ? -4.4 : -Math.sqrt(R * R - x * x); };
     for (const s of [1, -1]) {
       for (let a = 1; a <= 9; a++) {
         const half = Math.min(4, Math.round(1 + a * 0.38));
         for (let j = -half; j <= half; j++) {
-          const x = s * a, y = 44 + j + (a > 6 ? 1 : 0);
-          const z0 = Math.min(-9.6, outside(x, y));
+          const x = s * a, y = 42 + j + (a > 6 ? 1 : 0);
+          const z0 = Math.min(zPlane(y) + 1, outside(x, y));
           const edge = a === 9 || Math.abs(j) === half, fold = a === 3 || a === 6;
           const c = edge ? C.BLUE_D : fold ? C.BLUE_D : (j > 0 ? C.BLUE_L : C.BLUE);
-          bowG.set(x, y, Math.round(z0), c); bowG.set(x, y, Math.round(z0) - 1, edge ? C.BLUE_D : C.BLUE);
+          bowG.set(x, y, Math.round(z0) - 1, c); bowG.set(x, y, Math.round(z0) - 2, edge ? C.BLUE_D : C.BLUE);   // (a voxel off the skirt: the bow lies on it)
         }
       }
     }
-    bowG.box(-1, 43, -12, 1, 45, -10, C.BLUE_D); bowG.box(0, 44, -13, 0, 44, -13, C.BLUE); bowG.set(0, 44, -13, C.BLUE_L);
+    for (let y = 41; y <= 43; y++) for (let x = -1; x <= 1; x++) { const z0 = Math.round(Math.min(zPlane(y) + 1, outside(x, y))); bowG.set(x, y, z0 - 2, C.BLUE_D); bowG.set(x, y, z0 - 3, C.BLUE_D); }
+    { const z0 = Math.round(Math.min(zPlane(42) + 1, outside(0, 42))); bowG.set(0, 42, z0 - 4, C.BLUE_L); bowG.set(0, 42, z0 - 5, VX.glow(C.GEM)); }
     // the tails: down the back of the skirt, then past the hem, each ending in a card
     for (const s of [1, -1]) {
       const n = s > 0 ? 'L' : 'R';
-      const t1 = M.part('tail' + n + '1', 'bow', [s * 1.5, 42.5, -11]);
+      const t1 = M.part('tail' + n + '1', 'bow', [s * 1.5, 41, -13.2]);
       const t2 = M.part('tail' + n + '2', 'tail' + n + '1', [s * 6.5, 31.5, -15.6]);
-      for (let y = 32; y <= 42; y++) {
-        const R = (SK[y] || 7) + 1.1, xc = s * (1.5 + (42 - y) * 0.5);
+      for (let y = 32; y <= 40; y++) {
+        const R = SK[y] + 1.6, xc = s * (1.5 + (40 - y) * 0.6);
         for (let k = -1; k <= 1; k++) {
           const x = Math.round(xc) + k, z = Math.round(-Math.sqrt(Math.max(0, R * R - x * x)));
           t1.set(x, y, z, k === s ? C.BLUE_D : C.BLUE); t1.set(x, y, z - 1, C.BLUE_D);
@@ -312,10 +300,14 @@
     const corset = (x, y, z) => {
       if (z >= 3 && x === 0 && (y & 1) === 0) return C.PINK;           // the button row
       if (z >= 2 && Math.abs(x) === 2) return C.BLACK_L;               // seams
-      if (Math.abs(x) >= 4 && z > -2) return C.BLUE_D;                 // blue side panels
+      if (Math.abs(x) >= (y >= 46 ? 4 : 3) && z > -2 && z < 3) return C.BLUE_D;   // blue side panels
       return C.BLACK;
     };
-    for (let y = 43; y <= 47; y++) torsoRow(spine, y, y < 46 ? 4.4 : 5.0, 3.3, corset);
+    const WAIST = { 43: [3.2, 2.9], 44: [3.3, 2.9], 45: [3.5, 3.0], 46: [4.0, 3.1], 47: [4.5, 3.2] };   // [half-width, half-depth]
+    for (let y = 43; y <= 47; y++) torsoRow(spine, y, WAIST[y][0], WAIST[y][1], corset);
+    // the light waist bow at the bottom of the corset, a red gem in its knot (sheet 2)
+    bow(spine, 0, 46, 4, 3, 1, 'x', 1, [C.ICE, C.PERI_D, C.WHT]);
+    spine.set(0, 46, 5, VX.glow(C.RED));
 
     /* ============================================================ BODICE == */
     const chest = M.part('chest', 'spine', [0, J.chest, 0]);
@@ -326,7 +318,7 @@
       if (front && Math.abs(x) === 3) return C.BLUE_L;
       return (Math.abs(x) + y) % 5 === 0 ? C.NAVY_L : C.NAVY;
     };
-    torsoRow(chest, 48, 5.2, 3.4, bodice, 3.6);
+    torsoRow(chest, 48, 4.9, 3.3, bodice, 3.5);
     torsoRow(chest, 49, 5.4, 3.4, bodice, 4.3);
     torsoRow(chest, 50, 5.6, 3.4, bodice, 4.4);
     torsoRow(chest, 51, 5.8, 3.4, bodice, 3.9);
