@@ -38,6 +38,23 @@ Y open/close, LB umbrella, LT tilt, RT carry, d-pad emotes, R3 sit, Start help.
 With nothing pressed for a while she fidgets: looks around, fixes her hat, rocks on her heels, or idly
 twirls the open umbrella. She blinks.
 
+## The desktop version (Godot)
+
+`godot/` is the same game as a desktop project for **Godot 4.7.2** (the standard build, not .NET). Same model, plaza,
+controls and gamepad mapping as above.
+
+- **Play:** double-click **`godot/Play Trap Trick.bat`**. **Edit:** **`godot/Open in Godot editor.bat`**. Both expect
+  Godot at `C:\Games\Godot\Godot_v4.7.2-stable_win64.exe`; change the path in the `.bat` if yours lives elsewhere, or
+  open `godot/project.godot` from Godot's project manager.
+- **Assets** (`godot/assets/`) are baked from the web version's builders, so the two never drift apart: her rig with
+  every face and hand variant (`trap_trick.glb`), the umbrella (`umbrella.glb`), the puff cards (`cards.glb`), the
+  plaza (`world.glb`, `ground.png`) and the joint, pivot, spring and collider data (`bake.json`). After changing anything
+  in `js/`, re-bake with `node tools/bake_godot.js`.
+- **Scripts:** `godot/scripts/main.gd` (scene, lighting, camera, input, HUD), `trap_trick.gd` (the character: the same
+  movement, gait, IK, actions and springs as `js/anim.js`) and `fx.gd` (card puffs, dust, the card fan).
+- **Testing from the command line:** `Godot --path godot -- --shot=out.png --walk --do=umbrella,open,wave --at=120`
+  saves a screenshot after a scripted run (`--run`, `--cam=yaw,pitch,dist` too).
+
 ## The skeleton
 
 The model is painted in one shared space (1 voxel = 2.4 cm; she stands 69 voxels, 1.65 m, 80 with the hat) and split
@@ -98,6 +115,8 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/fx.js` | card puffs, dust, the card fan |
 | `js/main.js` | renderer, camera, input, HUD |
 | `tools/serve.py` | the local server (caching off) |
+| `tools/bake_godot.js` | bakes the model, umbrella, cards and plaza into `godot/assets/` for the desktop version |
+| `godot/` | the Godot desktop version |
 
 Kept on the local machine only (not in the repository): `reference/` (the character sheets), `tools/viewer.html`
 (a model viewer: `?views=front,side,back&face=happy&item=umbrella&open=1`) and `tools/sheet.js` (renders a strip of

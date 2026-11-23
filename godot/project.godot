@@ -1,0 +1,23 @@
+; Engine configuration file.
+; Trap Trick -- the Godot port. The voxel models are baked from the web builders by tools/bake_godot.js.
+
+config_version=5
+
+[application]
+
+config/name="Trap Trick"
+config/description="A jointed voxel performer with a playing-card umbrella, in an open garden plaza."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.7", "Forward Plus")
+config/icon="res://icon.svg"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2
+lights_and_shadows/directional_shadow/size=4096
+textures/default_filters/use_nearest_mipmap_filter=true

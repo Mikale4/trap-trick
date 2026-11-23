@@ -1,6 +1,7 @@
-# Only the playable game goes in the repository: the page, its scripts and three.js, and the
-# local launcher. The reference sheets, the dev tools (model viewer, contact sheets) and the
-# editor settings stay on this machine.
+# Only the playable game goes in the repository: the web page, its scripts and three.js, the
+# local launcher, and the Godot desktop version with the script that bakes its assets. The
+# reference sheets, the dev tools (model viewer, contact sheets) and the editor settings stay
+# on this machine. Godot's own import cache (godot/.godot/) is ignored by godot/.gitignore.
 /*
 !/README.md
 !/index.html
@@ -10,6 +11,8 @@
 !/css/
 !/js/
 !/lib/
+!/godot/
 !/tools/
 /tools/*
 !/tools/serve.py
+!/tools/bake_godot.js
