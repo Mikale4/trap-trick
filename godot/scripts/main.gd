@@ -53,6 +53,7 @@ var shot_mode := ""
 var shot_at := 150
 var shot_do: PackedStringArray = []
 var shot_cam := Vector3.ZERO
+var shot_camy := 0.0                # dev: raise the camera's target (m), e.g. to frame her head
 var dev_hold_jump := false
 var frames := 0
 var light_off: PackedStringArray = []   # dev: rich-lighting features to leave off (ssao, soft, sky, glow, haze)
@@ -70,6 +71,7 @@ func _ready() -> void:
 		elif a.begins_with("--no="): light_off = a.substr(5).split(",")
 		elif a.begins_with("--at="): shot_at = int(a.substr(5))
 		elif a.begins_with("--do="): shot_do = a.substr(5).split(",")
+		elif a.begins_with("--camy="): shot_camy = float(a.substr(7))
 		elif a.begins_with("--cam="):
 			var c := a.substr(6).split(",")
 			shot_cam = Vector3(float(c[0]), float(c[1]), float(c[2]))
@@ -135,7 +137,7 @@ func _environment() -> void:
 	env.sky = sky
 	# lit like the web version: a soft, near-neutral fill and a warm sun, no film tonemapping (it washes the colours out)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.8, 0.83, 0.92)
+	env.ambient_light_color = Color(0.86, 0.84, 0.88)
 	env.ambient_light_energy = 0.55
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.fog_enabled = true
@@ -154,7 +156,7 @@ func _environment() -> void:
 	sun.transform = Transform3D(Basis.looking_at(-SUN_DIR.normalized(), Vector3.UP), Vector3.ZERO)
 	add_child(sun)
 	# the rich lighting's settings (switched on and off in _set_lighting)
-	env.ambient_light_sky_contribution = 0.4
+	env.ambient_light_sky_contribution = 0.22
 	env.ssao_radius = 0.35
 	env.ssao_intensity = 4.0
 	env.ssao_power = 1.8
@@ -168,7 +170,7 @@ func _environment() -> void:
 
 ## Two lighting levels, L switches. Simple is the web version's look. Rich adds: ambient occlusion in the creases and
 ## where things meet the ground, sun shadows that soften with distance (crisp at her feet, blurred further out), a fill
-## light faintly tinted by the sky (bluer from above, greener from the lawn below), a glow around the gems and the lamp
+## light faintly tinted by the sky (bluer from above, greener from the lawn below), a glow around the lamp
 ## heads, and haze toward the far hills. It roughly doubles the frame time (Intel UHD, 1280x720: about 70 fps vs 130).
 func _set_lighting(rich: bool) -> void:
 	rich_light = rich
@@ -180,10 +182,9 @@ func _set_lighting(rich: bool) -> void:
 	sun.light_angular_distance = 1.5 if on.call("soft") else 0.0
 	RenderingServer.directional_soft_shadow_filter_set_quality(
 		RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM if on.call("soft") else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
-	# the glowing voxels go past white, so the glow picks out only the gems and lamp heads (nothing else gets that bright)
+	# the lamp heads go past white, so the glow picks out only them (her gems stay as on the web: a glow made them LEDs)
 	var k := 1.6 if on.call("glow") else 1.0
-	for m: BaseMaterial3D in [glow_mat, tt.mats[1]]:
-		m.albedo_color = Color(k, k, k, m.albedo_color.a)
+	glow_mat.albedo_color = Color(k, k, k)
 
 
 func _ground() -> void:
@@ -320,6 +321,7 @@ func _input_state(dt: float) -> Dictionary:
 	for code in pressed:
 		match code:
 			KEY_1: tt.toggle_item()
+			KEY_2: tt.toggle_hat()
 			KEY_F: tt.toggle_open()
 			KEY_R: tt.cycle_tilt()
 			KEY_Q: tt.toggle_carry()
@@ -330,7 +332,7 @@ func _input_state(dt: float) -> Dictionary:
 			KEY_C: tt.play("curtsy")
 			KEY_V: tt.play("spin")
 			KEY_B: tt.play("peace")
-			KEY_T: tt.play("hatTip")
+			KEY_T: tt.hat_gesture()     # the hat tip, then (next press) the hat off and a bow
 			KEY_J: _toggle_skeleton()
 			KEY_L: _set_lighting(not rich_light)
 			KEY_H: hud_help.visible = not hud_help.visible
@@ -382,7 +384,7 @@ func _process(dt: float) -> void:
 
 
 func _update_camera(dt: float) -> void:
-	var want := Vector3(tt.position.x, tt.position.y * 0.6 + 1.05, tt.position.z)
+	var want := Vector3(tt.position.x, tt.position.y * 0.6 + 1.05 + shot_camy, tt.position.z)
 	cam_tgt.x += (want.x - cam_tgt.x) * (1.0 - exp(-12.0 * dt))
 	cam_tgt.z += (want.z - cam_tgt.z) * (1.0 - exp(-12.0 * dt))
 	cam_tgt.y += (want.y - cam_tgt.y) * (1.0 - exp(-6.0 * dt))
@@ -465,9 +467,9 @@ func _hud() -> void:
 	hv.add_child(grid)
 	for line in [
 		"W A S D  walk           ", "Shift  run    Space  jump",
-		"Drag  camera   Wheel  zoom", "1  umbrella out / away",
+		"Drag  camera   Wheel  zoom", "1  umbrella   2  hat off / on",
 		"F  open / close   R  tilt", "Q  carry / hold   E  trick",
-		"Z  wave   X  point   C  curtsy", "V  spin   B  pose   T  hat tip",
+		"Z  wave   X  point   C  curtsy", "V  spin   B  pose   T  tip / bow",
 		"G  sit (crates)   3-7  face", "J  skeleton   L  lighting",
 	]: grid.add_child(_label(line, 13, Color("d8ccf2")))
 	hv.add_child(_label("Umbrella open: jump, then hold Space to float down", 13, Color("f0c6e2")))
@@ -560,5 +562,6 @@ func _dev_commands() -> void:
 			dev_hold_jump = true
 		"skeleton": _toggle_skeleton()
 		"light": _set_lighting(not rich_light)
+		"nohat": tt.toggle_hat()
 		var a: tt.play(a)
 

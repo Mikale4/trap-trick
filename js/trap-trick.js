@@ -24,7 +24,7 @@
 
   const C = {
     SKIN: 0xfadfd2, SKIN2: 0xf1c6b6, BLUSH: 0xf49db2,
-    HAIR: 0xd8479c, HAIR_L: 0xf27dc4, HAIR_D: 0xa93079, HAIR_DD: 0x7a1d58,
+    HAIR: 0xf46cc6, HAIR_L: 0xff9edc, HAIR_D: 0xd84aa8, HAIR_DD: 0xae2f8a,   // bright pink (sheet 4)
     EYE_D: 0x4b0c46, EYE: 0xb52282, EYE_L: 0xf36fcb, LASH: 0x2b1429, WHITE: 0xffffff,
     MOUTH: 0xc9506c, MOUTH_D: 0x84253f, TONGUE: 0xf27c93, TEETH: 0xfdf7fb,
     NAVY: 0x1e2260, NAVY_D: 0x131641, NAVY_L: 0x2e3889,
@@ -120,9 +120,12 @@
     shoulder: 53.5, elbow: 44.5, wrist: 36.5, armX: 8,
     skirtTop: 44.5, skirtHinge: 4.5,
   };
-  /* the skirt's outer radius, row by row: it starts AT her narrow waist (row 44) and domes out over the pleated
-     top tier to the card band (40-35), then the ruffles flare to the hem (29), as on the sheet */
-  const SK = { 44: 5.0, 43: 7.0, 42: 8.9, 41: 10.4, 40: 11.6, 39: 12.4, 38: 12.9, 37: 13.3, 36: 13.6, 35: 13.9, 34: 14.4, 33: 14.7, 32: 15.0, 31: 15.3, 30: 15.6, 29: 15.8 };
+  /* the skirt's outer radius, row by row: it starts AT her narrow waist (row 44) and flares at a steady slope over the
+     pleated top tier to the card band (40-35), then the three ruffles bell out a little more to the hem (26). A bell,
+     about 1.5 times as wide as it is tall, as on the sheets (it used to dome out flat and run twice as wide as tall) */
+  const SK = { 44: 5.0, 43: 6.2, 42: 7.3, 41: 8.4, 40: 9.4, 39: 10.0, 38: 10.5, 37: 10.9, 36: 11.2, 35: 11.5, 34: 11.9, 33: 12.2,
+               32: 12.5, 31: 12.8, 30: 13.0, 29: 13.2, 28: 13.4, 27: 13.6, 26: 13.8 };
+  const HEM = 26;
   const PANELS = 12, PW = TAU / PANELS;
   const panelOf = th => Math.floor((((th + PW / 2) % TAU) + TAU) % TAU / PW) % PANELS;
 
@@ -173,19 +176,19 @@
     // bloomers
     hips.ell(0, 37.5, 0, 5.5, 5, 4, (x, y, z) => y < 32 ? -1 : (y < 34 ? C.WHT_D : C.WHT));
     // the petticoat under the panels (shows in the gaps when the skirt flares)
-    for (let y = 30; y <= 42; y++) {
+    for (let y = HEM + 1; y <= 42; y++) {
       const R = SK[y] - 2.2;
       ringRow(hips, 0, 0, R - 0.8, R, y, (x, yy, z) => {
         const th = Math.atan2(x, z);
-        if (yy === 30) return Math.cos(th * 30) > 0 ? C.PINKL : -1;
-        return yy < 33 ? ((Math.cos(th * 30) > 0.3) ? C.PINKL : C.WHT) : C.WHT_D;
+        if (yy === HEM + 1) return Math.cos(th * 30) > 0 ? C.PINKL : -1;
+        return yy < HEM + 4 ? ((Math.cos(th * 30) > 0.3) ? C.PINKL : C.WHT) : C.WHT_D;
       });
     }
 
     /* ============================================================= SKIRT == */
     // twelve panels hinged at the waist. Tiers, top to bottom:
-    //   44-42 pleated blue, 41-36 the card band (a card per panel), 35-34 blue ruffle,
-    //   33-32 white ruffle with pink edge, 31-30 navy ruffle with lilac scallops.
+    //   44-41 pleated blue, 40-35 the card band (a card per panel), 34-32 blue ruffle,
+    //   31-29 white ruffle with pink edge, 28-26 navy ruffle with lilac scallops.
     const SUITS = ['heart', 'spade', 'diamond', 'club'];
     const skirtG = [];
     for (let i = 0; i < PANELS; i++) {
@@ -204,17 +207,17 @@
         return k === 0 ? C.PERI_D : (k === 1 ? C.PERI : (y === 43 ? C.ICE : C.PERI));
       }
       if (y >= 35) return C.WHT;                           // the card band (painted finely, below)
-      if (y >= 33) return y === 33 ? (scal ? C.BLUE_D : -1) : (Math.cos(th * 36) > 0.2 ? C.BLUE_L : C.BLUE);
-      if (y >= 31) return y === 31 ? (scal ? C.PINKL : -1) : C.WHT;
-      return y === 29 ? (scal ? C.LILAC : -1) : C.NAVY;
+      if (y >= 32) return y === 32 ? (scal ? C.BLUE_D : -1) : (Math.cos(th * 36) > 0.2 ? C.BLUE_L : C.BLUE);
+      if (y >= 29) return y === 29 ? (scal ? C.PINKL : -1) : C.WHT;
+      return y === 26 ? (scal ? C.LILAC : -1) : C.NAVY;
     };
-    for (let y = 29; y <= 44; y++) {
+    for (let y = HEM; y <= 44; y++) {
       const R = SK[y];
       for (let x = -17; x <= 17; x++) for (let z = -17; z <= 17; z++) {
         const d = Math.hypot(x, z), th = Math.atan2(x, z);
         const scal = Math.cos(th * 36) > -0.25;              // scallops on the ruffles' lower rows
-        const bump = (y === 34 || y === 32 || y === 30) ? 0.6 : 0;   // each ruffle's frill stands proud
-        const Ro = R + bump + (scal && (y === 33 || y === 31 || y === 29) ? 0.4 : 0);
+        const bump = (y === 34 || y === 31 || y === 28) ? 0.6 : 0;   // each ruffle's frill stands proud
+        const Ro = R + bump + (scal && (y === 32 || y === 29 || y === 26) ? 0.4 : 0);
         if (d > Ro + 0.45 || d < Ro - (y === 44 ? 1.2 : 1.9)) continue;   // (the waistband is thin: it hugs the corset)
         const c = skirtColour(x, y, z, d, R, scal);
         if (c == null || c < 0) continue;
@@ -222,7 +225,7 @@
       }
     }
     // the card band, painted finely: one card per panel, big suit in the middle, little suits in the corners
-    const BAND_W = 6.6, bandFace = SUITS.map(su => cardFace(BAND_W, 6, su, 'A', { index: 'pip', big: 0.64, bigH: 0.56 }));
+    const BAND_W = 5.6, bandFace = SUITS.map(su => cardFace(BAND_W, 6, su, 'A', { index: 'pip', big: 0.64, bigH: 0.56 }));
     const bandTex = {
       test: (x, y, z) => { const d = Math.hypot(x, z); return (y >= 35 && y <= 40 && d > SK[y] - 1.0 && d < SK[y] + 0.8) ? 3 : 0; },   // (not the ribbons laid over it)
       color: (px, py, pz, v) => {
@@ -233,26 +236,28 @@
       },
     };
     for (const g of skirtG) g.tex = bandTex;
-    // two navy ribbons from the waist bow (on the corset) down over the pleats and the cards
-    for (const sd of [1, -1]) for (let y = 35; y <= 43; y++) {
-      const x0 = sd * (1 + Math.floor((43 - y) / 3)), w = y === 35 ? 0 : 1;
+    // two navy ribbons from the waist bow (on the corset) down over the pleats, ending where the cards begin (sheet 1)
+    for (const sd of [1, -1]) for (let y = 41; y <= 44; y++) {
+      const x0 = sd * (1 + Math.floor((44 - y) / 2)), w = y === 41 ? 0 : 1;
       for (let k = 0; k <= w; k++) { const x = x0 + sd * k, R = SK[y] + 1.2; skirtG[0].set(x, y, Math.round(Math.sqrt(Math.max(0, R * R - x * x))), k === w && w ? C.NAVY_L : C.NAVY); }
     }
 
     /* cards hanging from the hem at her left and right */
     for (const [side, pi] of [[1, 3], [-1, 9]]) {
-      const name = side > 0 ? 'cardL' : 'cardR', x0 = side * 16;
-      const g = M.part(name, 'skirt' + pi, [x0, 33.5, 0], { yaw: pi * PW });
-      g.set(x0, 33, 0, C.GOLD);
-      g.box(x0, 26, -2, x0, 32, 2, C.WHT);
+      const name = side > 0 ? 'cardL' : 'cardR', x0 = side * Math.round(SK[HEM] + 0.4);
+      // hinged just under the hem's outer edge, so the whole card hangs clear of the ruffles
+      const g = M.part(name, 'skirt' + pi, [x0, HEM - 0.5, 0], { yaw: pi * PW });
+      g.set(x0, HEM - 1, 0, C.GOLD);
+      g.box(x0, HEM - 8, -2, x0, HEM - 2, 2, C.WHT);
       const face = cardFace(5, 7, side > 0 ? 'heart' : 'club', side > 0 ? 'A' : 'K', { index: 'pip' });
-      g.tex = cardTex([{ x0, x1: x0, y0: 26, y1: 32, z0: -2, z1: 2, n: 4, face, uv: (px, py, pz) => [side > 0 ? 2.5 - pz : pz + 2.5, py - 25.5] }]);
-      meta.dangles.push({ name, kind: 'card' });
+      g.tex = cardTex([{ x0, x1: x0, y0: HEM - 8, y1: HEM - 2, z0: -2, z1: 2, n: 4, face, uv: (px, py, pz) => [side > 0 ? 2.5 - pz : pz + 2.5, py - (HEM - 8.5)] }]);
+      meta.dangles.push({ name, kind: 'card', xMax: 0.35 });   // it may swing out freely, but only a little in under the skirt
     }
 
     /* ============================================================ BACK BOW == */
-    const bowG = M.part('bow', 'hips', [0, 42, -12.6]);
-    const zPlane = y => -12.6 + (y - 42) * 0.55;   // the bow stands nearly upright, leaning back a little toward the waist
+    const BZ = -(SK[42] + 3.7);                     // the bow's plane, this far behind the skirt
+    const bowG = M.part('bow', 'hips', [0, 42, BZ]);
+    const zPlane = y => BZ + (y - 42) * 0.55;       // the bow stands nearly upright, leaning back a little toward the waist
     const outside = (x, y) => { if (y > 44) return -4.4; const R = SK[y] + 0.8; return Math.abs(x) >= R ? -4.4 : -Math.sqrt(R * R - x * x); };
     for (const s of [1, -1]) {
       for (let a = 1; a <= 9; a++) {
@@ -271,20 +276,21 @@
     // the tails: down the back of the skirt, then past the hem, each ending in a card
     for (const s of [1, -1]) {
       const n = s > 0 ? 'L' : 'R';
-      const t1 = M.part('tail' + n + '1', 'bow', [s * 1.5, 41, -13.2]);
-      const t2 = M.part('tail' + n + '2', 'tail' + n + '1', [s * 6.5, 31.5, -15.6]);
-      for (let y = 32; y <= 40; y++) {
-        const R = SK[y] + 1.6, xc = s * (1.5 + (40 - y) * 0.6);
+      const TZ = Math.round(-Math.sqrt((SK[HEM] + 1.6) ** 2 - 49) - 0.5);   // just behind the hem
+      const t1 = M.part('tail' + n + '1', 'bow', [s * 1.5, 41, BZ - 0.6]);
+      const t2 = M.part('tail' + n + '2', 'tail' + n + '1', [s * 6.5, HEM + 2.5, TZ + 0.4]);
+      for (let y = HEM + 3; y <= 40; y++) {
+        const R = SK[y] + 1.6, xc = s * (1.5 + (40 - y) * 0.45);
         for (let k = -1; k <= 1; k++) {
           const x = Math.round(xc) + k, z = Math.round(-Math.sqrt(Math.max(0, R * R - x * x)));
           t1.set(x, y, z, k === s ? C.BLUE_D : C.BLUE); t1.set(x, y, z - 1, C.BLUE_D);
         }
       }
-      for (let y = 28; y <= 31; y++) for (let k = -1; k <= 1; k++) t2.set(s * 7 + k, y, -16, k === s ? C.BLUE_D : C.BLUE);
+      for (let y = HEM - 1; y <= HEM + 2; y++) for (let k = -1; k <= 1; k++) t2.set(s * 7 + k, y, TZ, k === s ? C.BLUE_D : C.BLUE);
       const cx = s * 7;
-      t2.box(cx - 2, 21, -16, cx + 2, 27, -16, C.WHT);
+      t2.box(cx - 2, HEM - 8, TZ, cx + 2, HEM - 2, TZ, C.WHT);
       const face = cardFace(5, 7, s > 0 ? 'diamond' : 'heart', s > 0 ? 'Q' : 'A', { index: 'pip' });
-      t2.tex = cardTex([{ x0: cx - 2, x1: cx + 2, y0: 21, y1: 27, z0: -16, z1: -16, n: 4, face, uv: (px, py) => [cx + 2.5 - px, py - 20.5] }]);
+      t2.tex = cardTex([{ x0: cx - 2, x1: cx + 2, y0: HEM - 8, y1: HEM - 2, z0: TZ, z1: TZ, n: 4, face, uv: (px, py) => [cx + 2.5 - px, py - (HEM - 8.5)] }]);
       meta.chains.push({ names: ['tail' + n + '1', 'tail' + n + '2'], kind: 'tail' });
     }
 
@@ -307,7 +313,7 @@
     for (let y = 43; y <= 47; y++) torsoRow(spine, y, WAIST[y][0], WAIST[y][1], corset);
     // the light waist bow at the bottom of the corset, a red gem in its knot (sheet 2)
     bow(spine, 0, 46, 4, 3, 1, 'x', 1, [C.ICE, C.PERI_D, C.WHT]);
-    spine.set(0, 46, 5, VX.glow(C.RED));
+    spine.set(0, 46, 5, C.RED);    // a small red bead in the knot: shaded like the bow, not a light
 
     /* ============================================================ BODICE == */
     const chest = M.part('chest', 'spine', [0, J.chest, 0]);
@@ -362,7 +368,9 @@
     };
     for (let y = BLOCK ? 56 : 57; y <= 69; y++) for (let x = -6; x <= 6; x++) for (let z = -5; z <= 5; z++) {
       if (!inSkull(x, y, z) || inPlate(x, y, z)) continue;
-      head.set(x, y, z, z === 5 || (!BLOCK && y <= 58) ? C.SKIN : C.SKIN2);
+      // the block's top row is her hair's crown: it shows when she doffs her hat for the bow
+      if (y === 69) { head.set(x, y, z, H(x, y, z) < 0.5 ? C.HAIR_L : C.HAIR); continue; }
+      head.set(x, y, z, z >= 2 || (!BLOCK && y <= 58) ? C.SKIN : C.SKIN2);   // (the front half of the sides is her profile)
     }
     head.set(7, 61, 0, C.SKIN2); head.set(-7, 61, 0, C.SKIN2);   // ears (mostly under hair)
 
@@ -422,72 +430,132 @@
     meta.faces = Object.keys(faceDefs);
 
     /* ============================================================== HAIR == */
-    // the cap: a shell around the skull, open over the face
-    head.ell(0, 64.5, -0.6, 7.6, 6.9, 7.3, (x, y, z) => {
-      if (inSkull(x, y, z)) return -1;
-      if (z >= 3 && y < 65 && Math.abs(x) <= 5) return -1;
-      if (z >= 4 && y < 66 && Math.abs(x) <= 6) return -1;
-      if (y >= 69) return (y === 70 || y === 69) && H(x, y, z) < 0.6 ? C.HAIR_L : C.HAIR;   // the shine ring under the hat
-      return curl(x, y, z);
-    });
-    // puffy sides over the ears
-    for (const s of [1, -1]) head.ell(s * 7.6, 61.5, -0.8, 2.3, 4.6, 3.6, (x, y, z) => inSkull(x, y, z) ? -1 : curl(x, y, z));
-    // the bangs: a fringe at z 6 with jagged strands
-    const BANG = { '-7': BLOCK ? 58 : 57, '-6': BLOCK ? 59 : 58, '-5': 62, '-4': 65, '-3': 66, '-2': 64, '-1': 65, '0': 66, '1': 65, '2': 64, '3': 66, '4': 65, '5': 62, '6': BLOCK ? 59 : 58, '7': BLOCK ? 58 : 57 };
-    for (let x = -7; x <= 7; x++) {
-      const bottom = BANG[x];
-      for (let y = bottom; y <= 69; y++) {
-        const z = Math.abs(x) >= 6 ? 5 : 6;
-        const strand = (x & 1) === 0 && y < 68 && Math.abs(x) < 6 ? C.HAIR_D : C.HAIR;   // strand lines
-        head.set(x, y, z, y === bottom ? C.HAIR_D : (y >= 68 && H(x, y, 9) < 0.5 ? C.HAIR_L : (y === bottom + 1 ? C.HAIR : strand === C.HAIR_D && H(x, y, 3) < 0.5 ? C.HAIR_D : C.HAIR)));
-        if (y >= 67 && Math.abs(x) <= 5 && !(y === 67 && (x & 1))) head.set(x, y, 7, y === 69 ? C.HAIR_L : C.HAIR);
+    /* Sheet 4 (her hair without the hat), built from strands:
+       - a rounded crown of strands running down from a whorl on top, with a groove between each;
+       - thick layered bangs to her brows;
+       - two face-framing locks from her temples past her chin to her chest, curling at the ends;
+       - eight ringlets round her back and sides, falling to her waist in zigzag curls.
+       Everything above row 69 is its own part, the 'crown': it shows only with the hat off (it would poke through). */
+    const HC = [0, 65, -1.5], HR = [11.4, 9.8, 11.0];       // the dome: centre and radii
+    const NSTR = 30;                                       // strands round it
+    const strandAt = (x, y, z) => {                        // which strand a point is on, and where across it (0..1)
+      const th = Math.atan2(x - HC[0], -(z - HC[2]));      // 0 at the back
+      const u = (th / (2 * Math.PI) + 0.5) * NSTR + Math.sin(y * 0.35) * 0.25;   // they lean a little as they fall
+      const k = Math.floor(u);
+      return [((k % NSTR) + NSTR) % NSTR, u - k];
+    };
+    const TONE = [C.HAIR, C.HAIR_L, C.HAIR, C.HAIR_D, C.HAIR_L, C.HAIR];
+    const LOCKBOX = (x, y, z) => Math.abs(x) >= 5.6 && Math.abs(x) <= 10.6 && z >= 2.3 && z <= 6.3 && y >= 55 && y <= 69;   // the face-framing locks' room
+    const domeAt = (x, y, z) => {
+      if (inSkull(x, y, z) || LOCKBOX(x, y, z)) return -1;
+      if (y < 57) return -1;
+      if (y < 58.5 && (Math.abs(x) > 6.5 || z > -1)) return -1;      // above the shoulders and the collar
+      if (z >= 1.5 && y < 66 && Math.abs(x) <= 6.5) return -1;       // her face (the bangs are their own)
+      if (y < 66 && z > 1.5 + (Math.abs(x) - 6.5) * 0.5) return -1;  // beside it the hair stays back: her profile shows
+      const [k, f] = strandAt(x, y, z);
+      const rho = Math.sqrt(((x - HC[0]) / HR[0]) ** 2 + ((y - HC[1]) / HR[1]) ** 2 + ((z - HC[2]) / HR[2]) ** 2);
+      const low = Math.min(1, Math.max(0, (67 - y) / 6));             // the crown stays smooth; lower down it curls
+      const lump = low * (0.05 * Math.sin(y * 1.2 + k * 2.1) + (H(k, Math.floor(y / 3), 5) < 0.18 ? 0.07 : 0));   // curl lumps, tufts
+      const ridge = 0.085 * (1 - (2 * f - 1) ** 2) - 0.03 + lump;     // each strand rounded, a groove between
+      if (rho > 1 + ridge) return -1;
+      const rh = Math.hypot(x - HC[0], z - HC[2]);
+      if (y > HC[1] + HR[1] * 0.68 && rh < 6.6) {                       // the crown on top: a smooth plateau of rings
+        const a = Math.atan2(z - HC[2], x - HC[0]);
+        return ((Math.floor(rh / 1.7 + a / (4 * Math.PI)) % 2) + 2) % 2 ? C.HAIR_L : C.HAIR;
+      }
+      if (f < 0.14 || f > 0.86) return H(x, y, z) < 0.6 ? C.HAIR_D : C.HAIR_DD;   // the groove
+      const c = TONE[k % TONE.length];
+      if (c === C.HAIR && y > 67 && H(x, y, z) < 0.35) return C.HAIR_L;          // sheen on the upper dome
+      return c;
+    };
+    const crown = M.part('crown', 'head', [0, 69.5, HC[2]]);
+    for (let y = 56; y <= 75; y++) for (let x = -12; x <= 12; x++) for (let z = -12; z <= 10; z++) {
+      const c = domeAt(x, y, z); if (c >= 0) (y <= 69 ? head : crown).set(x, y, z, c);
+    }
+
+    // the bangs: chunky strands from the crown down over her forehead to her brows, the outer ones reaching down beside
+    // her eyes. Pairs alternate: the front pairs stand a voxel further out, so they read as layers
+    const BANG = { '-5': 62, '-4': 65, '-3': 66, '-2': 64, '-1': 65, '0': 66, '1': 65, '2': 64, '3': 66, '4': 65, '5': 62 };
+    for (let x = -5; x <= 5; x++) {
+      const front = (Math.floor((x + 5) / 2) & 1) === 1, bottom = BANG[x];
+      for (let y = bottom; y <= 70; y++) {
+        const zMax = y === bottom ? 6 : (front ? 8 : 7);                  // a thin tip, thicker above
+        for (let z = 6; z <= zMax; z++) {
+          let c = front ? (y >= 68 && H(x, y, z) < 0.6 ? C.HAIR_L : C.HAIR) : (y <= bottom + 1 ? C.HAIR_D : C.HAIR);
+          if (!front && z === zMax && (x & 1)) c = C.HAIR_D;                 // strand lines between the back strands
+          (y <= 69 ? head : crown).set(x, y, z, c);
+        }
       }
     }
 
-    /* the front ringlets (two segments each, framing the face down to the chest) */
+    /* the face-framing locks: thick strands from her temples, straight down beside her cheeks, curling past her chin to
+       her chest (two segments each, so they swing) */
+    const slab = (g, y, cx, cz, hw, hd, light) => {   // one row of a lock: hw across (x), hd deep (z), corners cut
+      for (let x = Math.floor(cx - hw); x <= Math.ceil(cx + hw); x++) for (let z = Math.floor(cz - hd); z <= Math.ceil(cz + hd); z++) {
+        const u = Math.abs(x - cx), v = Math.abs(z - cz);
+        if (u > hw + 0.25 || v > hd + 0.25 || (u > hw - 0.5 && v > hd - 0.5)) continue;
+        if (inSkull(x, y, z)) continue;
+        let c = light > 0.3 ? (H(x, y, z) < 0.7 ? C.HAIR_L : C.HAIR) : (light < -0.3 ? C.HAIR_D : C.HAIR);
+        if (u > hw - 0.5) c = H(x, y, z) < 0.5 ? C.HAIR_DD : C.HAIR_D;     // the strand's edge
+        g.set(x, y, z, c);
+      }
+    };
     for (const s of [1, -1]) {
       const n = s > 0 ? 'L' : 'R';
-      const a = M.part('lock' + n + '1', 'head', [s * 7, 62.5, 3.5]);
-      const b = M.part('lock' + n + '2', 'lock' + n + '1', [s * 7.2, 53.5, 3.8]);
-      for (let y = 54; y <= 63; y++) {
-        const cx = s * (7 + 0.7 * Math.sin((63 - y) * 0.9)), r = 1.6;
-        a.disc(cx, 3.6, r, y, y, (x, yy, z) => curl(x, yy, z));
+      const a = M.part('lock' + n + '1', 'head', [s * 7.6, 68.5, 4.3]);
+      const b = M.part('lock' + n + '2', 'lock' + n + '1', [s * 8.5, 54.5, 4.4]);
+      for (let y = 55; y <= 69; y++) {
+        const t = (69 - y) / 14, curl = Math.max(0, (60 - y) / 5);
+        slab(a, y, s * (7.9 + t * 1.0 + curl * Math.sin(y * 1.3) * 1.1), 4.3, 1.9, 1.6, Math.cos(y * 1.3) * curl + (y > 64 ? 0.5 : 0));
       }
-      for (let y = 44; y <= 53; y++) {
-        const cx = s * (7.2 + 0.9 * Math.sin((63 - y) * 0.9)), r = y <= 46 ? 2.1 : 1.7;
-        b.disc(cx, 3.9, r, y, y, (x, yy, z) => curl(x, yy, z));
+      for (let y = 44; y <= 54; y++) {
+        const t = (54 - y) / 10, ph = y * 1.3 + (s > 0 ? 0 : 1.6);
+        slab(b, y, s * (8.9 + Math.sin(ph) * 1.4 + t * 0.8), 4.4 + Math.cos(ph) * 0.7, 1.9 - (y < 46 ? 0.7 : 0), 1.5 - (y < 46 ? 0.5 : 0), Math.cos(ph));
       }
-      b.set(s * 7, 43, 4, C.HAIR_D);
       meta.chains.push({ names: ['lock' + n + '1', 'lock' + n + '2'], kind: 'hair', front: true });
     }
 
-    /* the back: five big curly locks, two segments each, to the waist */
-    const BACK = [{ x: -8, bot: 42 }, { x: -4, bot: 44 }, { x: 0, bot: 45 }, { x: 4, bot: 44 }, { x: 8, bot: 42 }];
-    BACK.forEach((L, i) => {
-      const a = M.part('back' + i + 'a', 'head', [L.x, 63.5, -6]);
-      const xb = L.x * 1.12;
-      const b = M.part('back' + i + 'b', 'back' + i + 'a', [xb, 53.5, -7.2]);
-      for (let y = 54; y <= 64; y++) {
-        const t = (64 - y) / 10, cx = L.x + (xb - L.x) * t, rx = 3.1 + (Math.abs(L.x) > 6 ? 0.4 : 0), rz = 2.3;
-        for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) for (let z = -10; z <= -4; z++) {
-          if (((x - cx) / (rx + 0.4)) ** 2 + ((z + 7) / (rz + 0.4)) ** 2 > 1) continue;
-          if (inSkull(x, y, z)) continue;
-          a.set(x, y, z, curl(x, y, z));
-        }
-      }
-      for (let y = L.bot; y <= 53; y++) {
-        const t = (53 - y) / (53 - L.bot);
-        const wob = Math.sin(y * 0.8 + i * 1.7) * 0.9;
-        const cx = xb + wob + Math.sign(L.x) * t * 1.2, rx = (3.2 + (Math.abs(L.x) > 6 ? 0.3 : 0)) * (1 - t * 0.35), rz = 2.2 * (1 - t * 0.25);
-        const cz = -7.4 - t * 0.6;
-        for (let x = Math.floor(cx - rx - 1); x <= Math.ceil(cx + rx + 1); x++) for (let z = -11; z <= -4; z++) {
-          if (((x - cx) / (rx + 0.4)) ** 2 + ((z - cz) / (rz + 0.4)) ** 2 > 1) continue;
-          if (y === L.bot && H(x, y, z) < 0.45) continue;           // ragged curl tips
-          b.set(x, y, z, curl(x, y, z));
-        }
-      }
+    /* the ringlets round her back and sides: each falls straight from under the crown, then winds into a zigzag curl
+       (a helix, offset across and out by turns), flaring out a little as it nears her waist. Five chains carry them */
+    const onArc = (deg, R) => { const t = deg * Math.PI / 180; return [HC[0] + R * Math.sin(t), HC[2] - R * Math.cos(t)]; };
+    const RING = [{ a: -100, bot: 47, ph: 1.4, part: 0, wide: 1 }, { a: -86, bot: 45, ph: 2.7, part: 0, wide: 1 },
+                  { a: -74, bot: 48, ph: 0.3, part: 0 }, { a: -52, bot: 45.5, ph: 1.9, part: 0 }, { a: -29, bot: 43.5, ph: 3.4, part: 1 },
+                  { a: -9, bot: 42, ph: 0.9, part: 2 }, { a: 10, bot: 42.5, ph: 2.6, part: 2 }, { a: 30, bot: 44, ph: 4.1, part: 3 },
+                  { a: 52, bot: 46, ph: 1.2, part: 4 }, { a: 74, bot: 48.5, ph: 2.9, part: 4 },
+                  { a: 86, bot: 45.5, ph: 0.6, part: 4, wide: 1 }, { a: 100, bot: 47.5, ph: 3.6, part: 4, wide: 1 }];
+    const PART_A = [-63, -29, 0, 30, 63];
+    const chainA = [], chainB = [];
+    PART_A.forEach((deg, i) => {
+      const [ax, az] = onArc(deg, 9.2), [bx, bz] = onArc(deg, 10.5);
+      chainA.push(M.part('back' + i + 'a', 'head', [ax, 63.5, az]));
+      chainB.push(M.part('back' + i + 'b', 'back' + i + 'a', [bx, 53.5, bz]));
       meta.chains.push({ names: ['back' + i + 'a', 'back' + i + 'b'], kind: 'hair' });
     });
+    for (const L of RING) {
+      const t0 = L.a * Math.PI / 180, tx = Math.cos(t0), tz = Math.sin(t0);    // across the lock (along the arc)
+      const rx = Math.sin(t0), rz = -Math.cos(t0);                               // out from the head
+      const flare = Math.min(1, Math.abs(L.a) / 74);
+      for (let y = Math.floor(L.bot); y <= 63; y++) {
+        // spreading out toward her waist; the side ones stand off her shoulders, outside her arms
+        const R = (L.wide ? 11.2 : 9.4) + Math.max(0, 63 - y) * (L.wide ? 0.17 : 0.1) + Math.max(0, 53 - y) * flare * 0.1;
+        const c = Math.min(1, Math.max(0, (58 - y) / 6));                       // straight up top, curling below
+        const ph = y * 1.25 + L.ph;
+        const [ox, oz] = onArc(L.a, R + Math.cos(ph) * 0.9 * c);
+        const cx = ox + tx * Math.sin(ph) * 1.35 * c, cz = oz + tz * Math.sin(ph) * 1.35 * c;
+        const taper = Math.min(1, (y - L.bot + 1) / 3);
+        const hw = 1.8 * (0.5 + 0.5 * taper), hd = 1.5 * (0.6 + 0.4 * taper);
+        const g = y >= 54 ? chainA[L.part] : chainB[L.part];
+        for (let x = Math.floor(cx - 3); x <= Math.ceil(cx + 3); x++) for (let z = Math.floor(cz - 3); z <= Math.ceil(cz + 3); z++) {
+          const dx = x - cx, dz = z - cz, u = Math.abs(dx * tx + dz * tz), v = Math.abs(dx * rx + dz * rz);
+          if (u > hw + 0.2 || v > hd + 0.2 || (u > hw - 0.6 && v > hd - 0.6)) continue;
+          if (inSkull(x, y, z)) continue;
+          if (y === Math.floor(L.bot) && H(x, y, z) < 0.4) continue;           // a ragged tip
+          let col = Math.cos(ph) * c > 0.35 ? (H(x, y, z) < 0.75 ? C.HAIR_L : C.HAIR) : (Math.cos(ph) * c < -0.35 ? C.HAIR_D : C.HAIR);
+          if (u > hw - 0.5) col = H(x, y, z) < 0.5 ? C.HAIR_DD : C.HAIR_D;    // its edges
+          g.set(x, y, z, col);
+        }
+      }
+    }
 
     /* =============================================================== HAT == */
     const hat = M.part('hat', 'head', [0, J.hat, 0]);

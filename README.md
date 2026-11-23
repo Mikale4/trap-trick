@@ -1,7 +1,7 @@
 # Trap Trick
 
 A fully jointed voxel model of **Trap Trick** (stage name), playable in an open garden plaza. Her look follows the
-two character sheets in `reference/`: a magenta curly-haired performer in a black top hat (heart card in the band, a big
+character sheets in `reference/`: a performer with a big mane of bright pink curls in a black top hat (heart card in the band, a big
 blue bow, a dangling card charm), a flat-faced head with a V chin, a navy puff-sleeved bodice with a jabot and a gem
 bow tie, a black corset with pink buttons, a navy waist bow with a red gem and ribbons, a poofy tiered skirt (periwinkle
 pleats, a band of playing cards, then blue, white, navy and lilac ruffles), a big back bow whose tails end in cards,
@@ -42,8 +42,11 @@ twirls the open umbrella. She blinks.
 
 `godot/` is the same game as a desktop project for **Godot 4.7.2** (the standard build, not .NET). Same model, plaza,
 controls and gamepad mapping as above, plus **`L`**, which switches the lighting between **Rich** and **Simple** (the
-web look; the HUD's Light slot shows which). Rich adds ambient occlusion, sun shadows that soften with distance, a
-sky-tinted fill light, a glow on the gems and lamp heads, and haze toward the hills. It's the costlier mode: on an
+web look; the HUD's Light slot shows which). There **`T`** alternates the hat tip with a bow: she lifts her hat off,
+sweeps it out low, crown down, and bows with her other hand on her heart, then puts it back on. **`2`** takes the hat
+off for good (in a puff of cards) or puts it back on; with it off, the full crown of her hair shows (sheet 4), and `T`
+is a bow with one arm swept out. Rich adds ambient occlusion, sun shadows that soften with distance, a
+sky-tinted fill light, a glow on the lamp heads, and haze toward the hills. It's the costlier mode: on an
 integrated Intel UHD at 1280×720 Rich runs about 75 fps and Simple about 130. (Edges are smoothed with SMAA rather than
 MSAA, and the sun's shadow map is 2048 px: on integrated graphics each of those roughly halved the frame rate.)
 
@@ -71,6 +74,7 @@ hips (root)
 ├─ spine ─ chest ─ neck ─ head ─ hat ─ hatCharm (card on a chain)
 │                         head ─ lockL1 ─ lockL2, lockR1 ─ lockR2        (front ringlets)
 │                         head ─ back0a..back4a ─ back0b..back4b          (five back locks, two segments each)
+│                         head ─ crown                                    (the top of her hair: shown with the hat off)
 │          chest ─ uArmL ─ fArmL ─ handL      (shoulder, elbow, wrist)
 │          chest ─ uArmR ─ fArmR ─ handR
 ├─ thighL ─ shinL ─ footL                      (hip, knee, ankle)

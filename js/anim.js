@@ -92,6 +92,7 @@
     constructor(scene, fx) {
       const B = T.build();
       this.meta = B.meta; this.rig = B.model.build(); this.fx = fx;
+      if (this.rig.parts.crown) this.rig.parts.crown.visible = false;   // her hair's full crown: only for the hat-off bow (desktop)
       this.root = new THREE.Group(); this.body = new THREE.Group();
       this.root.add(this.body); this.body.add(this.rig.root);
       this.rig.root.position.y = 0.5 * S;
@@ -346,8 +347,8 @@
       set('spine', 0.02, -sw * 0.03, -sw * 0.02);
       set('chest', br * 0.018, 0, 0);
       set('neck', 0, 0, 0); set('head', -0.02, Math.sin(t * 0.37) * 0.08, 0.07 + Math.sin(t * 0.5) * 0.02);
-      set('uArmL', -0.08, 0, 0.5 + br * 0.015); set('fArmL', -0.55, 0, 0); set('handL', 0, 0.2, -0.15);
-      set('uArmR', -0.08, 0, -0.5 - br * 0.015); set('fArmR', -0.55, 0, 0); set('handR', 0, -0.2, 0.15);
+      set('uArmL', -0.08, 0, 0.4 + br * 0.015); set('fArmL', -0.55, 0, 0); set('handL', 0, 0.2, -0.15);
+      set('uArmR', -0.08, 0, -0.4 - br * 0.015); set('fArmR', -0.55, 0, 0); set('handR', 0, -0.2, 0.15);
       set('thighL', 0.02, -0.08, 0.04 - sw * 0.035); set('shinL', 0.04, 0, 0); set('footL', -0.06, 0.08, sw * 0.035 - 0.04);
       set('thighR', -0.05, 0.08, -0.04 - sw * 0.035); set('shinR', 0.22, 0, 0); set('footR', -0.17, -0.08, sw * 0.035 + 0.04);
 
@@ -365,8 +366,8 @@
         W('chest', lerp(0.0, 0.06, rk), pyaw * 0.5, 0);
         W('head', -lerp(0.03, 0.18, rk), pyaw * 0.1, Math.cos(ph) * 0.03);
         const ka = lerp(0.65, 1.0, rk);
-        W('uArmL', lerp(-0.05, -0.25, rk) + tL * ka, 0, lerp(0.48, 0.32, rk)); W('fArmL', lerp(-0.4, -1.45, rk) - Math.max(0, -tL) * 0.4, 0, 0);
-        W('uArmR', lerp(-0.05, -0.25, rk) + tR * ka, 0, -lerp(0.48, 0.32, rk)); W('fArmR', lerp(-0.4, -1.45, rk) - Math.max(0, -tR) * 0.4, 0, 0);
+        W('uArmL', lerp(-0.05, -0.25, rk) + tL * ka, 0, lerp(0.4, 0.28, rk)); W('fArmL', lerp(-0.4, -1.45, rk) - Math.max(0, -tL) * 0.4, 0, 0);
+        W('uArmR', lerp(-0.05, -0.25, rk) + tR * ka, 0, -lerp(0.4, 0.28, rk)); W('fArmR', lerp(-0.4, -1.45, rk) - Math.max(0, -tR) * 0.4, 0, 0);
         W('handL', -0.1, 0.1, -0.1); W('handR', -0.1, -0.1, 0.1);
         hipsExtra += rk * Math.abs(Math.sin(ph)) * 1.2 * mk;    // a little flight in the run
       }
@@ -442,14 +443,14 @@
       }
 
       /* --- the action overlay --- */
-      let bodySpin = 0, bodyLift = 0, actFace = null;
+      let bodySpin = 0, bodyLift = 0, actFace = null, hatTgt = 0;
       if (this.act) {
         const A = this.act;
         this.actT += dt;
         if (this.actT >= A.dur) { if (A.end) A.end(this); this.act = null; }
         else {
           const w = env(this.actT, A.dur, A.fi || 0.18, A.fo || 0.25);
-          const O = { e: {}, ik: {}, hands: {}, face: null, spin: 0, lift: 0, hips: 0 };
+          const O = { e: {}, ik: {}, hands: {}, face: null, spin: 0, lift: 0, hips: 0, hat: 0 };
           A.run(this, this.actT, O, A.dur);
           for (const n in O.e) { qE(O.e[n][0], O.e[n][1], O.e[n][2], _q); tq[n].slerp(_q, w); }
           for (const side in O.ik) {
@@ -458,12 +459,14 @@
           }
           for (const side in O.hands) if (w > 0.4) hands[side] = O.hands[side];
           if (O.face && w > 0.3) actFace = O.face;
-          bodySpin = O.spin; bodyLift = O.lift * w; hipsExtra += O.hips * w;
+          bodySpin = O.spin; bodyLift = O.lift * w; hipsExtra += O.hips * w; hatTgt = O.hat * w;
         }
       }
       this.actFace = actFace;
       this.body.rotation.y = bodySpin;
       this.body.position.y += (bodyLift * S - this.body.position.y) * (1 - Math.exp(-14 * dt));
+      this.hatLift = (this.hatLift || 0) + (hatTgt - (this.hatLift || 0)) * (1 - Math.exp(-14 * dt));
+      this.rig.parts.hat.position.y = this.hatLift * S;
 
       /* --- ease every joint toward its target --- */
       const fast = 1 - Math.exp(-(mk > 0.3 ? 30 : 16) * dt), legK = 1 - Math.exp(-(mk > 0.3 ? 45 : 18) * dt), armK = 1 - Math.exp(-18 * dt);
@@ -517,7 +520,7 @@
           else mk(n, { k: 60, c: 7, follow: 0.6, inert: 0.01, xMin: 0, xMax: 1.0, zLim: 0.35, tail: true });
         });
       }
-      for (const d of M.dangles) mk(d.name, { k: 40, c: 3.2, follow: 1, inert: 0.02, xMin: -1.2, xMax: 1.2, zLim: 1.0 });
+      for (const d of M.dangles) mk(d.name, { k: 40, c: 3.2, follow: 1, inert: 0.02, xMin: -1.2, xMax: d.xMax != null ? d.xMax : 1.2, zLim: 1.0 });
       this.panels = M.panels.map(p => ({ name: p.name, joint: P[p.name], th: p.th, f: 0, v: 0, dx: Math.sin(p.th), dz: Math.cos(p.th) }));
       this._prevBody = null; this._spinPrev = 0; this.spinRate = 0;
     }
@@ -566,7 +569,7 @@
         let push = 0;
         for (const k of knees) {
           const along = k.x * p.dx + k.z * p.dz;
-          push = Math.max(push, (along - 4.2) * 0.06, (k.fx * p.dx + k.fz * p.dz - 9) * 0.05);
+          push = Math.max(push, (along - 3.6) * 0.07, (k.fx * p.dx + k.fz * p.dz - 8) * 0.055);
         }
         let t = 0.02 + push;
         t += clamp(Math.abs(this.spinRate) * 0.1, 0, 0.85);
@@ -713,9 +716,16 @@
       dur: 1.5, lock: false, run(c, t, O, dur) {
         const s = c.holdW.L > 0.5 && c.holdW.R < 0.5 ? 'R' : 'L', sx = s === 'L' ? 1 : -1;
         const k = Math.sin(clamp(t / dur, 0, 1) * Math.PI);
-        O.ik[s] = { g: mir(s, 6.5, 21 + k, 7), d: V3(-sx, 0.1, 0.2), f: V3(0, 0.3, 1), pole: V3(sx, -0.5, -0.3) };
+        // she bows her head, which brings the brim down within reach, and the hat lifts a little off her hair as it
+        // tilts (tilting it about its middle alone sank the brim's front into her bangs)
+        O.e.spine = [0.1 * k, 0, 0]; O.e.neck = [0.08 * k, 0, 0]; O.e.head = [0.26 * k, 0, -sx * 0.22 * k];   // tipped toward that hand, so the elbow can bend out
+        O.e.hat = [0.1 * k, 0, sx * 0.06 * k]; O.hat = 1.3 * k;
+        // the fist closes on top of the brim, front and to her side, wherever the hat is now
+        c.root.updateMatrixWorld(true);
+        const wp = c.rig.parts.hat.localToWorld(V3(sx * 5.9 * S, 0.9 * S, 7.0 * S));
+        const g = c.rig.parts.chest.worldToLocal(wp).divideScalar(S);
+        O.ik[s] = { g, d: V3(-sx, 0.1, 0.2), f: V3(0, 0.3, 1), pole: V3(sx * 0.7, -0.35, 0.8) };   // elbow in front: the arm rises in front of her hair
         O.hands[s] = 'grip';
-        O.e.hat = [0.35 * k, 0, sx * 0.1 * k]; O.e.head = [0.22 * k, 0, 0]; O.e.spine = [0.08 * k, 0, 0];
         O.face = 'smug';
       },
     },
@@ -731,9 +741,11 @@
       dur: 1.6, lock: false, run(c, t, O, dur) {
         const s = c.holdW.L > 0.5 ? 'R' : 'L'; if (c.holdW[s] > 0.5) return;
         const sx = s === 'L' ? 1 : -1, k = Math.sin(clamp(t / dur, 0, 1) * Math.PI);
-        O.ik[s] = { g: mir(s, 8.5, 22, 1 + Math.sin(t * 8) * 1.2), d: V3(-sx, 0.3, 0), f: V3(0, 1, 0.3), pole: V3(sx, -0.4, -0.4) };
+        c.root.updateMatrixWorld(true);
+        const wp = c.rig.parts.hat.localToWorld(V3(sx * 5.9 * S, 0.9 * S, (7.0 + Math.sin(t * 8) * 0.8) * S));   // the brim, front and to her side
+        O.ik[s] = { g: c.rig.parts.chest.worldToLocal(wp).divideScalar(S), d: V3(-sx, 0.3, 0), f: V3(0, 1, 0.3), pole: V3(sx * 0.7, -0.35, 0.8) };
         O.hands[s] = 'grip';
-        O.e.hat = [0, 0, sx * 0.12 * k + Math.sin(t * 8) * 0.04 * k]; O.e.head = [-0.06 * k, 0, -sx * 0.1 * k];
+        O.e.hat = [0, 0, sx * 0.12 * k + Math.sin(t * 8) * 0.04 * k]; O.e.head = [-0.06 * k, 0, -sx * 0.1 * k]; O.hat = 1.0 * k;
         O.face = 'smile';
       },
     },

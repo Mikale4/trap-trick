@@ -27,6 +27,7 @@ const ACTIONS := {
 	"spin": { "dur": 1.25, "lock": true, "fi": 0.1, "fo": 0.15 },
 	"peace": { "dur": 2.4, "lock": true },
 	"hatTip": { "dur": 1.5, "lock": false },
+	"hatBow": { "dur": 3.6, "lock": true, "fi": 0.3, "fo": 0.35 },
 	"lookAround": { "dur": 3.2, "lock": false },
 	"hatFix": { "dur": 1.6, "lock": false },
 	"heelRock": { "dur": 2.6, "lock": false },
@@ -64,6 +65,15 @@ var step_k := 0.0
 var t := 0.0
 var land_k := 0.0
 var hips_cur := 0.0
+var hat_lift := 0.0                 # the hat raised off her hair (voxels), by the hat tip
+var hat_next := 0                    # T alternates: the hat tip, then doffing the hat with a bow
+var hat_hold := 0.0                  # how far the hat is in her hand rather than on her head (the bow)
+var hat_hold_tgt := 0.0
+var hat_pose := Transform3D()        # where her hand has the hat, in chest space (voxels)
+var crown_s := 0.0                   # the full crown of her hair, shown when the hat is off: its spring (0 hidden..1)
+var crown_v := 0.0
+var crown_tgt := 0.0
+var hat_on := true                   # 2 takes the hat off (her full hair shows) or puts it back on
 var tq := {}
 
 # face
@@ -150,6 +160,7 @@ func setup(bake: Dictionary, main_node: Node3D) -> void:
 	umb.scale = Vector3.ONE * 0.001
 	_umb_set_open(0.0)
 	_init_dynamics()
+	(P.crown as Node3D).visible = false   # the full crown of her hair only shows with the hat off
 
 
 func set_variant(part: String, v: String) -> void:
@@ -307,7 +318,7 @@ func _sit_move(dt: float) -> void:
 
 
 func _fidget() -> void:
-	var pool := ["lookAround", "hatFix", "heelRock"]
+	var pool := ["lookAround", "hatFix", "heelRock"] if hat_on else ["lookAround", "heelRock"]
 	if U.st == "hold" and U.open_t > 0.5: pool.append_array(["lazyTwirl", "lazyTwirl"])
 	play(pool[randi() % pool.size()])
 
@@ -327,10 +338,10 @@ func _pose(dt: float) -> void:
 	E.spine = Vector3(0.02, -sw * 0.03, -sw * 0.02)
 	E.chest = Vector3(br * 0.018, 0, 0)
 	E.head = Vector3(-0.02, sin(t * 0.37) * 0.08, 0.07 + sin(t * 0.5) * 0.02)
-	E.uArmL = Vector3(-0.08, 0, 0.5 + br * 0.015)
+	E.uArmL = Vector3(-0.08, 0, 0.4 + br * 0.015)
 	E.fArmL = Vector3(-0.55, 0, 0)
 	E.handL = Vector3(0, 0.2, -0.15)
-	E.uArmR = Vector3(-0.08, 0, -0.5 - br * 0.015)
+	E.uArmR = Vector3(-0.08, 0, -0.4 - br * 0.015)
 	E.fArmR = Vector3(-0.55, 0, 0)
 	E.handR = Vector3(0, -0.2, 0.15)
 	E.thighL = Vector3(0.02, -0.08, 0.04 - sw * 0.035)
@@ -354,9 +365,9 @@ func _pose(dt: float) -> void:
 			"spine": Vector3(lerpf(0.04, 0.16, rk), pyaw * 0.55, -cos(ph) * 0.03),
 			"chest": Vector3(lerpf(0.0, 0.06, rk), pyaw * 0.5, 0),
 			"head": Vector3(-lerpf(0.03, 0.18, rk), pyaw * 0.1, cos(ph) * 0.03),
-			"uArmL": Vector3(lerpf(-0.05, -0.25, rk) + gl.x * lerpf(0.65, 1.0, rk), 0, lerpf(0.48, 0.32, rk)),
+			"uArmL": Vector3(lerpf(-0.05, -0.25, rk) + gl.x * lerpf(0.65, 1.0, rk), 0, lerpf(0.4, 0.28, rk)),
 			"fArmL": Vector3(lerpf(-0.4, -1.45, rk) - maxf(0.0, -gl.x) * 0.4, 0, 0),
-			"uArmR": Vector3(lerpf(-0.05, -0.25, rk) + gr.x * lerpf(0.65, 1.0, rk), 0, -lerpf(0.48, 0.32, rk)),
+			"uArmR": Vector3(lerpf(-0.05, -0.25, rk) + gr.x * lerpf(0.65, 1.0, rk), 0, -lerpf(0.4, 0.28, rk)),
 			"fArmR": Vector3(lerpf(-0.4, -1.45, rk) - maxf(0.0, -gr.x) * 0.4, 0, 0),
 			"handL": Vector3(-0.1, 0.1, -0.1), "handR": Vector3(-0.1, -0.1, 0.1),
 		}
@@ -428,6 +439,9 @@ func _pose(dt: float) -> void:
 	# the action overlay
 	var body_spin := 0.0
 	var body_lift := 0.0
+	var hat_tgt := 0.0
+	hat_hold_tgt = 0.0
+	crown_tgt = 0.0 if hat_on else 1.0
 	act_face = ""
 	if not act.is_empty():
 		act_t += dt
@@ -435,7 +449,7 @@ func _pose(dt: float) -> void:
 			_end_action()
 		else:
 			var w := _smooth(minf(minf(act_t / act.get("fi", 0.18), (act.dur - act_t) / act.get("fo", 0.25)), 1.0))
-			var O := { "e": {}, "ik": {}, "hands": {}, "face": "", "spin": 0.0, "lift": 0.0, "hips": 0.0 }
+			var O := { "e": {}, "ik": {}, "hands": {}, "face": "", "spin": 0.0, "lift": 0.0, "hips": 0.0, "hat": 0.0 }
 			call("_act_" + act.name, act_t, O, act.dur)
 			for n in O.e: tq[n] = (tq[n] as Quaternion).slerp(_q(O.e[n]), w)
 			for side in O.ik:
@@ -450,7 +464,10 @@ func _pose(dt: float) -> void:
 			body_spin = O.spin
 			body_lift = O.lift * w
 			hips_extra += O.hips * w
+			hat_tgt = O.hat * w
 	body.rotation.y = body_spin
+	hat_lift += (hat_tgt - hat_lift) * (1.0 - exp(-14.0 * dt))
+	(P.hat as Node3D).position = Vector3(0, hat_lift * S, 0)
 	body.position.y += (body_lift * S - body.position.y) * (1.0 - exp(-14.0 * dt))
 	set_variant("handL", hands.L)
 	set_variant("handR", hands.R)
@@ -477,6 +494,24 @@ func _pose(dt: float) -> void:
 	var want := drop + hips_extra
 	hips_cur += (want - hips_cur) * (1.0 - exp(-(30.0 if land_k > 0.0 else 22.0) * dt))
 	(P.hips as Node3D).position.y = hips_cur * S
+
+	# the bow: the hat leaves her head for her hand (blended, so it lifts off and settles back smoothly)
+	hat_hold += (hat_hold_tgt - hat_hold) * (1.0 - exp(-20.0 * dt))
+	if hat_hold > 0.001:
+		var on_head: Transform3D = (F.hat as Node3D).global_transform * Transform3D(Basis(tq["hat"] as Quaternion), Vector3(0, hat_lift * S, 0))
+		var in_hand: Transform3D = (P.chest as Node3D).global_transform * Transform3D(hat_pose.basis, hat_pose.origin * S)
+		(P.hat as Node3D).global_transform = on_head.interpolate_with(in_hand, hat_hold)
+	# the crown springs up once the hat is off her head, with a little bounce, and settles back down before it returns
+	crown_v += (90.0 * (crown_tgt - crown_s) - 11.0 * crown_v) * dt
+	crown_s += crown_v * dt
+	if crown_s < 0.0:
+		crown_s = 0.0
+		crown_v = 0.0
+	var cr: Node3D = P.crown
+	cr.visible = crown_s > 0.03
+	# the hat shows while it's worn (once her hair has settled under it) or in her hand for the bow
+	(P.hat as Node3D).visible = hat_on and (crown_s < 0.25 or hat_hold > 0.5)
+	cr.scale = Vector3(0.85 + 0.15 * crown_s, maxf(0.05, crown_s), 0.85 + 0.15 * crown_s)
 
 
 ## How far the hips must drop (in voxels) for the lowest point of either foot to touch the ground.
@@ -510,7 +545,7 @@ func _init_dynamics() -> void:
 			dyn.append(d)
 	for dg in meta.dangles:
 		dyn.append({ "joint": P[dg.name], "frame": F[dg.name], "ax": 0.0, "az": 0.0, "vx": 0.0, "vz": 0.0, "started": false, "prev": Vector3.ZERO, "pv": Vector3.ZERO, "acc": Vector3.ZERO, "tail": false,
-			"k": 40.0, "c": 3.2, "follow": 1.0, "xmin": -1.2, "xmax": 1.2, "zlim": 1.0 })
+			"k": 40.0, "c": 3.2, "follow": 1.0, "xmin": -1.2, "xmax": float(dg.get("xMax", 1.2)), "zlim": 1.0 })
 	for p in meta.panels:
 		panels.append({ "joint": P[p.name], "th": float(p.th), "f": 0.0, "v": 0.0, "dx": sin(float(p.th)), "dz": cos(float(p.th)) })
 
@@ -561,7 +596,7 @@ func _dynamics(dt: float) -> void:
 	for pn in panels:
 		var push := 0.0
 		for kn in knees:
-			push = maxf(push, maxf((kn[0] * pn.dx + kn[1] * pn.dz - 4.2) * 0.06, (kn[2] * pn.dx + kn[3] * pn.dz - 9.0) * 0.05))
+			push = maxf(push, maxf((kn[0] * pn.dx + kn[1] * pn.dz - 3.6) * 0.07, (kn[2] * pn.dx + kn[3] * pn.dz - 8.0) * 0.055))
 		var tgt: float = 0.02 + push + fall
 		if absf(pn.dx) > 0.6: tgt += 0.45 * panel_lift
 		tgt += clampf(-(axl * pn.dx + azl * pn.dz) * 0.018, -0.12, 0.25)
@@ -901,12 +936,100 @@ func _act_hatTip(t_: float, O: Dictionary, dur: float) -> void:
 	var s_ := "R" if (hold_w.L > 0.5 and hold_w.R < 0.5) else "L"
 	var sx := 1.0 if s_ == "L" else -1.0
 	var k := sin(clampf(t_ / dur, 0.0, 1.0) * PI)
-	O.ik[s_] = { "g": _mir(s_, 6.5, 21 + k, 7), "d": Vector3(-sx, 0.1, 0.2), "f": Vector3(0, 0.3, 1), "pole": Vector3(sx, -0.5, -0.3) }
+	# she bows her head, which brings the brim down within reach, and the hat lifts a little off her hair as it tilts
+	# (tilting it about its middle alone sank the brim's front into her bangs)
+	O.e.spine = Vector3(0.1 * k, 0, 0)
+	O.e.neck = Vector3(0.08 * k, 0, 0)
+	O.e.head = Vector3(0.26 * k, 0, -sx * 0.22 * k)      # ...and tips it toward that hand, so the elbow can bend out
+	O.e.hat = Vector3(0.1 * k, 0, sx * 0.06 * k)
+	O.hat = 1.3 * k
+	# the fist closes on top of the brim, front and to her side, wherever the hat is now (a fixed point let her head
+	# bow into her hand)
+	var wp := (P.hat as Node3D).to_global(Vector3(sx * 5.9, 0.9, 7.0) * S)
+	var g := (P.chest as Node3D).to_local(wp) / S
+	# the elbow comes out in front, so the arm rises in front of her big hair rather than through it
+	O.ik[s_] = { "g": g, "d": Vector3(-sx, 0.1, 0.2), "f": Vector3(0, 0.3, 1), "pole": Vector3(sx * 0.7, -0.35, 0.8) }
 	O.hands[s_] = "grip"
-	O.e.hat = Vector3(0.35 * k, 0, sx * 0.1 * k)
-	O.e.head = Vector3(0.22 * k, 0, 0)
-	O.e.spine = Vector3(0.08 * k, 0, 0)
 	O.face = "smug"
+
+
+## The bow (T's second press): she lifts her hat off, sweeps it out low in front of her, crown down, and bows with her
+## other hand on her heart; then she puts it back on. The hat leads and her hand follows its brim (see hat_pose).
+func _act_hatBow(t_: float, O: Dictionary, dur: float) -> void:
+	var s_ := "R" if (hold_w.L > 0.5 and hold_w.R < 0.5) else "L"
+	var o_ := "R" if s_ == "L" else "L"
+	var sx := 1.0 if s_ == "L" else -1.0
+	var p := t_ / dur
+	if not hat_on:                                     # bare-headed: one arm sweeps out to the side, palm up
+		var bb := _smooth(clampf((p - 0.08) / 0.25, 0.0, 1.0)) * (1.0 - _smooth(clampf((p - 0.72) / 0.2, 0.0, 1.0)))
+		O.e.spine = Vector3(0.22 * bb, 0, 0)
+		O.e.chest = Vector3(0.14 * bb, 0, 0)
+		O.e.neck = Vector3(0.06 * bb, 0, 0)
+		O.e.head = Vector3(0.3 * bb, 0, 0)
+		if hold_w[s_] < 0.5:
+			O.ik[s_] = { "g": Vector3(sx * 13.5, -8.5, 2.5).lerp(Vector3(sx * 19.0, 0.5, -3.5), bb), "d": Vector3(0, 0.3, 1), "f": Vector3(sx, 0, 0), "pole": Vector3(sx * 0.3, -0.6, -0.6) }
+			O.hands[s_] = "open"
+		if hold_w[o_] < 0.5:
+			O.ik[o_] = { "g": Vector3(-sx * 13.5, -8.5, 2.5).lerp(Vector3(sx * 1.5, 2.5, 7.0), bb), "d": Vector3(0, 1, 0.3), "f": Vector3(sx, 0, -0.3), "pole": Vector3(-sx, -0.6, -0.4) }
+			O.hands[o_] = "open"
+		O.face = "happy" if bb > 0.5 else "smile"
+		return
+	var ch: Node3D = P.chest
+	var GRIP_L := Vector3(sx * 5.9, 0.9, 7.0)                # on top of the brim, front and to her side
+	# the hat on her head, lifted off it, and swept out (chest space, voxels)
+	var H0: Transform3D = ch.global_transform.affine_inverse() * (F.hat as Node3D).global_transform
+	H0.origin /= S
+	var H1 := Transform3D(H0.basis, H0.origin + Vector3(sx * 1.5, 3.5, 2.0))
+	var G2 := Vector3(sx * 11.0, -0.5, 12.0)                 # her hand, out low in front (she is bowed)
+	var c := Vector3(sx * 0.3, -0.85, 0.45).normalized()    # the crown points down: the hat's opening faces up at her
+	var A: Vector3 = SH[s_] - G2
+	A = (A - c * A.dot(c)).normalized()                       # from the hat's middle toward her hand, along the brim
+	var Pv := c.cross(A)
+	var gd := Vector3(GRIP_L.x, 0, GRIP_L.z).normalized()
+	var B2 := Basis(gd.x * A + gd.z * Pv, c, gd.z * A - gd.x * Pv)
+	var H2 := Transform3D(B2, G2 - B2 * GRIP_L)
+	var s1 := _smooth(clampf((p - 0.14) / 0.12, 0.0, 1.0))   # off her head
+	var s2 := _smooth(clampf((p - 0.26) / 0.18, 0.0, 1.0))   # swept out
+	var r2 := _smooth(clampf((p - 0.7) / 0.14, 0.0, 1.0))    # back up
+	var r1 := _smooth(clampf((p - 0.84) / 0.1, 0.0, 1.0))    # back on her head
+	var T := H0.interpolate_with(H1, s1).interpolate_with(H2, s2).interpolate_with(H1, r2).interpolate_with(H0, r1)
+	hat_pose = T
+	hat_hold_tgt = 1.0
+	if p > 0.22 and p < 0.84: crown_tgt = 1.0          # her hair springs up while the hat is off
+	var tangent := Vector3(gd.z, 0, -gd.x)
+	var pole := Vector3(sx * 0.7, -0.35, 0.8).lerp(Vector3(sx, -0.45, -0.2), s2 * (1.0 - r2))   # elbow in front near her hair
+	O.ik[s_] = { "g": T * GRIP_L, "d": T.basis * -tangent, "f": T.basis * -gd, "pole": pole }
+	O.hands[s_] = "grip"
+	# the bow itself; near her head she tips it toward the hat hand, so the brim is in reach
+	var b := s2 * (1.0 - r2)
+	var near := 1.0 - b
+	O.e.spine = Vector3(0.22 * b + 0.06 * near, 0, 0)
+	O.e.chest = Vector3(0.14 * b, 0, 0)
+	O.e.neck = Vector3(0.06 * b + 0.06 * near, 0, 0)
+	O.e.head = Vector3(0.3 * b + 0.22 * near, 0, -sx * 0.2 * near)
+	# the other hand to her heart, if it's free
+	if hold_w[o_] < 0.5:
+		var rest := Vector3(-sx * 13.5, -8.5, 2.5)
+		var heart := Vector3(sx * 1.5, 2.5, 7.0)
+		O.ik[o_] = { "g": rest.lerp(heart, b), "d": Vector3(0, 1, 0.3), "f": Vector3(sx, 0, -0.3), "pole": Vector3(-sx, -0.6, -0.4) }
+		O.hands[o_] = "open"
+	O.face = "happy" if b > 0.5 else "smug"
+
+
+## 2: the hat off (in a puff of cards, like the umbrella) or back on. Off, her full hair shows (the crown springs up).
+func toggle_hat() -> void:
+	if not act.is_empty() and act.name in ["hatTip", "hatBow", "hatFix"]: return
+	hat_on = not hat_on
+	if fx: fx.card_puff((F.hat as Node3D).global_position + Vector3(0, 4 * S, 0), 7)
+
+
+func hat_gesture() -> void:
+	if not hat_on:
+		play("hatBow")                                # no hat to tip: a bow, one arm out, a hand on her heart
+		return
+	var gesture: String = ["hatTip", "hatBow"][hat_next]
+	play(gesture)
+	if not act.is_empty() and act.name == gesture: hat_next = 1 - hat_next   # (only once it has started: not while seated)
 
 
 func _act_lookAround(t_: float, O: Dictionary, dur: float) -> void:
@@ -921,7 +1044,9 @@ func _act_hatFix(t_: float, O: Dictionary, dur: float) -> void:
 	if hold_w[s_] > 0.5: return
 	var sx := 1.0 if s_ == "L" else -1.0
 	var k := sin(clampf(t_ / dur, 0.0, 1.0) * PI)
-	O.ik[s_] = { "g": _mir(s_, 8.5, 22, 1 + sin(t_ * 8) * 1.2), "d": Vector3(-sx, 0.3, 0), "f": Vector3(0, 1, 0.3), "pole": Vector3(sx, -0.4, -0.4) }
+	var wp := (P.hat as Node3D).to_global(Vector3(sx * 5.9, 0.9, 7.0 + sin(t_ * 8) * 0.8) * S)   # the brim, front and to her side
+	O.ik[s_] = { "g": (P.chest as Node3D).to_local(wp) / S, "d": Vector3(-sx, 0.3, 0), "f": Vector3(0, 1, 0.3), "pole": Vector3(sx * 0.7, -0.35, 0.8) }
+	O.hat = 1.0 * k                                    # lifted a touch as she sets it, clear of her hair
 	O.hands[s_] = "grip"
 	O.e.hat = Vector3(0, 0, sx * 0.12 * k + sin(t_ * 8) * 0.04 * k)
 	O.e.head = Vector3(-0.06 * k, 0, -sx * 0.1 * k)
