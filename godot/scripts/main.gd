@@ -169,7 +169,7 @@ func _environment() -> void:
 ## Two lighting levels, L switches. Simple is the web version's look. Rich adds: ambient occlusion in the creases and
 ## where things meet the ground, sun shadows that soften with distance (crisp at her feet, blurred further out), a fill
 ## light faintly tinted by the sky (bluer from above, greener from the lawn below), a glow around the gems and the lamp
-## heads, and haze toward the far hills. On an integrated GPU it takes about a third off the frame rate.
+## heads, and haze toward the far hills. It roughly doubles the frame time (Intel UHD, 1280x720: about 70 fps vs 130).
 func _set_lighting(rich: bool) -> void:
 	rich_light = rich
 	var on := func(f: String) -> bool: return rich and not light_off.has(f)
@@ -373,6 +373,9 @@ func _process(dt: float) -> void:
 	if frames == 40: bench_us = Time.get_ticks_usec()
 	if shot_path != "" and frames == shot_at:
 		if shot_at > 40: print("fps %.1f" % ((shot_at - 40) / ((Time.get_ticks_usec() - bench_us) / 1e6)))
+		print("tris %.2fM  draws %d  objects %d" % [RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1e6,
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME)])
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(shot_path)
 		get_tree().quit()
@@ -558,3 +561,4 @@ func _dev_commands() -> void:
 		"skeleton": _toggle_skeleton()
 		"light": _set_lighting(not rich_light)
 		var a: tt.play(a)
+

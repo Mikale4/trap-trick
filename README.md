@@ -43,8 +43,9 @@ twirls the open umbrella. She blinks.
 `godot/` is the same game as a desktop project for **Godot 4.7.2** (the standard build, not .NET). Same model, plaza,
 controls and gamepad mapping as above, plus **`L`**, which switches the lighting between **Rich** and **Simple** (the
 web look; the HUD's Light slot shows which). Rich adds ambient occlusion, sun shadows that soften with distance, a
-sky-tinted fill light, a glow on the gems and lamp heads, and haze toward the hills. On an integrated GPU it costs about
-a third of the frame rate.
+sky-tinted fill light, a glow on the gems and lamp heads, and haze toward the hills. It's the costlier mode: on an
+integrated Intel UHD at 1280×720 Rich runs about 75 fps and Simple about 130. (Edges are smoothed with SMAA rather than
+MSAA, and the sun's shadow map is 2048 px: on integrated graphics each of those roughly halved the frame rate.)
 
 - **Play:** double-click **`godot/Play Trap Trick.bat`**. **Edit:** **`godot/Open in Godot editor.bat`**. Both expect
   Godot at `C:\Games\Godot\Godot_v4.7.2-stable_win64.exe`; change the path in the `.bat` if yours lives elsewhere, or
@@ -56,7 +57,8 @@ a third of the frame rate.
 - **Scripts:** `godot/scripts/main.gd` (scene, lighting, camera, input, HUD), `trap_trick.gd` (the character: the same
   movement, gait, IK, actions and springs as `js/anim.js`) and `fx.gd` (card puffs, dust, the card fan).
 - **Testing from the command line:** `Godot --path godot -- --shot=out.png --walk --do=umbrella,open,wave --at=120`
-  saves a screenshot after a scripted run (`--run`, `--cam=yaw,pitch,dist` too) and prints the frame rate. `--simple`
+  saves a screenshot after a scripted run (`--run`, `--cam=yaw,pitch,dist` too) and prints the frame rate, triangles
+  and draw calls. `--simple`
   starts in simple lighting; `--no=ssao,soft,sky,glow,haze` leaves single rich-lighting features out.
 
 ## The skeleton
