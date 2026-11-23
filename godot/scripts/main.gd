@@ -13,6 +13,8 @@ var tt: Node3D                       # Trap Trick
 var fx: Node3D                       # the effects
 var cam: Camera3D
 var sun: DirectionalLight3D
+var env: Environment
+var rich_light := true            # L switches between the rich desktop lighting and the web version's simple look
 var clouds: Array[Node3D] = []
 var colliders: Array = []
 var bound := 92.0
@@ -36,6 +38,7 @@ var skel := false
 var hud_help: Control
 var hud_umb: Label
 var hud_face: Label
+var hud_light: Label
 var hud_umb_box: PanelContainer
 var hud_prompt: Label
 var hud_prompt_box: PanelContainer
@@ -52,6 +55,8 @@ var shot_do: PackedStringArray = []
 var shot_cam := Vector3.ZERO
 var dev_hold_jump := false
 var frames := 0
+var light_off: PackedStringArray = []   # dev: rich-lighting features to leave off (ssao, soft, sky, glow, haze)
+var bench_us := 0                  # dev: time from frame 40 to the shot, to report the frame rate
 
 
 func _ready() -> void:
@@ -61,11 +66,14 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="): shot_path = a.substr(7)
 		elif a == "--walk" or a == "--run": shot_mode = a.substr(2)
+		elif a == "--simple": rich_light = false
+		elif a.begins_with("--no="): light_off = a.substr(5).split(",")
 		elif a.begins_with("--at="): shot_at = int(a.substr(5))
 		elif a.begins_with("--do="): shot_do = a.substr(5).split(",")
 		elif a.begins_with("--cam="):
 			var c := a.substr(6).split(",")
 			shot_cam = Vector3(float(c[0]), float(c[1]), float(c[2]))
+	if shot_path != "": DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)   # so the frame rate is real
 	_materials()
 	_environment()
 	_ground()
@@ -79,6 +87,7 @@ func _ready() -> void:
 	tt.position = Vector3(0, 0, 3.5)
 	tt.yaw = PI
 	tt.t_yaw = PI
+	_set_lighting(rich_light)
 	cam = Camera3D.new()
 	cam.fov = 50.0
 	cam.near = 0.05
@@ -121,7 +130,7 @@ func _environment() -> void:
 	sky_mat.ground_bottom_color = Color("6fa35a")
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
-	var env := Environment.new()
+	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
 	# lit like the web version: a soft, near-neutral fill and a warm sun, no film tonemapping (it washes the colours out)
@@ -144,6 +153,37 @@ func _environment() -> void:
 	sun.shadow_blur = 1.5
 	sun.transform = Transform3D(Basis.looking_at(-SUN_DIR.normalized(), Vector3.UP), Vector3.ZERO)
 	add_child(sun)
+	# the rich lighting's settings (switched on and off in _set_lighting)
+	env.ambient_light_sky_contribution = 0.4
+	env.ssao_radius = 0.35
+	env.ssao_intensity = 4.0
+	env.ssao_power = 1.8
+	env.ssao_detail = 1.2
+	env.ssao_light_affect = 0.55
+	env.glow_hdr_threshold = 1.5
+	env.glow_intensity = 0.9
+	env.glow_bloom = 0.0
+	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
+
+
+## Two lighting levels, L switches. Simple is the web version's look. Rich adds: ambient occlusion in the creases and
+## where things meet the ground, sun shadows that soften with distance (crisp at her feet, blurred further out), a fill
+## light faintly tinted by the sky (bluer from above, greener from the lawn below), a glow around the gems and the lamp
+## heads, and haze toward the far hills. On an integrated GPU it takes about a third off the frame rate.
+func _set_lighting(rich: bool) -> void:
+	rich_light = rich
+	var on := func(f: String) -> bool: return rich and not light_off.has(f)
+	env.ssao_enabled = on.call("ssao")
+	env.glow_enabled = on.call("glow")
+	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY if on.call("sky") else Environment.AMBIENT_SOURCE_COLOR
+	env.fog_aerial_perspective = 0.35 if on.call("haze") else 0.0
+	sun.light_angular_distance = 1.5 if on.call("soft") else 0.0
+	RenderingServer.directional_soft_shadow_filter_set_quality(
+		RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM if on.call("soft") else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+	# the glowing voxels go past white, so the glow picks out only the gems and lamp heads (nothing else gets that bright)
+	var k := 1.6 if on.call("glow") else 1.0
+	for m: BaseMaterial3D in [glow_mat, tt.mats[1]]:
+		m.albedo_color = Color(k, k, k, m.albedo_color.a)
 
 
 func _ground() -> void:
@@ -179,7 +219,11 @@ func _scenery() -> void:
 	var by_name := {}
 	for n in w.find_children("*", "Node3D", true, false): by_name[String(n.name)] = n
 	for i in int(bake.world.clouds):
-		if by_name.has("cloud_%d" % i): clouds.append(by_name["cloud_%d" % i])
+		if by_name.has("cloud_%d" % i):
+			var c: Node3D = by_name["cloud_%d" % i]
+			clouds.append(c)
+			for mi in [c] + c.find_children("*", "GeometryInstance3D", true, false):
+				if mi is GeometryInstance3D: mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF   # as on the web: no shadows from the clouds
 	var inst: Array = bake.world.instances
 	for i in inst.size():
 		var src: MeshInstance3D = by_name.get("inst_%d" % i)
@@ -288,6 +332,7 @@ func _input_state(dt: float) -> Dictionary:
 			KEY_B: tt.play("peace")
 			KEY_T: tt.play("hatTip")
 			KEY_J: _toggle_skeleton()
+			KEY_L: _set_lighting(not rich_light)
 			KEY_H: hud_help.visible = not hud_help.visible
 			KEY_3: tt.face_base = "smug"
 			KEY_4: tt.face_base = "smile"
@@ -325,7 +370,9 @@ func _process(dt: float) -> void:
 		if c.position.x > 200.0: c.position.x -= 400.0
 	_update_camera(dt)
 	frames += 1
+	if frames == 40: bench_us = Time.get_ticks_usec()
 	if shot_path != "" and frames == shot_at:
+		if shot_at > 40: print("fps %.1f" % ((shot_at - 40) / ((Time.get_ticks_usec() - bench_us) / 1e6)))
 		var img := get_viewport().get_texture().get_image()
 		img.save_png(shot_path)
 		get_tree().quit()
@@ -391,6 +438,13 @@ func _hud() -> void:
 	fv.add_child(_label("FACE", 11, Color("b9a9de")))
 	hud_face = _label("smug", 15, Color("f1eaff"))
 	fv.add_child(hud_face)
+	var light_box := _panel()
+	slots.add_child(light_box)
+	var lv := VBoxContainer.new()
+	light_box.add_child(lv)
+	lv.add_child(_label("LIGHT", 11, Color("b9a9de")))
+	hud_light = _label("Rich", 15, Color("f1eaff"))
+	lv.add_child(hud_light)
 	# controls
 	hud_help = _panel()
 	hud_help.anchor_top = 1.0
@@ -411,7 +465,7 @@ func _hud() -> void:
 		"Drag  camera   Wheel  zoom", "1  umbrella out / away",
 		"F  open / close   R  tilt", "Q  carry / hold   E  trick",
 		"Z  wave   X  point   C  curtsy", "V  spin   B  pose   T  hat tip",
-		"G  sit (crates)   3-7  face", "J  skeleton view",
+		"G  sit (crates)   3-7  face", "J  skeleton   L  lighting",
 	]: grid.add_child(_label(line, 13, Color("d8ccf2")))
 	hv.add_child(_label("Umbrella open: jump, then hold Space to float down", 13, Color("f0c6e2")))
 	# the prompt and the skeleton note
@@ -461,11 +515,12 @@ func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
 
 func _update_hud() -> void:
 	var st: Dictionary = tt.status()
-	var key := str(st) + str(skel)
+	var key := str(st) + str(skel) + str(rich_light)
 	if key == hud_last: return
 	hud_last = key
 	hud_umb.text = st.umbrella
 	hud_face.text = st.face
+	hud_light.text = "Rich" if rich_light else "Simple"
 	var sb := hud_umb_box.get_theme_stylebox("panel") as StyleBoxFlat
 	sb.border_color = Color("8a74c9") if st.umbrella != "Away" else Color("4a3d73")
 	var prompt := ""
@@ -501,4 +556,5 @@ func _dev_commands() -> void:
 			pressed.append(KEY_SPACE)
 			dev_hold_jump = true
 		"skeleton": _toggle_skeleton()
+		"light": _set_lighting(not rich_light)
 		var a: tt.play(a)

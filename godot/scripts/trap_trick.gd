@@ -1014,7 +1014,7 @@ func set_skeleton(on: bool) -> void:
 	for m in mats:
 		var bm := m as BaseMaterial3D
 		bm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA if on else BaseMaterial3D.TRANSPARENCY_DISABLED
-		bm.albedo_color = Color(1, 1, 1, 0.16 if on else 1.0)
+		bm.albedo_color.a = 0.16 if on else 1.0   # keep the colour: the glow material's is past white
 	if on and skel_lines == null:
 		for n in meta.order:
 			if meta.joints[n].parent != null: skel_pairs.append([meta.joints[n].parent, n])
