@@ -164,7 +164,7 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `tools/serve.py` | the local server (caching off) |
 | `tools/bake_godot.js` | bakes the model, umbrella, cards, garden, town and townsfolk into `godot/assets/` for the desktop version |
 | `js/town.js` | the town (desktop version): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
-| `js/people.js` | the townsfolk's voxel rigs, built from a short description each |
+| `js/people.js` | the townsfolk's voxel rigs, built from a short description each, in her own voxel style and scale (2.4 cm voxels; women about her height, men a little taller) |
 | `godot/` | the Godot desktop version (`scripts/town.gd`: the town and its people) |
 
 Kept on the local machine only (not in the repository): `reference/` (the character sheets), `tools/viewer.html`

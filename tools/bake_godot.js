@@ -214,7 +214,7 @@ const r3 = v => Math.round(v * 1000) / 1000;
     for (const name in rig.frames) rig.frames[name].name = 'p' + i + '_' + name + '__frame';
     rig.root.name = 'person_' + i;
     pg.root(pg.node(rig.root));
-    people.push({ parts: M.order, s: M.s, hip: 20.5 * M.s });
+    people.push({ parts: M.order, s: M.s, top: r3(M.info.top), seat: M.info.seat, dress: M.info.dress });
   });
   console.log('people.glb', (pg.write('people.glb') / 1048576).toFixed(2), 'MB,', people.length, 'people');
   bake.town = {

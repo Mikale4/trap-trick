@@ -173,7 +173,7 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 	if moving > 0.0:
 		var ph: float = n.phase
 		var sw := sin(ph)
-		var k := 1.25 if run else 1.0
+		var k := (1.25 if run else 1.0) * (0.6 if spec.get("dress", false) else 1.0)   # (a skirt takes shorter steps)
 		E.thighL = Vector3(-sw * 0.5 * k, 0, 0)
 		E.thighR = Vector3(sw * 0.5 * k, 0, 0)
 		E.shinL = Vector3(maxf(0.0, cos(ph)) * 0.9 * k, 0, 0)
@@ -261,7 +261,7 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 			E.thighR = Vector3(-1.5, 0, -0.06)
 			E.shinL = Vector3(1.45, 0, 0)
 			E.shinR = Vector3(1.45, 0, 0)
-			(n.F.hips as Node3D).position.y = 0.5 + 2.0 * float(spec.s) - 0.02
+			(n.F.hips as Node3D).position.y = 0.5 + float(spec.get("seat", 2.0)) * float(spec.s) - 0.02
 			var toss := fmod(n.t, 5.0) > 4.4
 			E.uArmR = Vector3(-0.7 - (0.6 if toss else 0.0), 0, -0.2)
 			E.fArmR = Vector3(-0.6, 0, 0)
@@ -367,7 +367,8 @@ func say(n: Dictionary, text: String) -> void:
 	b.width = 900.0
 	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	b.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	b.position = Vector3(0, (1.25 if n.spec.kid else 1.85) + (0.05 if n.job == "sit" else 0.0) - (0.45 if n.job == "sit" else 0.0), 0)
+	var sit_drop: float = (n.hips_y - (0.5 + float(n.spec.get("seat", 2.0)) * float(n.spec.s))) if n.job == "sit" else 0.0
+	b.position = Vector3(0, float(n.spec.get("top", 1.8)) + 0.2 - sit_drop, 0)
 	b.no_depth_test = true
 	b.render_priority = 10
 	(n.root as Node3D).add_child(b)
