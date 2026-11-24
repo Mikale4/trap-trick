@@ -9,48 +9,38 @@
 
    It also lists the townsfolk (how each looks, their job, where they stand or
    walk, what they say), which Godot brings to life (godot/scripts/town.gd).
-   Coordinates: metres, x east, z south, the fountain at the origin.
+   Buildings are voxels of 4.8 cm (twice Trap Trick's), the small things (things.js) of 2.4 cm, her own; only the far
+   country is coarser. Coordinates: metres, x east, z south, the fountain at the origin.
    ========================================================================== */
 (function () {
   'use strict';
-  const H = VX.hash3, TAU = Math.PI * 2, HP = Math.PI / 2;
+  const H = VX.hash3, TAU = Math.PI * 2, HP = Math.PI / 2, T = window.THINGS, R = Math.round;
   const rnd = (() => { let s = 7654321; return () => (s = (s * 16807) % 2147483647) / 2147483647; })();
   const shade = (c, k) => { const r = Math.min(255, ((c >> 16) & 255) * k) | 0, g = Math.min(255, ((c >> 8) & 255) * k) | 0, b = Math.min(255, (c & 255) * k) | 0; return (r << 16) | (g << 8) | b; };
-  const SB = 0.25;                                       // a building voxel
+  const S1 = 0.024, SB = 0.048, U = 0.25 / SB;            // her voxel (the small things), a building's (twice hers); house sizes are given in quarter metres
 
   const PAL = {
-    STONE: 0xa9a29a, STONE2: 0x968f88, STONE3: 0xbdb6ad, MORTAR: 0x7d776f,
-    TIMBER: 0x4e3828, TIMBER2: 0x3e2c20, GLASS: 0x2f3a52, GLASS2: 0x7f93b8,
+    STONE: 0xa9a29a, STONE2: 0x968f88, STONE3: 0xbdb6ad, STONE4: 0xb0a596, STONE5: 0x9f9b95, MORTAR: 0x857e76,
+    TIMBER: 0x4e3828, TIMBER2: 0x5c4432, GLASS: 0x2f3a52, GLASS2: 0x7f93b8, GLASS3: 0x4a5a7c, LEAD: 0x1e2434,
     WOOD: 0x8a5a32, WOOD2: 0x6b4426, WOOD3: 0xa8743e, IRON: 0x3a3a42,
-    TILE: 0xa8432f, TILE2: 0x8f3626, SLATE: 0x4a5468, SLATE2: 0x3c4456, THATCH: 0xb8955a, THATCH2: 0xa3824c,
+    TILE: 0xa8432f, SLATE: 0x4c5670, THATCH: 0xb8955a,
     LEAF: 0x4f8f3a, LEAF2: 0x3f7a30, LEAF3: 0x67a84a, BARK: 0x6b4a32,
   };
+  const grid = () => { const g = new VX.Grid(); g.jit = 0; g.merge = true; return g; };
 
   /* --------------------------------------------------------- the ground -- */
   // where one can walk: the square, the south street, the east street, the alley (they overlap a metre at the joins)
   const WALK = [[-12, -10, 12, 10], [-3, 9, 3, 30.5], [11, -3, 28, 3], [-20.6, -5.5, -11, -3.5]];
   const GROUND = 140;
-  function groundTexture() {
+  function groundTexture() {                             // the country round: fields, meadows, the roads out (the streets have their own, finer one)
     const N = 1024, W = GROUND, cv = document.createElement('canvas'); cv.width = cv.height = N;
     const ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), d = img.data;
     const put = (i, c) => { d[i] = (c >> 16) & 255; d[i + 1] = (c >> 8) & 255; d[i + 2] = c & 255; d[i + 3] = 255; };
-    const cobble = (x, z, n, tones, mortarC, sz) => {
-      const row = Math.floor((z + 100) / (0.42 * sz)), sx = (x + 100) / (0.55 * sz) + (row & 1) * 0.5;
-      const fx = sx % 1, fz = ((z + 100) / (0.42 * sz)) % 1;
-      if (fx < 0.1 || fz < 0.12) return mortarC;
-      const t = H(Math.floor(sx), row, 5);
-      return shade(t < 0.33 ? tones[0] : t < 0.66 ? tones[1] : tones[2], 0.95 + n * 0.08);
-    };
-    const STREET = [0xb8ae9e, 0xaaa090, 0x9d9385], ALLEY = [0x6e6862, 0x635d58, 0x58534f];
     for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
       const x = (px / N - 0.5) * W, z = (py / N - 0.5) * W, i = (py * N + px) * 4;
       const n = H(px, py, 7), n2 = H(px >> 3, py >> 3, 3), n3 = H(px >> 6, py >> 6, 11);
       let c;
-      const inTown = x > -30 && x < 29 && z > -26 && z < 31.6;
-      if (x < -11.5 && x > -21.5 && z > -5.6 && z < -3.4) c = cobble(x, z, n, ALLEY, 0x4a4540, 1);        // the alley: dark, damp stones
-      else if (Math.hypot(x, z) < 3.2) c = cobble(x, z, n, [0xc8bdb0, 0xbcb0a2, 0xb0a596], 0x8d8478, 0.8);   // round the fountain
-      else if (Math.abs(Math.hypot(x, z) - 3.4) < 0.18) c = 0x8d8478;
-      else if (inTown) c = cobble(x, z, n, STREET, 0x837a6e, 1);
+      if (x > -30 && x < 29 && z > -26 && z < 31.6) c = 0xaaa090;
       else if (Math.abs(x) < 2.2 && z > 31) c = shade(n < 0.5 ? 0x9a7f5e : 0x8f7556, 0.95 + n * 0.1);       // the road out of the gate
       else if (x > 28 && Math.abs(z) < 1.8) c = shade(n < 0.5 ? 0x9a7f5e : 0x8f7556, 0.95 + n * 0.1);       // the track east
       else {                                            // fields and meadows: a patchwork, rows in the crops
@@ -71,490 +61,543 @@
     tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.LinearMipMapLinearFilter;
     return tex;
   }
+  /* the streets, a pixel to each of her voxels (2.4 cm): hand-sized setts, flagstones along the house fronts, a gutter
+     down the south street, rings of setts round the fountain, the alley's dark wet stones. Flat tones: the ground's
+     shader gives each voxel its own slight shade */
+  const CORE = { x0: -21.4, z0: -16.4, N: 2048 };
+  function coreGround() {
+    const N = CORE.N, d = new Uint8Array(N * N * 4);
+    const tones = (a, b, c, e, t) => t < 0.12 ? e : t < 0.4 ? a : t < 0.75 ? b : c;
+    const inWalk = (x, z, m) => WALK.some(w => x > w[0] - m && x < w[2] + m && z > w[1] - m && z < w[3] + m);
+    /* setts in rows: w x h voxels, a voxel of joint between, their corners knocked off, each row shifted */
+    const setts = (px, py, w, h, seed, P) => {
+      const row = Math.floor(py / h), off = Math.floor(H(row, seed, 1) * w), i = Math.floor((px + off) / w), fx = (px + off) - i * w, fy = py - row * h;
+      if (fx === 0 || fy === 0) return P[4];
+      if ((fx === 1 || fx === w - 1) && (fy === 1 || fy === h - 1) && H(i, row, seed + fx + fy) < 0.75) return P[4];
+      const t = H(i, row, seed), c = tones(P[0], P[1], P[2], P[3], t);
+      return fy === h - 1 ? shade(c, 0.93) : fy === 1 ? shade(c, 1.04) : c;
+    };
+    const STREET = [0xb8ae9e, 0xaea494, 0xa2988a, 0xc2b8a8, 0x8a8175], FLAG = [0xbcb4a8, 0xb2aa9e, 0xa89f93, 0xc6bfb4, 0x8e867a], ALLEY = [0x6e6862, 0x645e59, 0x5a5551, 0x78726b, 0x47423d], RING = [0xc8bdb0, 0xbeb2a4, 0xb2a798, 0xd0c6ba, 0x92897d];
+    for (let py = 0; py < N; py++) for (let px = 0; px < N; px++) {
+      const x = CORE.x0 + (px + 0.5) * S1, z = CORE.z0 + (py + 0.5) * S1, i = (py * N + px) * 4, r = Math.hypot(x, z);
+      let c = 0x8d857a;
+      if (inWalk(x, z, 0.4)) {
+        const alley = x < -11.6 && z > -6 && z < -3;
+        // how far from the nearest house front
+        const edge = alley ? 9 : (Math.abs(x) < 12 && Math.abs(z) < 10) ? Math.min(12 - Math.abs(x) + (Math.abs(z) < 3 && x > 0 ? 9 : 0) + (z > -5.5 && z < -3.5 && x < 0 ? 9 : 0), 10 - Math.abs(z) + (Math.abs(x) < 3 && z > 0 ? 9 : 0)) : (z > 9 ? 3 - Math.abs(x) : 3 - Math.abs(z));
+        if (alley) c = setts(px, py, 13, 9, 5, ALLEY);
+        else if (r < 4.2) {                                                              // rings of setts round the fountain
+          const ring = Math.floor(r / 0.216), fr = r / 0.216 - ring, n = Math.max(8, R(ring * 0.216 * TAU / 0.3)), a = (Math.atan2(z, x) + Math.PI) / TAU * n + (ring & 1) * 0.5, fa = a - Math.floor(a);
+          c = fr < 0.11 || fa < 0.08 || ring === 18 && fr > 0.9 ? RING[4] : ring === 18 ? 0x9a9084 : tones(RING[0], RING[1], RING[2], RING[3], H(Math.floor(a) % n, ring, 4));
+        } else if (edge < 0.72) c = edge > 0.68 ? 0x7d766b : (z > 9 || Math.abs(x) > 11 && Math.abs(z) < 10.4 ? setts(py, px, 25, 14, 9, FLAG) : setts(px, py, 25, 14, 9, FLAG));   // flagstones along the fronts
+        else if (z > 9.6 && Math.abs(x) < 0.16) c = setts(py, px, 22, 7, 3, [0x8d867b, 0x847d72, 0x7a7369, 0x948d82, 0x6a645b]);                                              // the gutter
+        else c = setts(px, py, 11, 8, 7, STREET);
+      }
+      d[i] = (c >> 16) & 255; d[i + 1] = (c >> 8) & 255; d[i + 2] = c & 255; d[i + 3] = 255;
+    }
+    return { w: N, h: N, data: d, x: CORE.x0 + N * S1 / 2, z: CORE.z0 + N * S1 / 2, size: N * S1 };
+  }
 
   /* ------------------------------------------------------- the houses -- */
-  /* A half-timbered house, its front (+z) to the street: a stone ground floor, plastered upper floors in a timber
-     frame that jut out a little over the street, shuttered windows with flower boxes, a door (or a shop front, or an
-     open forge), a steep gabled roof with a chimney. o: { W, D (voxels), floors, plaster, roof: 'tile'|'slate'|'thatch',
-     shutter, door: x offset, shop, forge, seed } */
+  /* dressed stone in courses, 58 x 29 cm: along a wall by (a), up it by (y) */
+  const stoneAt = (a, y, seed) => {
+    const row = Math.floor(y / 6), off = Math.floor(H(row, seed, 3) * 12), i = Math.floor((a + off + 600) / 12);
+    if (y % 6 === 5 || (a + off + 600) % 12 === 0) return PAL.MORTAR;
+    const t = H(i, row, seed); return t < 0.18 ? PAL.STONE2 : t < 0.5 ? PAL.STONE : t < 0.7 ? PAL.STONE3 : t < 0.86 ? PAL.STONE4 : PAL.STONE5;
+  };
+  const brickAt = (a, y) => { const row = Math.floor(y / 3), i = Math.floor((a + (row & 1) * 3 + 300) / 6); if (y % 3 === 2 || (a + (row & 1) * 3 + 300) % 6 === 0) return 0x7a5a50; const t = H(i, row, 8); return t < 0.3 ? 0x8c4a3f : t < 0.75 ? 0x9a5446 : 0x84443a; };
+  /* A half-timbered house, its front (+z) to the street, in voxels of 4.8 cm: a ground floor of dressed stone, plastered
+     upper floors in a timber frame that jut out over the street on their joists, leaded windows with planked shutters and
+     flower boxes, a round-headed plank door (or a shop front, or an open forge), a steep roof of tile, slate or thatch, a
+     brick chimney. o: { W, D (quarter metres), floors, plaster, roof, shutter, door: x offset, shop, forge, sides: which
+     flank is seen from the streets ('L' -x, 'R' +x), plain: hidden behind others, seed } */
   function houseGrid(o) {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    const W = o.W, D = o.D, F = o.floors, FH = 12, top = F * FH;
+    const g = grid();
+    const W = R(o.W * U / 2) * 2, D = R(o.D * U / 2) * 2, F = o.floors, FH = 62, top = F * FH, JT = 5, EV = 6, VG = o.plain ? 0 : 4;
     const x0 = -W / 2, x1 = W / 2 - 1, z0 = -D / 2, z1 = D / 2 - 1, seed = o.seed || 1;
-    const plaster = o.plaster, shutter = o.shutter || 0x3f6a4a, doorX = o.door != null ? o.door : 0;
-    const stone = (x, y, z) => { if (y % 3 === 0 || ((x + z) + (Math.floor(y / 3) & 1) * 3) % 6 === 0) return PAL.MORTAR; const n = H((x + z + (Math.floor(y / 3) & 1) * 3) / 6 | 0, y / 3 | 0, seed); return n < 0.3 ? PAL.STONE2 : n < 0.8 ? PAL.STONE : PAL.STONE3; };   // stone blocks, one shade each
-    const jet = f => f >= 1 ? 1 : 0;
-    const wallCol = (x, y, z, f, along, len) => {
-      if (f === 0) return stone(x, y, z);
-      const fy = y % FH;
-      if (fy === 0 || fy === FH - 1) return PAL.TIMBER;                              // the beams between the floors
-      const a = ((along % 8) + 8) % 8;
-      if (along === 0 || along === len - 1 || a === 0) return PAL.TIMBER;            // posts
-      if ((a === fy % 8 || a === 8 - (fy % 8)) && fy > 1 && fy < FH - 2 && ((Math.floor(along / 8) + f) & 1)) return PAL.TIMBER2;   // braces
-      return plaster;
+    const plaster = o.plaster, shutter = o.shutter || 0x3f6a4a, doorX = R((o.door || 0) * U), sides = o.sides || '';
+    const jet = y => y >= FH ? JT : 0, zf = y => z1 + jet(y), zb = y => z0 - jet(y);
+    const zs = z0 - JT - EV, ze = z1 + JT + EV, layers = Math.ceil((ze - zs + 1) / 2), ry0 = top - EV;
+    const CEIL = 55;
+    g.flat = new Set([PAL.GLASS, PAL.GLASS2, PAL.GLASS3, PAL.LEAD, 0xb8b2ac]);
+    g.inside = (x, y, z) => {
+      if (y < 0) return true;
+      if (x <= x0 || x >= x1) return false;
+      if (y < top) return o.forge && y < CEIL ? false : z > zb(y) && z < zf(y);
+      const k = (y - ry0) & ~1; return z > zs + k && z < ze - k;
     };
-    // the walls: a shell, the upper floors jutting out a voxel front and back
-    for (let y = 0; y < top; y++) {
-      const f = Math.floor(y / FH), j = jet(f);
-      for (let x = x0; x <= x1; x++) for (const z of [z0 - j, z1 + j]) g.set(x, y, z, wallCol(x, y, z, f, x - x0, W));
-      for (let z = z0 - j; z <= z1 + j; z++) for (const x of [x0, x1]) g.set(x, y, z, wallCol(x, y, z, f, z - z0 + j, D + 2 * j));
-    }
-    // solid inside, so only the outside is meshed
-    for (let y = 0; y < top; y++) { const j = jet(Math.floor(y / FH)); g.box(x0 + 1, y, z0 - j + 1, x1 - 1, y, z1 + j - 1, 0x2a2420); }
-    // windows: on every floor of the front and back, the upper floors of the sides
-    const windowAt = (put, along, f, side) => {
-      const yb = f * FH + 4;
-      for (let k = 0; k < 3; k++) for (let y = yb; y < yb + 5; y++) put(along + k, y, 0, y === yb + 4 || (k === 1 && y === yb + 2) ? PAL.TIMBER : (y === yb + 3 && k === 0 ? PAL.GLASS2 : PAL.GLASS));
-      for (let y = yb; y < yb + 5; y++) { put(along - 1, y, 1, shutter); put(along + 3, y, 1, shutter); }
-      if (f >= 1 && side !== 'side') for (let k = -1; k <= 3; k++) { put(along + k, yb - 1, 1, PAL.WOOD2); if (k >= 0 && k <= 2 && H(along + k, yb, f + seed) < 0.85) put(along + k, yb, 1, [0xd8304a, 0xf08ac0, 0xf0d04a, 0xe86a3a][(along + k + f + seed) % 4]); }
+    /* the four walls, each by (a: along it from its left, y, out from its plane) */
+    const P = {
+      front: (a, y, out, c) => g.set(x0 + a, y, zf(y) + out, c), back: (a, y, out, c) => g.set(x1 - a, y, zb(y) - out, c),
+      left: (a, y, out, c) => g.set(x0 - out, y, z0 + a, c), right: (a, y, out, c) => g.set(x1 + out, y, z1 - a, c),
     };
-    const front = (a, y, out, c) => g.set(x0 + a, y, z1 + jet(Math.floor(y / FH)) + out, c);
-    const back = (a, y, out, c) => g.set(x1 - a, y, z0 - jet(Math.floor(y / FH)) - out, c);
-    const sideL = (a, y, out, c) => g.set(x0 - out, y, z0 + a, c);
-    const sideR = (a, y, out, c) => g.set(x1 + out, y, z1 - a, c);
-    for (let f = 0; f < F; f++) {
-      for (let a = 3; a + 3 < W - 2; a += 7) {
-        const mid = W / 2 + doorX;
-        if (f === 0 && (o.shop || o.forge) && a > 2 && a < W - 6) continue;
-        if (f === 0 && Math.abs(a + 1 - mid) < 5) continue;                             // leave room for the door
-        windowAt(front, a, f, 'front');
-        windowAt(back, a, f, 'back');
+    const rect = (put, a0, y0, a1, y1, out, c) => { for (let a = a0; a <= a1; a++) for (let y = y0; y <= y1; y++) put(a, y, out, typeof c === 'function' ? c(a, y) : c); };
+    const seen = { front: !o.plain, left: sides.includes('L'), right: sides.includes('R'), back: false };
+    for (const face of ['back', 'left', 'right', 'front']) {
+      const put = P[face], side = face === 'left' || face === 'right', len = side ? D : W;
+      // the ground floor
+      for (let y = 0; y < FH; y++) for (let a = 0; a < len; a++) {
+        if (face === 'front' && o.forge && a > 4 && a < len - 5 && y < CEIL) continue;
+        put(a, y, 0, seen[face] ? ((a < 8 || a >= len - 8) && (Math.floor(y / 6) & 1) && y % 6 !== 5 ? PAL.STONE3 : stoneAt(a, y, seed + (side ? 5 : 0))) : PAL.STONE2);
       }
-      if (f >= 1) for (let a = 4; a + 3 < D - 3; a += 8) { windowAt(sideL, a, f, 'side'); windowAt(sideR, a, f, 'side'); }
-    }
-    // the door: planked, under a stone arch, a step in front
-    if (!o.forge && !o.noDoor) {
-      const dx = Math.round(doorX) - 2;
-      for (let x = dx; x <= dx + 3; x++) for (let y = 0; y <= 7; y++) {
-        if (y === 7 && (x === dx || x === dx + 3)) { g.set(x, y, z1, PAL.STONE3); continue; }
-        g.set(x, y, z1, y === 4 && x === dx + 3 ? 0xc8a24a : ((x - dx) & 1 ? PAL.WOOD2 : PAL.WOOD));
+      if (seen[face]) {
+        if (!(face === 'front' && o.forge)) rect(put, 0, 0, len - 1, 5, 1, (a, y) => y === 5 ? PAL.STONE3 : (a % 16 === 0 ? PAL.MORTAR : PAL.STONE2));         // a plinth
+        for (let row = 2; row < 10; row++) { const off = Math.floor(H(row, seed + (side ? 5 : 0), 3) * 12); for (let i = 1; i * 12 < len; i++) if (H(i, row, seed + 31) < 0.06) { const a0 = i * 12 - off % 12 + 1; if (a0 > 9 && a0 + 10 < len - 9 && !(face === 'front' && (o.shop || o.forge || Math.abs(a0 + 5 - len / 2 - doorX) < 24))) rect(put, a0, row * 6, a0 + 10, row * 6 + 4, 1, PAL.STONE4); } }   // a stone standing proud here and there
       }
-      for (let y = 0; y <= 8; y++) { g.set(dx - 1, y, z1 + 1, PAL.STONE3); g.set(dx + 4, y, z1 + 1, PAL.STONE3); }
-      g.box(dx - 1, 8, z1 + 1, dx + 4, 8, z1 + 1, PAL.STONE3);
+      // the upper floors: plaster panels in a timber frame
+      const e = side ? JT : 0, A0 = -e, A1 = len - 1 + e, span = A1 - A0 + 1, NP = Math.max(2, R(span / 37)), pw = span / NP;
+      for (let f = 1; f < F; f++) {
+        const detail = seen[face] || (side && f >= 2 && !o.plain);
+        const yb = f * FH;
+        rect(put, A0, yb, A1, yb + FH - 1, 0, plaster);
+        if (o.plain && !detail) continue;
+        rect(put, A0, yb, A1, yb + 4, 1, (a, y) => y === yb ? PAL.TIMBER2 : PAL.TIMBER); rect(put, A0, yb + FH - 3, A1, yb + FH - 1, 1, PAL.TIMBER);
+        const post = a => rect(put, Math.max(A0, a), yb + 5, Math.min(A1, a + 3), yb + FH - 4, 1, PAL.TIMBER);
+        post(A0); post(A1 - 3);
+        if (face === 'back' || !detail) continue;
+        rect(put, A0, yb + 18, A1, yb + 19, 1, PAL.TIMBER);
+        for (let p = 1; p < NP; p++) post(R(A0 + p * pw) - 2);
+        for (let p = 0; p < NP; p++) {
+          const a0 = R(A0 + p * pw) + (p === 0 ? 4 : 2), a1 = R(A0 + (p + 1) * pw) - (p === NP - 1 ? 5 : 3), mid = R((a0 + a1) / 2);
+          const win = face === 'front' ? (a1 - a0 > 24) && !(NP > 4 && H(p, f, seed) < 0.16) : seen[face] && (p + f) % 2 === 0 && a1 - a0 > 24;
+          // braces under the sill rail, or the height of the panel where there's no window
+          if (seen[face]) {
+            const kind = Math.floor(H(p, f, seed + 2) * 3);
+            const brace = (s, ya, yb2, w) => { for (let y = ya; y <= yb2; y++) { const t = (y - ya) / (yb2 - ya), a = s > 0 ? a0 + t * w : a1 - t * w; for (let k = -1; k <= 1; k++) { const q = R(a) + k; if (q >= a0 && q <= a1) put(q, y, 0, PAL.TIMBER2); } } };
+            if (!win) { brace(1, yb + 5, yb + 17, (a1 - a0) * 0.35); brace(-1, yb + 5, yb + 17, (a1 - a0) * 0.35); brace(1, yb + 20, yb + FH - 4, (a1 - a0) / 2); brace(-1, yb + 20, yb + FH - 4, (a1 - a0) / 2); }
+            else if (kind === 0) { brace(1, yb + 5, yb + 17, a1 - a0); brace(-1, yb + 5, yb + 17, a1 - a0); }
+            else if (kind === 1) { brace(1, yb + 5, yb + 17, (a1 - a0) * 0.4); brace(-1, yb + 5, yb + 17, (a1 - a0) * 0.4); }
+          }
+          if (win) windowAt(put, mid - 7, yb + 22, face === 'front', face === 'front' && H(p, f, seed + 5) < 0.7, p * 7 + f * 13);
+        }
+      }
+      if (F > 1 && !side) {                                              // the jetty: its underside and the joists that carry it
+        for (let a = 0; a < len; a++) for (let k = 1; k < JT; k++) g.set(x0 + a, FH, face === 'front' ? z1 + k : z0 - k, 0x3a2a1e);
+        if (seen[face]) for (let a = 4; a < len - 4; a += 12) for (let k = 1; k <= JT + 1; k++) for (let w = 0; w < 4; w++) for (let y = FH - 4; y < FH; y++) g.set(x0 + a + w, y, z1 + k, k === JT + 1 ? PAL.TIMBER2 : PAL.TIMBER);
+      }
+      // the ground floor's windows
+      if (seen[face] && !(face === 'front' && (o.shop || o.forge))) for (let a = 14; a + 30 < len; a += 37) {
+        if (face === 'front' && Math.abs(a + 8 - W / 2 - doorX) < 30) continue;
+        if (face === 'front') P.front(a, 60, 0, PAL.STONE2);
+        windowAt(put, a, 20, true, false, a + 3);
+      }
     }
-    // a shop front: a wide window with a counter under it, an awning over
+    /* a leaded window, 77 x 125 cm, its panes set back a voxel: a frame and sill, shutters, sometimes a flower box */
+    function windowAt(put, a0, y0, shutters, box, sd) {
+      const w = 16, h = 26, curtain = H(sd, seed, 9) < 0.45;
+      for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) {
+        const a = a0 + i, y = y0 + j, frame = i < 2 || i > 13 || j < 2 || j > 23 || i === 7 || i === 8 || j === 17;
+        put(a, y, 1, -1);
+        if (frame) { put(a, y, 0, i < 2 || i > 13 || j < 2 || j > 23 ? PAL.TIMBER : PAL.TIMBER2); continue; }
+        put(a, y, 0, -1);
+        const lead = i === 4 || i === 11 || (j < 17 ? j % 5 === 1 : j % 3 === 2), t = H(i > 7 ? (i - 8) >> 2 : i >> 2, j < 17 ? Math.floor((j + 3) / 5) : 9 + (j >> 2), sd + seed);
+        put(a, y, -1, lead ? PAL.LEAD : curtain && (i < 4 || i > 11) && j < 17 ? 0xb8b2ac : t < 0.22 ? PAL.GLASS2 : t < 0.5 ? PAL.GLASS3 : PAL.GLASS);
+      }
+      rect(put, a0 - 2, y0 - 2, a0 + w + 1, y0 - 1, 1, PAL.TIMBER); rect(put, a0 - 1, y0 + h, a0 + w, y0 + h + 1, 1, PAL.TIMBER);
+      rect(put, a0 - 2, y0 - 2, a0 + w + 1, y0 - 1, 2, PAL.TIMBER2);
+      if (shutters) for (const s of [0, 1]) {
+        const b0 = s ? a0 + w + 1 : a0 - 9;
+        rect(put, b0, y0, b0 + 7, y0 + h - 1, 1, (a, y) => { const i = a - b0, j = y - y0; if (Math.abs(i - 3.5) + Math.abs(j - 14.5) < 2.2) return shade(shutter, 0.5); if (j === 4 || j === 5 || j === 21 || j === 22) return (s ? i === 0 : i === 7) ? PAL.IRON : shade(shutter, 0.86); return i === 2 || i === 5 ? shade(shutter, 0.74) : shutter; });
+      }
+      if (box) {
+        for (let out = 2; out <= 5; out++) rect(put, a0 - 1, y0 - 6, a0 + w, y0 - 2, out, (a, y) => out > 2 && out < 5 && a > a0 - 1 && a < a0 + w ? (y === y0 - 2 ? 0x4a3424 : -1) : y === y0 - 4 ? PAL.WOOD2 : PAL.WOOD);
+        for (const b of [a0 + 1, a0 + w - 2]) rect(put, b, y0 - 9, b, y0 - 7, 2, PAL.IRON);
+        const cols = [[0xd8304a, 0xe8506a], [0xf08ac0, 0xfdf6fa], [0xf0d04a, 0xf0a030], [0xe86a3a, 0xd8304a], [0x9a7ae0, 0xfdf6fa]][Math.floor(H(sd, seed, 6) * 5)];
+        rect(put, a0, y0 - 1, a0 + w - 1, y0 - 1, 3, PAL.LEAF2); rect(put, a0, y0 - 1, a0 + w - 1, y0 - 1, 4, PAL.LEAF); rect(put, a0, y0 - 1, a0 + w - 1, y0 - 1, 5, PAL.LEAF2);
+        for (let a = a0; a < a0 + w - 1; a += 2) { const t = H(a, 5, sd + seed), out = 3 + Math.floor(t * 2.9), hh = 1 + Math.floor(H(a, 6, sd) * 2.2); for (let k = 0; k < hh; k++) put(a, y0 + k, out, PAL.LEAF); rect(put, a, y0 + hh - (t < 0.3 ? 1 : 0), a + 1, y0 + hh, out, cols[t < 0.5 ? 0 : 1]); if (t < 0.4) put(a, y0 - 2, 6, PAL.LEAF); }
+      }
+    }
+    // the door: round-headed, planked and strapped with iron, in a stone surround, a step in front, a lantern beside it
+    if (!o.forge && !o.noDoor && !o.plain) {
+      const dc = R(W / 2 + doorX), arch = (i, y, r, yc) => Math.abs(i) <= r && (y <= yc || Math.hypot(i, (y - yc) * 1.05) <= r + 0.4);
+      for (let i = -15; i <= 15; i++) for (let y = 0; y <= 54; y++) {
+        const a = dc + i;
+        if (arch(i, y, 10, 36)) {
+          P.front(a, y, 1, -1); P.front(a, y, 0, -1);
+          P.front(a, y, -1, (i + 20) % 5 === 0 ? 0x4a2e1a : H((i + 20) / 5 | 0, seed, 2) < 0.5 ? PAL.WOOD2 : 0x7a4e2c);
+          if (y === 9 || y === 10 || y === 33 || y === 34) P.front(a, y, 0, (i + 20) % 6 === 0 ? 0x565660 : PAL.IRON);
+        } else if (arch(i, y, 14, 37)) {
+          const n = y <= 37 ? Math.floor(y / 8) + (i > 0 ? 1 : 0) : Math.floor(Math.atan2(y - 37, i) * 4) + 20;
+          P.front(a, y, 1, n & 1 ? PAL.STONE3 : 0xc9c3ba);
+        }
+      }
+      for (const [i, y] of [[7, 22], [6, 21], [8, 21], [6, 20], [8, 20], [7, 19]]) P.front(dc + i, y, 0, 0xc8a24a);
+      for (let out = 1; out <= 5; out++) rect(P.front, dc - 16, 0, dc + 16, 2, out, (a, y) => y === 2 ? PAL.STONE3 : PAL.STONE2);
+      const la = dc + 20;                                               // the lantern
+      for (let out = 1; out <= 4; out++) P.front(la, 48, out, PAL.IRON);
+      for (let k = 0; k < 8; k++) for (let i = -1; i <= 1; i++) for (let w = -1; w <= 1; w++) { const e2 = Math.abs(i) + Math.abs(w); P.front(la + i, 39 + k, 4 + w, k === 0 || k === 7 ? PAL.IRON : e2 === 2 ? PAL.IRON : 0xead9a6); }
+    }
+    // a shop front: a wide leaded window either side of the door over a panelled counter, an awning
     if (o.shop) {
-      for (let x = x0 + 3; x <= x1 - 4; x++) {
-        if (Math.abs(x - doorX) <= 3) continue;
-        for (let y = 3; y <= 8; y++) g.set(x, y, z1, y === 8 || (x - x0) % 5 === 0 ? PAL.TIMBER : (y === 7 ? PAL.GLASS2 : PAL.GLASS));
-        g.set(x, 2, z1 + 1, PAL.WOOD3); g.set(x, 2, z1 + 2, PAL.WOOD3);
-        for (let k = 0; k < 3; k++) g.set(x, 10 - k, z1 + 1 + k, ((x - x0) >> 1) & 1 ? o.awning || 0xc23a3a : 0xf1ece2);
+      const dc = R(W / 2 + doorX);
+      for (const [a0, a1] of [[8, dc - 18], [dc + 18, W - 9]]) {
+        if (a1 - a0 < 16) continue;
+        const n = Math.max(1, R((a1 - a0) / 18));
+        for (let a = a0; a <= a1; a++) for (let y = 6; y <= 50; y++) {
+          const u = (a - a0) / (a1 - a0) * n, fu = u - Math.floor(u), mull = a <= a0 + 1 || a >= a1 - 1 || fu * (a1 - a0) / n < 1.5;
+          P.front(a, y, 1, -1);
+          if (y < 20) { P.front(a, y, 0, y < 8 || y > 17 || mull || fu * (a1 - a0) / n < 3 || fu * (a1 - a0) / n > (a1 - a0) / n - 2 ? shade(shutter, 0.85) : shutter); continue; }      // the panelled riser
+          if (mull || y > 48 || y === 20 || y === 40) { P.front(a, y, 0, PAL.TIMBER); continue; }
+          P.front(a, y, 0, -1); const t = H(Math.floor(u), y >> 4, seed + 4), i = R(fu * (a1 - a0) / n);
+          P.front(a, y, -1, i % 4 === 1 && y > 40 || (y > 40 && y % 4 === 0) ? PAL.LEAD : t < 0.3 ? PAL.GLASS3 : t < 0.5 ? PAL.GLASS2 : PAL.GLASS);
+        }
+        for (let out = 1; out <= 7; out++) rect(P.front, a0 - 1, 17, a1 + 1, 18, out, (a) => a % 9 === 0 ? PAL.WOOD2 : PAL.WOOD3);
+        for (let a = a0 + 3; a < a1; a += 22) for (let k = 0; k < 6; k++) for (let out = 1; out <= 6 - k; out++) rect(P.front, a, 16 - k, a + 1, 16 - k, out, PAL.WOOD2);
+        for (let a = a0 - 3; a <= a1 + 3; a++) {                         // the awning, striped and scalloped
+          const i = Math.floor((a - a0 + 80) / 6), c = i & 1 ? o.awning || 0xc23a3a : 0xf1ece2, u2 = ((a - a0 + 80) % 6) - 2.5;
+          for (let k = 1; k <= 18; k++) { const y = 60 - R(k * 0.36); P.front(a, y, k, c); if (R((k + 1) * 0.36) > R(k * 0.36)) P.front(a, y - 1, k, c); }
+          const hang = 4 - R(u2 * u2 * 0.3); for (let k = 1; k <= hang; k++) P.front(a, 54 - k, 18, k === hang ? shade(c, 0.8) : c);
+        }
+        for (const a of [a0 - 2, a1 + 2]) for (let k = 1; k <= 17; k++) P.front(a, 44 + R(k * 0.5), k, PAL.IRON);
       }
     }
-    // the forge: the front of the ground floor open, the forge glowing inside, a hood over it
+    // the forge: the front of the ground floor open under a great beam, the hearth glowing inside, its hood, tools on the wall
     if (o.forge) {
-      g.cut(x0 + 1, 0, z0 + 1, x1 - 1, 10, z1 - 1);
-      for (let x = x0 + 2; x <= x1 - 2; x++) for (let y = 0; y <= 9; y++) g.del(x, y, z1);
-      g.box(x0 + 1, 0, z1 - 1, x1 - 1, 0, z1 - 1, PAL.STONE2);
-      g.box(-4, 0, z1 - 7, 4, 4, z1 - 3, stone);
-      g.box(-3, 5, z1 - 6, 3, 5, z1 - 4, (x, y, z) => VX.glow(H(x, y, z) < 0.5 ? 0xff7a2a : 0xffb347));
-      g.box(-4, 9, z1 - 8, 4, 11, z1 - 2, PAL.STONE2);
-      for (let x = x0 + 1; x <= x1 - 1; x++) for (let z = z0 + 1; z <= z1 - 1; z++) g.set(x, 11, z, PAL.WOOD2);   // the ceiling over it
-      for (let y = 1; y <= 10; y++) for (let x = x0 + 1; x <= x1 - 1; x++) g.set(x, y, z0, shade(stone(x, y, z0), 0.7));
+      for (let a = 1; a < W - 1; a++) for (let z = z0 + 1; z <= z1; z++) { g.set(x0 + a, CEIL, z, (a % 14) < 4 ? PAL.TIMBER : 0x4a3624); g.set(x0 + a, 0, z, stoneAt(a, z + 400, 9)); if (a % 14 < 4) for (let y = CEIL - 4; y < CEIL; y++) g.set(x0 + a, y, z, PAL.TIMBER); }
+      for (let y = 1; y < CEIL; y++) for (let a = 1; a < W - 1; a++) g.set(x0 + a, y, z0 + 1, shade(stoneAt(a, y, seed), 0.72));
+      for (let y = 1; y < CEIL; y++) for (let z = z0 + 1; z < z1; z++) { g.set(x0 + 1, y, z, shade(stoneAt(z + 200, y, seed), 0.78)); g.set(x1 - 1, y, z, shade(stoneAt(z + 200, y, seed), 0.78)); }
+      for (const s of [-1, 1]) for (let y = 0; y < CEIL; y++) for (let k = 0; k < 6; k++) for (let m = 0; m < 6; m++) g.set(s < 0 ? x0 + 5 + k : x1 - 5 - k, y, z1 - m, PAL.TIMBER);
+      rect(P.front, 5, CEIL - 5, W - 6, CEIL + 6, 1, (a, y) => y === CEIL + 6 ? PAL.TIMBER2 : PAL.TIMBER);
+      const hz = z1 - 34;                                               // the hearth
+      g.box(-20, 0, hz - 12, 20, 18, hz + 12, (x, y, z) => stoneAt(x + z + 300, y, 3)); g.box(-21, 19, hz - 13, 21, 20, hz + 13, PAL.STONE3);
+      g.box(-14, 21, hz - 8, 14, 22, hz + 8, (x, y, z) => { const t = H(x >> 1, y, z >> 1); return t < 0.3 ? 0x2a2020 : VX.glow(t < 0.6 ? 0xff7a2a : t < 0.85 ? 0xffb347 : 0xffe08a); });
+      for (let k = 0; k < 16; k++) g.box(-22 + R(k * 0.7), 40 + k, hz - 14 + R(k * 0.5), 22 - R(k * 0.7), 40 + k, hz + 14 - R(k * 0.5), (x, y, z) => k === 0 ? PAL.IRON : stoneAt(x + z + 300, y, 5));
+      for (const s of [-1, 1]) g.box(s * 20 - 1, 21, hz - 12, s * 20 + 1, 40, hz - 10, PAL.IRON);
+      for (let k = 0; k < 20; k++) g.box(26 + R(k * 0.4), 14 + R(k * 0.3), hz - 6 + R(k * 0.2), 27 + R(k * 0.4), 22 - R(k * 0.2), hz + 6 - R(k * 0.2), k % 4 === 3 ? PAL.WOOD2 : 0x5a3a2a);      // the bellows
+      for (let i = 0; i < 9; i++) { const x = x0 + 18 + i * 12, y = 34; g.box(x, y - 14 - (i % 3) * 2, z0 + 2, x, y, z0 + 2, i & 1 ? PAL.WOOD : PAL.IRON); if (i % 3 === 0) g.box(x - 3, y - 16, z0 + 2, x + 3, y - 13, z0 + 2, PAL.IRON); else if (i % 3 === 1) g.box(x - 2, y - 18, z0 + 2, x + 2, y - 15, z0 + 2, 0x8a9098); }      // tools on their hooks
+      g.box(x0 + 12, 35, z0 + 2, x0 + 124 > x1 - 12 ? x1 - 12 : x0 + 124, 36, z0 + 2, PAL.TIMBER);
     }
-    // the roof: a steep gable, ridge along the front, eaves overhanging; tiles, slate or thatch
-    const RJ = jet(F - 1) + 1, zs = z0 - RJ, ze = z1 + RJ, layers = Math.ceil((ze - zs + 1) / 2);
-    const rc = (x, k, z) => {                           // a colour per course, so each course is a few long quads
-      if (o.roof === 'slate') return (k & 1) ? PAL.SLATE2 : PAL.SLATE;
-      if (o.roof === 'thatch') return k % 3 === 2 ? PAL.THATCH2 : PAL.THATCH;
-      return (k & 1) ? PAL.TILE2 : PAL.TILE;
+    // the roof: a steep gable along the front, its courses lipped, barge boards at the gable ends, a ridge, a brick chimney
+    const RB = o.roof === 'slate' ? PAL.SLATE : o.roof === 'thatch' ? PAL.THATCH : PAL.TILE, CH = o.roof === 'thatch' ? 14 : 6;
+    const rc = (x, k, back) => {
+      const ci = Math.floor(k / CH), base = shade(RB, 0.95 + H(ci, seed, 1) * 0.1);
+      if (back) return base;
+      const tw = o.roof === 'thatch' ? 14 : 8, t = H(Math.floor((x + 512 + (ci & 1) * 4) / tw), ci, seed + 2);
+      return t < 0.1 ? shade(base, 0.86) : t > 0.92 ? shade(base, 1.14) : base;
     };
-    for (let k = 1; k < layers; k++) { const za = zs + k, zb = ze - k; if (zb - za > 1) g.box(x0 + 1, top + k - 1, za + 1, x1 - 1, top + k - 1, zb - 1, 0x2a2420); }   // the attic, solid
-    for (let k = 0; k < layers; k++) {
-      const za = zs + k, zb = ze - k, y = top + k;
-      for (let x = x0 - 1; x <= x1 + 1; x++) for (const z of za === zb ? [za] : [za, zb]) { g.set(x, y, z, rc(x, k, z)); if (k > 0 && za !== zb) g.set(x, y - 1, z + (z === za ? 1 : -1), rc(x, k, z)); }
-      for (const x of [x0, x1]) for (let z = za + 1; z < zb; z++) g.set(x, y, z, k % 4 === 3 ? PAL.TIMBER : plaster);   // the gable ends
+    const flat = c => { g.flat.add(c); return c; }, BARGE = flat(0x4c3626), SOFFIT = flat(0x3e2e20);
+    for (let k = 0; k < layers; k += 2) {                 // (in steps of two voxels; its colours take no occlusion, so the courses merge)
+      const za = zs + k, zb2 = ze - k, y = ry0 + k, lip = k % CH < 2;
+      for (let x = x0 - VG; x <= x1 + VG; x++) {
+        const over = x < x0 || x > x1, cf = flat(rc(x, k, o.plain)), cb = flat(rc(x, k, true));
+        for (let m = 0; m < 2; m++) for (let j = 0; j < 2; j++) { g.set(x, y + m, za + j, cb); g.set(x, y + m, zb2 - j, cf); }
+        if (lip) { if (!o.plain) g.set(x, y, za - 1, flat(shade(cb, 0.84))); g.set(x, y, zb2 + 1, flat(shade(cf, 0.84))); if (o.roof === 'thatch' && !o.plain && H(x >> 3, k, seed) < 0.5) { g.set(x, y, zb2 + 2, flat(shade(cf, 0.84))); g.set(x, y - 1, zb2 + 1, flat(shade(cf, 0.8))); } }
+        if (over) for (let m = 1; m <= 4; m++) if (y - m >= ry0 - 2) { const c = x === x0 - VG || x === x1 + VG ? BARGE : SOFFIT; for (let j = 0; j < 2; j++) { g.set(x, y - m, za + j, c); g.set(x, y - m, zb2 - j, c); } }
+        if (k < EV && !over && !o.plain) for (let j = 0; j < 2; j++) { g.set(x, y - 1, zb2 - j, SOFFIT); g.set(x, y - 1, za + j, SOFFIT); }
+      }
+      const zm = Math.floor((zs + ze) / 2);
+      if (k >= EV) for (const x of [x0, x1]) for (let z = za + 2; z < zb2 - 1; z++) for (let m = 0; m < 2; m++) g.set(x, y + m, z, !o.plain && (z === zm || z === zm + 1 || (k - EV) % 26 < 2 || z - za < 4 || zb2 - z < 4) ? PAL.TIMBER : plaster);   // the gable ends
     }
-    // a chimney on the back slope
-    const cx = x1 - 5 - (seed % 3) * 3, ctop = top + layers + 2;
-    for (let y = top; y <= ctop; y++) g.box(cx, y, z0 + 4, cx + 2, y, z0 + 6, y === ctop ? 0x2a2626 : stone);
+    for (let x = x0 - VG; x <= x1 + VG; x++) { const zm = Math.floor((zs + ze) / 2), yr = ry0 + layers - 1; for (let z = zm - 2; z <= zm + 3; z++) g.set(x, yr + 1, z, (x + 512) % 8 === 0 ? shade(RB, 0.72) : shade(RB, 0.9)); }
+    const cx = x1 - 24 - (seed % 3) * 14, ctop = ry0 + layers + 12, cz0 = Math.floor((zs + ze) / 2) - 22;
+    for (let y = ry0 + layers - 34; y <= ctop; y++) for (let x = cx; x < cx + 14; x++) for (let z = cz0; z < cz0 + 12; z++) { if (x !== cx && x !== cx + 13 && z !== cz0 && z !== cz0 + 11) continue; g.set(x, y, z, y > ctop - 3 ? PAL.STONE2 : o.plain ? 0x8c4a3f : brickAt(x + z, y)); }
+    g.box(cx, ctop, cz0, cx + 13, ctop, cz0 + 11, 0x4a4442); g.box(cx + 4, ctop + 1, cz0 + 3, cx + 9, ctop + 7, cz0 + 8, (x, y, z) => y === ctop + 7 ? (x > cx + 4 && x < cx + 9 && z > cz0 + 3 && z < cz0 + 8 ? 0x2a2626 : 0xa85a3a) : 0x9a5236);
     return g;
   }
-  // the chapel: stone walls, tall pointed windows, a steep slate roof, a bell tower with a spire
+  /* the same house as a plain block, only to cast its shadow (a few dozen faces instead of ten thousand) */
+  function houseShadowGrid(o) {
+    const g = grid(), x0 = -o.W / 2, x1 = o.W / 2 - 1, z0 = -o.D / 2, z1 = o.D / 2 - 1, top = o.floors * 12;
+    for (let y = 0; y < top; y++) { const j = y >= 12 ? 1 : 0; g.box(x0, y, z0 - j, x1, y, z1 + j, 0x808080); }
+    const zs = z0 - 2, ze = z1 + 2, n = Math.ceil((ze - zs + 1) / 2);
+    for (let k = 0; k < n; k++) g.box(x0 - 1, top - 1 + k, zs + k, x1 + 1, top - 1 + k, ze - k, 0x808080);
+    return g;
+  }
+  // the chapel (seen over the roofs; voxels of 9.6 cm): stone walls, tall pointed windows, a steep slate roof, a bell tower with a spire
+  const CB = 0.096;
   function chapelGrid() {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    const st = (x, y, z) => (y % 3 === 0 ? PAL.MORTAR : (H(x, y, z) < 0.4 ? PAL.STONE3 : 0xc4bdb2));
-    const W = 28, D = 48, HW = 36;
-    for (let y = 0; y < HW; y++) for (let x = -W / 2; x < W / 2; x++) for (let z = -D / 2; z < D / 2; z++) {
-      g.set(x, y, z, st(x, y, z));
+    const g = grid(), V = m => R(m / CB);
+    const st = (a, y) => { const row = Math.floor(y / 6), i = Math.floor((a + (row & 1) * 5 + 400) / 10); if (y % 6 === 5 || (a + (row & 1) * 5 + 400) % 10 === 0) return 0x9a938a; return H(i, row, 3) < 0.4 ? PAL.STONE3 : 0xc4bdb2; };
+    const W2 = V(3.5), D2 = V(6), HW = V(9), rise = W2 + 2, tz0 = D2 - V(0.5), tz1 = D2 + V(2.6), TW = V(1.55), TH = V(18);
+    g.inside = (x, y, z) => y < 0 || (Math.abs(x) < W2 && Math.abs(z) < D2 && y < HW) || (y >= HW && Math.abs(x) < W2 - (y - HW) && Math.abs(z) < D2) || (Math.abs(x) < TW && z > tz0 && z < tz1 && (y < V(14) || (y > V(16.6) && y < TH)));
+    for (let y = 0; y < HW; y++) { for (let x = -W2; x <= W2; x++) for (const z of [-D2, D2]) g.set(x, y, z, 0xb4ada4); for (let z = -D2; z <= D2; z++) for (const x of [-W2, W2]) g.set(x, y, z, 0xb4ada4); }      // (the nave is hidden behind the houses)
+    for (let k = 0; k <= rise; k++) for (let z = -D2 - 3; z <= D2 + 3; z++) for (const s of [-1, 1]) { g.set(s * (rise - k), HW + k - 2, z, k % 5 === 0 ? shade(PAL.SLATE, 0.8) : PAL.SLATE); }
+    for (let k = 0; k < W2; k++) for (let x = -W2 + k; x <= W2 - k; x++) for (const z of [-D2, D2]) g.set(x, HW + k, z, 0xb4ada4);
+    for (let y = 0; y < TH; y++) for (let x = -TW; x <= TW; x++) for (let z = tz0; z <= tz1; z++) {
+      if (Math.abs(x) !== TW && z !== tz0 && z !== tz1) continue;
+      const belfry = y > V(14) && y < V(16.6) && ((Math.abs(x) < TW - 4) || (z > tz0 + 4 && z < tz1 - 4)) && !(y > V(16) && (Math.abs(x) > TW - 8));
+      if (!belfry) g.set(x, y, z, y < V(8) ? 0xb4ada4 : y % V(4.5) < 2 ? PAL.STONE3 : st(x + z, y));
     }
-    for (let k = 0; k < W / 2 + 1; k++) for (let z = -D / 2 - 1; z <= D / 2; z++) { g.set(-W / 2 - 1 + k, HW + k, z, k & 1 ? PAL.SLATE2 : PAL.SLATE); g.set(W / 2 - k, HW + k, z, k & 1 ? PAL.SLATE2 : PAL.SLATE); }
-    for (let k = 0; k < W / 2; k++) for (let x = -W / 2 + k + 1; x < W / 2 - k - 1; x++) for (let z = -D / 2; z < D / 2; z++) g.set(x, HW + k, z, st(x, HW + k, z));
-    for (let z = -D / 2 + 5; z < D / 2 - 5; z += 8) for (const x of [-W / 2, W / 2 - 1]) for (let y = 10; y < 28; y++) for (let k = -1; k <= 1; k++) if (y < 25 || Math.abs(k) < 1) g.set(x, y, z + k, (y + k) % 4 === 0 ? 0x6a5a4a : VX.glow(0)) ;
-    g.paint((x, y, z, v) => v === VX.glow(0), (x, y, z) => H(x, y, z) < 0.5 ? 0x5a6a9a : 0x8a5a7a);     // stained glass, unlit by day
-    // the bell tower on the front, its spire
-    for (let y = 0; y < 72; y++) for (let x = -6; x < 6; x++) for (let z = D / 2 - 2; z < D / 2 + 10; z++) {
-      if (x !== -6 && x !== 5 && z !== D / 2 - 2 && z !== D / 2 + 9) continue;
-      const belfry = y > 56 && y < 66 && ((x > -4 && x < 3) || (z > D / 2 && z < D / 2 + 7));
-      if (!belfry) g.set(x, y, z, st(x, y, z));
-    }
-    g.box(-2, 58, D / 2 + 2, 1, 62, D / 2 + 5, 0x8a6a3a);              // the bell
-    for (let k = 0; k < 30; k++) { const r = 7 * (1 - k / 30); for (let x = -Math.ceil(r); x <= r; x++) for (let z = -Math.ceil(r); z <= r; z++) if (Math.max(Math.abs(x), Math.abs(z)) >= r - 1.2 && Math.max(Math.abs(x), Math.abs(z)) <= r + 0.3) g.set(x - 0.5, 72 + k, z + D / 2 + 3.5, k & 1 ? PAL.SLATE2 : PAL.SLATE); }
-    g.box(0, 102, D / 2 + 3, 0, 106, D / 2 + 3, 0xc8a24a); g.box(-1, 105, D / 2 + 3, 1, 105, D / 2 + 3, 0xc8a24a);
+    g.ell(0, V(15.4), (tz0 + tz1) / 2, 5, 6, 5, 0x9a7a3a); g.box(-TW, V(16.5), R((tz0 + tz1) / 2), TW, V(16.5) + 1, R((tz0 + tz1) / 2), PAL.TIMBER);
+    const cz = R((tz0 + tz1) / 2), SH = V(7.5);
+    for (let k = 0; k < SH; k++) { const r = (TW + 2) * (1 - k / SH); for (let x = -Math.ceil(r); x <= r; x++) for (let z = -Math.ceil(r); z <= r; z++) { const m = Math.max(Math.abs(x), Math.abs(z)); if (m >= r - 1.4 && m <= r + 0.3) g.set(x, TH + k, cz + z, k % 6 === 0 ? shade(PAL.SLATE, 0.78) : PAL.SLATE); } }
+    g.box(0, TH + SH, cz, 0, TH + SH + 12, cz, 0xc8a24a); g.box(-4, TH + SH + 8, cz, 4, TH + SH + 8, cz, 0xc8a24a);
     return g;
   }
   // the town wall and its gatehouse (the gate stands open; a hay cart is pulled up in it)
-  function wallGrid(len) {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    for (let x = 0; x < len; x++) for (let y = 0; y < 24; y++) for (let z = 0; z < 6; z++) {
-      if (y >= 22 && (z > 0 && z < 5)) continue;
-      if (y === 23 && (x % 4 >= 2)) continue;
-      g.set(x, y, z, y % 3 === 0 ? PAL.MORTAR : (H(x, y, z) < 0.4 ? PAL.STONE2 : PAL.STONE));
-    }
+  function wallGrid() {
+    const g = grid(), L = 417, Hh = 125, D = 31;
+    g.inside = (x, y, z) => y < 0 || (x > 0 && x < L - 1 && y < Hh - 10 && z > 0 && z < D - 1);
+    for (let x = 0; x < L; x++) for (let y = 0; y < Hh; y++) for (const z of [0, D - 1]) { if (y >= Hh - 8 && (x % 22 >= 12)) continue; g.set(x, y, z, z === 0 ? stoneAt(x, y, 4) : PAL.STONE2); }
+    for (let x = 0; x < L; x++) for (let z = 1; z < D - 1; z++) g.set(x, Hh - 11, z, PAL.STONE2);
+    for (let y = 0; y < Hh - 10; y++) for (let z = 1; z < D - 1; z++) { g.set(0, y, z, PAL.STONE2); g.set(L - 1, y, z, PAL.STONE2); }
     return g;
   }
   function gatehouseGrid() {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    const st = (x, y, z) => y % 3 === 0 ? PAL.MORTAR : (H(x, y, z) < 0.4 ? PAL.STONE2 : PAL.STONE);
-    for (let x = -20; x < 20; x++) for (let y = 0; y < 38; y++) for (let z = -6; z < 6; z++) {
-      if (Math.abs(x) < 8 && (y < 18 || Math.hypot(x, y - 18) < 8)) continue;   // the arch
-      if (y >= 36 && ((x + 40) % 4 >= 2) && (x === -20 || x === 19 || z === -6 || z === 5)) continue;
-      g.set(x, y, z, st(x, y, z));
+    const g = grid(), X = 104, Yt = 188, Z = 31, AR = 42, AY = 94;
+    const hole = (x, y) => Math.abs(x) < AR && (y < AY || Math.hypot(x, y - AY) < AR);
+    g.inside = (x, y, z) => y < 0 || (Math.abs(x) < X && y < Yt && Math.abs(z) < Z && !hole(x, y));
+    for (let x = -X; x <= X; x++) for (let y = 0; y <= Yt + 10; y++) {
+      if (hole(x, y)) continue;
+      for (const z of [-Z, Z]) {
+        if (y > Yt && ((x + 220) % 22 >= 12)) continue;
+        const d = y >= AY ? Math.hypot(x, y - AY) : Math.abs(x), ring = y >= 0 && d < AR + 9 && Math.abs(x) < AR + 9;
+        g.set(x, y, z, ring ? ((y >= AY ? Math.floor(Math.atan2(y - AY, x) * 9) : Math.floor(y / 10)) & 1 ? PAL.STONE3 : 0xc9c3ba) : stoneAt(x + 200, y, 6));
+        if (ring) g.set(x, y, z + (z < 0 ? -1 : 1), (y >= AY ? Math.floor(Math.atan2(y - AY, x) * 9) : Math.floor(y / 10)) & 1 ? PAL.STONE3 : 0xc9c3ba);
+        else if (Math.abs(x) > X - 16 && Math.floor(y / 6) % 2 === 0 && y % 6 !== 5) g.set(x, y, z + (z < 0 ? -1 : 1), PAL.STONE3);
+      }
     }
-    for (let x = -8; x < 8; x++) for (let z = -6; z < 6; z++) for (let y = 0; y < 26; y++) if (y >= 18 && Math.hypot(x, y - 18) >= 7.5 && Math.hypot(x, y - 18) < 8.5) g.set(x, y, z, PAL.STONE3);
-    for (let x = -7; x <= 7; x += 2) g.box(x, 22, -6, x, 25, -6, PAL.IRON);  // the raised portcullis' teeth
-    // banners either side of the arch
-    for (const s of [-1, 1]) g.box(s * 12 - 1, 14, 6, s * 12 + 1, 28, 6, (x, y, z) => y === 14 && x !== s * 12 ? -1 : (Math.abs(x - s * 12) < 1 && y > 18 && y < 24 ? 0xe8c24a : 0x2f4f9e));
+    for (let y = 0; y <= Yt; y++) for (let z = -Z; z <= Z; z++) for (const x of [-X, X]) g.set(x, y, z, PAL.STONE2);
+    for (let x = -X; x <= X; x++) for (let z = -Z; z <= Z; z++) g.set(x, Yt, z, PAL.STONE2);
+    for (let z = -Z; z <= Z; z++) { for (let y = 0; y < AY; y++) for (const s of [-1, 1]) g.set(s * AR, y, z, stoneAt(z + 200, y, 8)); for (let k = 0; k <= 280; k++) { const a = k / 280 * Math.PI; g.set(Math.cos(a) * AR, AY + Math.sin(a) * AR, z, k % 14 === 0 ? PAL.MORTAR : PAL.STONE4); } }        // the passage, vaulted
+    g.box(-AR, 130, -Z - 1, AR, 130, -Z - 1, -1);
+    for (let x = -34; x <= 34; x += 8) { g.box(x - 1, 108, -24, x + 1, 134, -22, (xx, y) => y < 112 && xx !== x ? -1 : PAL.IRON); } g.box(-36, 116, -24, 36, 118, -22, PAL.IRON); g.box(-36, 128, -24, 36, 130, -22, PAL.IRON);      // the raised portcullis
+    for (const s of [-1, 1]) {                             // banners either side of the arch (the thistle), and leaves of the gate folded back inside it
+      const bx = s * 70;
+      for (let x = -14; x <= 14; x++) for (let y = 78; y <= 150; y++) { if (y < 78 + Math.abs(x) * 0.9) continue; const u = x / 10, v = (y - 116) / 16, e = Math.abs(x) > 12 || y > 147; const flower = Math.hypot(u, (v - 0.55) * 1.2) < 0.55, bulb = Math.hypot(u * 1.2, v * 1.2) < 0.5, stem = Math.abs(x) < 1 && v < -0.2 && v > -1.3, leaf = v < -0.4 && v > -1.2 && Math.abs(Math.abs(u) - (v + 1.3) * 0.5) < 0.2; for (const z of [-1, 1]) g.set(bx + x, y, z * (Z + 2), e ? 0xe8c24a : flower ? 0xa05ac0 : bulb || stem || leaf ? 0x5a9a4a : 0x2f4f9e); }
+      for (const z of [-1, 1]) g.box(bx - 17, 151, z * (Z + 2), bx + 17, 152, z * (Z + 2), PAL.IRON);
+      for (let y = 0; y < AY; y++) for (let z = -18; z <= 24; z++) g.set(s * (AR - 2), y, z, y % 30 < 3 ? PAL.IRON : (z + 40) % 7 === 0 ? 0x4a2e1a : PAL.WOOD2);
+    }
+    return g;
+  }
+  function parapetGrid() { const g = grid(); g.inside = (x, y, z) => y < 0; g.box(0, 0, -73, 11, 20, 73, (x, y, z) => stoneAt(x === 0 || x === 11 ? z + 200 : x + 100, y, 4)); g.box(-1, 21, -74, 12, 23, 74, (x, y, z) => (z + 100) % 20 === 0 ? PAL.MORTAR : PAL.STONE3); return g; }
+  function bridgeGrid() {                                // the room built across the alley
+    const g = grid(), X = 30, Z = 20, Hh = 58;
+    g.inside = (x, y, z) => y > 0 && y < Hh + 4 && Math.abs(x) < X && Math.abs(z) < Z;
+    for (let x = -X; x <= X; x++) for (let y = 0; y <= Hh; y++) for (let z = -Z; z <= Z; z++) {
+      const ex = Math.abs(x) === X, ez = Math.abs(z) === Z; if (!ex && !ez && y !== 0) continue;
+      const a = ez ? x : z, beam = y < 5 || y > Hh - 3 || Math.abs(a) > (ez ? X : Z) - 4 || y === 18 || y === 19 || (ez && Math.abs(Math.abs(x) - 14) < 2);
+      const win = ez && Math.abs(x) < 11 && y > 22 && y < 48;
+      g.set(x, y, z, y === 0 ? ((x + 60) % 12 < 4 ? PAL.TIMBER : 0x3a2a1e) : win ? (Math.abs(x) > 8 || Math.abs(x) < 1 || y < 25 || y > 45 || y === 38 ? PAL.TIMBER : x % 4 === 0 || y % 5 === 0 ? PAL.LEAD : H(x >> 2, y >> 2, 4) < 0.35 ? PAL.GLASS3 : PAL.GLASS) : beam ? PAL.TIMBER : 0xd8d0c0);
+    }
+    for (let k = 0; k <= Z + 4; k++) for (let x = -X - 4; x <= X + 4; x++) for (const s of [-1, 1]) { g.set(x, Hh - 2 + k, s * (Z + 4 - k), k % 5 === 0 ? shade(PAL.SLATE, 0.8) : PAL.SLATE); if (k % 5 === 0) g.set(x, Hh - 2 + k, s * (Z + 5 - k), shade(PAL.SLATE, 0.8)); }
+    for (let k = 4; k < Z + 2; k++) for (let z = -(Z + 4 - k); z <= Z + 4 - k; z++) for (const x of [-X, X]) g.set(x, Hh - 2 + k, z, 0xd8d0c0);
     return g;
   }
 
-  /* -------------------------------------------------- the square's things -- */
-  function fountainGrid() {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    const st = (x, y, z) => H(x, y, z) < 0.4 ? 0xc8c0b6 : 0xb8b0a6;
-    for (let y = 0; y <= 5; y++) g.disc(0, 0, 16, y, y, (x, yy, z) => { const r = Math.hypot(x, z); if (r > 14.6 && r <= 16.3) return yy === 5 ? 0xd6cfc4 : st(x, yy, z); if (r <= 14.6 && yy === 3) return H(x, yy, z) < 0.15 ? 0x9cc4ec : (Math.sin(r * 1.3) > 0.6 ? 0x6f9fd8 : 0x5a8ccc); return -1; });
-    g.disc(0, 0, 3, 0, 14, st);
-    for (let y = 12; y <= 14; y++) g.disc(0, 0, 7, y, y, (x, yy, z) => { const r = Math.hypot(x, z); if (r > 5.6) return yy === 14 ? 0xd6cfc4 : st(x, yy, z); return yy === 13 ? 0x6f9fd8 : (yy === 12 ? st(x, yy, z) : -1); });
-    g.disc(0, 0, 1.6, 15, 22, st);
-    // a little statue on top: a robed figure with a raised staff
-    g.box(-1, 23, -1, 1, 28, 1, 0xd6cfc4); g.box(-1, 29, -1, 1, 31, 1, 0xd6cfc4); g.box(2, 24, 0, 2, 34, 0, 0xc8c0b6); g.set(2, 35, 0, 0xe6dcc8);
-    for (let k = 0; k < 4; k++) { const a = k / 4 * TAU; g.set(Math.round(Math.sin(a) * 6.5), 12, Math.round(Math.cos(a) * 6.5), 0x8a8279); }   // spouts
+  /* ------------------------------------------------- trees and the country -- */
+  function treeGrid() {                                  // a town tree's planter, trunk and branches (its crown is its own piece)
+    const g = grid();
+    g.box(-15, 0, -15, 15, 12, 15, (x, y, z) => { if (Math.abs(x) < 13 && Math.abs(z) < 13) return y === 10 ? 0x4a3826 : -1; return y > 10 ? PAL.STONE3 : stoneAt(Math.abs(x) >= 15 ? z + 100 : x + 100, y, 3); });
+    for (let y = 10; y <= 62; y++) { const t = (y - 10) / 52, r = 4.2 - t * 1.8, a = y * 0.12; g.disc(Math.cos(a) * 0.9, Math.sin(a) * 0.9, r, y, y, (x, yy, z) => H(Math.floor(Math.atan2(z, x) * 3), y >> 4, 2) < 0.4 ? 0x5a3e2a : PAL.BARK); }
+    for (let k = 0; k < 4; k++) { const a = k * HP + 0.5; g.line(0, 12, 0, Math.cos(a) * 8, 10, Math.sin(a) * 8, PAL.BARK, 1.2); g.line(0, 48 + k * 3, 0, Math.cos(a) * 16, 66 + k * 4, Math.sin(a) * 16, PAL.BARK, 1.2); }
+    for (let k = 0; k < 40; k++) { const x = R((H(k, 1, 7) - 0.5) * 24), z = R((H(k, 2, 7) - 0.5) * 24), c = [0xfdf6fa, 0xf0d04a, 0xd87aa0, PAL.LEAF, PAL.LEAF3][k % 5]; if (Math.hypot(x, z) > 5) { g.set(x, 11, z, PAL.LEAF2); g.set(x, 12, z, c); } }
     return g;
   }
-  // a market stall: a counter with goods on it, posts, a striped awning. Its customers' side is +z, the seller stands at -z
-  function stallGrid(stripe, goods) {
-    const g = new VX.Grid(); g.jit = 0.04;
-    g.box(-12, 7, -5, 11, 8, 5, PAL.WOOD3);
-    g.box(-12, 0, 5, 11, 6, 5, (x, y, z) => (x & 3) === 0 ? PAL.WOOD2 : PAL.WOOD);
-    for (const [x, z, h] of [[-12, -5, 23], [11, -5, 23], [-12, 5, 19], [11, 5, 19]]) g.box(x, 0, z, x, h, z, PAL.WOOD2);
-    for (let z = -6; z <= 8; z++) { const y = Math.round(23 - (z + 6) * 4 / 14); for (let x = -13; x <= 12; x++) g.set(x, y, z, ((x + 13) >> 1) % 3 === 0 ? 0xf1ece2 : stripe); }
-    for (let x = -13; x <= 12; x++) if (x & 1) g.set(x, 18, 8, ((x + 13) >> 1) % 3 === 0 ? 0xf1ece2 : stripe);   // a scalloped edge
-    const top = 9;
-    if (goods === 'fruit') for (const [cx, cz, c] of [[-8, 0, 0xc8303a], [-3, 0, 0xe8862a], [2, 0, 0x8fc04a], [7, 0, 0x7a3a8a]]) { g.box(cx - 2, top, cz - 3, cx + 2, top, cz + 3, PAL.WOOD2); g.box(cx - 2, top + 1, cz - 3, cx + 2, top + 2, cz + 3, (x, y, z) => y === top + 2 && (x + z) & 1 ? -1 : (H(x, y, z) < 0.3 ? shade(c, 0.8) : c)); }
-    if (goods === 'fish') { g.box(-11, top, -4, 10, top, 4, 0xdfe8f0); for (let i = 0; i < 9; i++) { const x = -9 + i * 2.3, z = (i & 1) ? -2 : 2; g.box(Math.round(x) - 1, top + 1, Math.round(z) - 2, Math.round(x), top + 1, Math.round(z) + 2, (xx, y, zz) => zz === Math.round(z) + 2 ? 0x5a6a7a : (H(xx, y, zz) < 0.5 ? 0x9aaabb : 0xb8c4d0)); } }
-    if (goods === 'cloth') for (let i = 0; i < 6; i++) { const c = [0xb83a5a, 0x3a6ab8, 0xd8b84a, 0x4a9a6a, 0x8a4ab8, 0xe8e0d0][i]; g.box(-11 + i * 4, top, -3, -9 + i * 4, top + 2 - (i & 1), 3, c); }
-    if (goods === 'flowers') for (let i = 0; i < 5; i++) { const cx = -9 + i * 4.5; g.box(cx - 1, top, -1, cx + 1, top + 2, 1, PAL.WOOD2); for (let k = 0; k < 7; k++) g.set(cx - 1 + (k % 3), top + 3 + (k >> 2), -1 + ((k * 2) % 3), [0xe8304a, 0xf08ac0, 0xf0d04a, 0xffffff, 0x9a6ad8][(i + k) % 5]); }
-    if (goods === 'bread') for (let i = 0; i < 8; i++) { const x = -10 + i * 2.8, z = (i & 1) ? -2 : 1; g.box(Math.round(x), top, Math.round(z), Math.round(x) + 1, top + 1, Math.round(z) + 2, (xx, y, zz) => y === top + 1 ? 0xc8883a : 0xa8702e); }
+  function crownGrid(seed) {                             // its crown: clumps of leaves, lighter toward the top, gaps between (9.6 cm)
+    const g = grid();
+    for (const b of [[0, 36, 0, 12, 9, 12], [8, 31.5, 5, 7.5, 6, 7.5], [-8, 33, -5, 8, 7, 8], [3, 42, -3, 8, 6, 8], [-5, 40, 6, 7, 5, 7], [6, 34, -8, 7, 5, 7]])
+      g.ell(b[0], b[1], b[2], b[3], b[4], b[5], (x, y, z) => { const n = H(x >> 1, (y >> 1) + seed, z >> 1); return n < 0.05 ? -1 : y - b[1] > b[4] * 0.45 ? (n < 0.6 ? PAL.LEAF3 : 0x76b656) : y - b[1] < -b[4] * 0.4 ? (n < 0.6 ? PAL.LEAF2 : 0x356a28) : n < 0.5 ? PAL.LEAF : n < 0.8 ? PAL.LEAF2 : PAL.LEAF3; });
     return g;
   }
-  function benchGrid() {
-    const g = new VX.Grid(); g.jit = 0.04;
-    g.box(-8, 4, -2, 8, 4, 2, PAL.WOOD3); g.box(-8, 6, -3, 8, 9, -3, (x, y, z) => y === 7 ? -1 : PAL.WOOD3);
-    for (const x of [-7, 7]) { g.box(x, 0, -2, x, 3, 2, PAL.IRON); g.box(x, 5, -3, x, 9, -3, PAL.IRON); }
+  function forestTreeGrid(seed) {                        // a fir, 10 m: boughs in tiers
+    const g = grid();
+    g.box(0, 0, 0, 1, 8, 1, PAL.BARK);
+    g.flat = new Set([0x2a5a34, 0x3f8248, 0x34703e]);
+    for (let y = 5; y <= 40; y++) { const tier = (y - 5) % 8, r = (41 - y) * 0.2 + (7 - tier) * 0.3; g.disc(0.5, 0.5, Math.max(0.4, Math.round(r * 2) / 2), y, y, (x, yy, z) => tier === 0 && H(x, yy, z + seed) < 0.3 ? -1 : tier === 0 ? 0x2a5a34 : tier > 4 ? 0x3f8248 : 0x34703e); }
     return g;
   }
-  function wellGrid() {
-    const g = new VX.Grid(); g.jit = 0.04;
-    for (let y = 0; y <= 7; y++) g.disc(0, 0, 6, y, y, (x, yy, z) => Math.hypot(x, z) > 4.6 ? (yy % 2 ? 0xa9a29a : 0x968f88) : (yy === 3 ? 0x2a3a52 : -1));
-    for (const x of [-5, 5]) g.box(x, 8, 0, x, 18, 0, PAL.WOOD2);
-    g.box(-6, 19, -3, 6, 19, 3, PAL.TILE); g.box(-5, 20, -2, 5, 20, 2, PAL.TILE2); g.box(-6, 16, 0, 6, 16, 0, PAL.WOOD);
-    g.box(-1, 10, -1, 1, 13, 1, PAL.WOOD); g.box(0, 14, 0, 0, 15, 0, PAL.IRON);
-    return g;
-  }
-  function treeGrid(seed) {
-    const g = new VX.Grid(); g.jit = 0.08;
-    g.box(-3, 0, -3, 3, 2, 3, PAL.STONE2); g.box(-2, 3, -2, 2, 3, 2, 0x5a4a32);   // a planter
-    for (let y = 3; y <= 13; y++) g.box(0, y, 0, 1, y, 1, H(0, y, 0) < 0.3 ? 0x5a3e2a : PAL.BARK);
-    for (const b of [[0, 17, 0, 6, 5, 6], [4, 15, 2, 4, 3, 4], [-4, 16, -2, 4, 4, 4], [1, 20, -1, 4, 3, 4]]) g.ell(b[0], b[1], b[2], b[3], b[4], b[5], (x, y, z) => H(x * 3, y + seed, z * 7) < 0.06 ? -1 : (y > 19 ? PAL.LEAF3 : (H(x, y, z) < 0.5 ? PAL.LEAF : PAL.LEAF2)));
-    return g;
-  }
-  function forestTreeGrid(seed) {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    for (let y = 0; y <= 6; y++) g.set(0, y, 0, PAL.BARK);
-    for (let y = 4; y <= 16; y++) { const r = (16 - y) * 0.35 + 0.6; g.disc(0, 0, r, y, y, (x, yy, z) => (yy + seed) % 3 === 0 ? 0x2f6a3a : 0x3a7a42); }
-    return g;
-  }
-  function barrelGrid() { const g = new VX.Grid(); g.jit = 0.05; for (let y = 0; y <= 8; y++) g.disc(0, 0, y === 0 || y === 8 ? 2.6 : 3.1, y, y, (x, yy, z) => yy === 2 || yy === 6 ? PAL.IRON : (yy === 8 ? PAL.WOOD3 : ((Math.atan2(z, x) * 3 | 0) & 1 ? PAL.WOOD : PAL.WOOD2))); return g; }
-  function crateGrid() {
-    const g = new VX.Grid(); g.jit = 0.06;
-    g.box(-3, 0, -3, 3, 6, 3, (x, y, z) => { const e = (Math.abs(x) === 3) + (y === 0 || y === 6) + (Math.abs(z) === 3); return e >= 2 ? PAL.WOOD2 : (y % 3 === 2 ? 0x7a4e2c : PAL.WOOD3); });
-    return g;
-  }
-  function anvilGrid() {
-    const g = new VX.Grid(); g.jit = 0.03;
-    g.box(-2, 0, -2, 2, 5, 2, PAL.WOOD2);                               // the stump
-    g.box(-1, 6, -1, 1, 7, 1, PAL.IRON); g.box(-4, 8, -2, 3, 9, 2, 0x4a4a54); g.box(4, 9, -1, 6, 9, 1, 0x4a4a54);
-    return g;
-  }
-  function logsGrid() {
-    const g = new VX.Grid(); g.jit = 0.05;
-    for (let row = 0; row < 3; row++) for (let i = 0; i < 4 - row; i++) {
-      const cz = -4.5 + i * 3 + row * 1.5, cy = 1.5 + row * 2.6;
-      for (let x = -7; x <= 7; x++) for (let y = -1; y <= 1; y++) for (let z = -1; z <= 1; z++) if (y * y + z * z <= 2) g.set(x, cy + y, cz + z, Math.abs(x) === 7 ? 0xd8b07a : (H(x, y, z) < 0.5 ? PAL.BARK : 0x5a3e2a));
-    }
-    g.box(10, 0, -2, 13, 4, 2, 0x6b4a32); g.box(10, 5, -2, 13, 5, 2, 0xd8b07a);   // the chopping block
-    return g;
-  }
-  function haycartGrid() {
-    const g = new VX.Grid(); g.jit = 0.05;
-    g.box(-8, 5, -14, 8, 6, 14, PAL.WOOD); g.box(-8, 7, -14, -8, 10, 14, PAL.WOOD2); g.box(8, 7, -14, 8, 10, 14, PAL.WOOD2);
-    for (const s of [-1, 1]) for (const zc of [-9, 9]) for (let y = 0; y <= 9; y++) for (let z = zc - 4; z <= zc + 4; z++) { const r = Math.hypot(y - 4.5, z - zc); if (r <= 4.6 && (r > 3.4 || Math.abs(y - 4.5) < 0.6 || Math.abs(z - zc) < 0.6)) g.set(s * 9, y, z, PAL.WOOD2); }
-    g.ell(0, 11, 0, 7.5, 5, 13, (x, y, z) => y < 7 ? -1 : (H(x, y, z) < 0.4 ? 0xd8b85a : 0xe6c86a));
-    g.box(-1, 5, 15, 1, 5, 24, PAL.WOOD2);
-    return g;
-  }
-  function haybaleGrid() { const g = new VX.Grid(); g.jit = 0.06; g.box(-5, 0, -3, 5, 6, 3, (x, y, z) => H(x, y, z) < 0.4 ? 0xd8b85a : 0xe6c86a); return g; }
-  function lanternPostGrid() {
-    const g = new VX.Grid(); g.jit = 0.03;
-    g.box(-1, 0, -1, 1, 1, 1, PAL.IRON); g.box(0, 2, 0, 0, 26, 0, PAL.IRON); g.box(0, 26, 0, 4, 26, 0, PAL.IRON);
-    g.box(3, 20, -1, 5, 24, 1, (x, y, z) => (y === 20 || y === 24) ? PAL.IRON : 0xe8d8a8); g.set(4, 25, 0, PAL.IRON);
-    return g;
-  }
-  // bunting: little pennants on a line, sagging across the square (along x, length in voxels)
+  // bunting: little pennants on a line, sagging across the square (along x, its middle at 0; length in voxels of 4.8 cm)
   function buntingGrid(len) {
-    const g = new VX.Grid(); g.jit = 0;
-    const cols = [0xc8303a, 0x2f5fbf, 0xe8c24a, 0xf1ece2, 0x3f9a5a];
+    const g = grid(), cols = [0xc8303a, 0x2f5fbf, 0xe8c24a, 0xf1ece2, 0x3f9a5a], h = len >> 1;
     for (let x = 0; x <= len; x++) {
-      const sag = Math.round(Math.sin(x / len * Math.PI) * len * 0.06), y = -sag;
-      g.set(x, y, 0, 0x5a4a3a);
-      const p = x % 6;
-      if (p >= 1 && p <= 4) for (let k = 1; k <= 4 - Math.abs(p - 2.5) * 1.6; k++) g.set(x, y - k, 0, cols[Math.floor(x / 6) % 5]);
+      const y = -R(Math.sin(x / len * Math.PI) * len * 0.06), p = x % 8;
+      g.set(x - h, y, 0, 0x5a4a3a);
+      if (p >= 1 && p <= 5) { const c = cols[Math.floor(x / 8) % 5], d = [2, 4, 7, 4, 2][p - 1]; for (let k = 1; k <= d; k++) g.set(x - h, y - k, 0, k === 1 ? shade(c, 0.8) : c); }
     }
     return g;
   }
-  // a washing line across the alley (along x), shirts and sheets pegged on it
-  function laundryGrid(len) {
-    const g = new VX.Grid(); g.jit = 0;
-    for (let x = 0; x <= len; x++) g.set(x, -Math.round(Math.sin(x / len * Math.PI) * 1.5), 0, 0x8a7a6a);
-    let x = 2;
-    const cols = [0xe8e0d0, 0x8a9ab8, 0xc8a0a0, 0xd8d0a0, 0xa0b8a0];
-    for (let i = 0; x < len - 5; i++) {
-      const w = 3 + (i % 3), h = 4 + (i % 2) * 2, y0 = -Math.round(Math.sin((x + w / 2) / len * Math.PI) * 1.5);
-      g.box(x, y0 - h, 0, x + w - 1, y0 - 1, 0, (xx, y, z) => H(xx, y, i) < 0.15 ? shade(cols[i % 5], 0.85) : cols[i % 5]);
-      x += w + 2;
-    }
+  const WM = 0.12;
+  function windmillGrid() {                              // a tower mill, 13 m: whitewashed, a plank door, windows, a gallery, a thatched cap
+    const g = grid(), V = m => R(m / WM);
+    g.inside = (x, y, z) => y < 0 || (y < V(10.5) && Math.hypot(x, z) < V(3) - Math.floor(y / 11) * 0.8 - 1.2);
+    for (let y = 0; y <= V(10.5); y++) { const r = V(3) - Math.floor(y / 11) * 0.8; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) > r - 1.6 ? (yy < 8 ? (H(x, yy >> 1, z) < 0.4 ? PAL.STONE2 : PAL.STONE) : yy % 30 < 2 ? PAL.TIMBER : 0xe8e0d0) : -1); }
+    for (let k = 0; k < V(2.4); k++) g.disc(0, 0, V(2.5) - k * 0.95, V(10.5) + 1 + k, V(10.5) + 1 + k, k % 5 === 0 ? 0x96743e : PAL.THATCH);
+    g.disc(0, 0, V(3.6), V(3.8), V(3.8), PAL.WOOD2); for (let k = 0; k < 28; k++) { const a = k / 28 * TAU, x = Math.cos(a) * V(3.5), z = Math.sin(a) * V(3.5); g.line(x, V(3.8), z, x, V(4.6), z, PAL.WOOD); } for (let k = 0; k < 220; k++) { const a = k / 220 * TAU; g.set(Math.cos(a) * V(3.5), V(4.6), Math.sin(a) * V(3.5), PAL.WOOD); }
+    for (let y = 0; y <= V(2.2); y++) for (let k = -4; k <= 4; k++) if (y < V(1.8) || Math.abs(k) < 3) g.set(k, y, V(3), k % 3 === 0 ? 0x4a2e1a : PAL.WOOD2);
+    for (const [a, y] of [[0, 6], [2.1, 6.6], [4.2, 6], [1, 8.6], [3.4, 8.6]]) for (let j = 0; j < 8; j++) for (let k = -2; k <= 2; k++) { const r = V(3) - V(y) * 0.07; g.set(Math.sin(a) * r + Math.cos(a) * k, V(y) + j, Math.cos(a) * r - Math.sin(a) * k, Math.abs(k) === 2 || j === 0 || j === 7 ? PAL.TIMBER : PAL.GLASS); }
     return g;
   }
-  // the door in the ground: a stone frame around a dark pit lit pink from below (the hatch is its own piece, so it opens)
-  function trapdoorFrameGrid() {
-    const g = new VX.Grid(); g.jit = 0.02;
-    for (let x = -13; x <= 13; x++) for (let z = -10; z <= 10; z++) {
-      const rim = Math.abs(x) >= 11 || Math.abs(z) >= 8;
-      if (rim) g.set(x, 0, z, H(x, 0, z) < 0.4 ? 0x5a5550 : 0x6a645e);
-      else g.set(x, 0, z, VX.glow(H(x, 0, z) < 0.5 ? 0xff7ac0 : 0xc85ad8));    // the light down there (the hatch covers it)
-    }
-    return g;
-  }
-  function trapdoorLeafGrid() {                         // hinged along its back edge (z 0), it lies toward +z
-    const g = new VX.Grid(); g.jit = 0.02;
-    for (let x = -10; x <= 10; x++) for (let z = 0; z <= 16; z++) {
-      if ((x + 11) % 5 === 0 && z > 0 && z < 16 && H(x, z, 3) < 0.35) { g.set(x, 0, z, VX.glow(0xff8fd0)); continue; }    // light through the cracks
-      g.set(x, 0, z, z === 3 || z === 13 ? PAL.IRON : (((x + 11) / 5 | 0) & 1 ? 0x5a3a24 : 0x4e3220));
-    }
-    g.set(0, 1, 14, PAL.IRON); g.set(-1, 1, 15, PAL.IRON); g.set(1, 1, 15, PAL.IRON);   // a ring to pull
-    for (let x = -1; x <= 1; x++) for (let z = 7; z <= 9; z++) if (!(x === 0 && z === 8)) g.set(x, 1, z, 0xb04a7a);   // a little suit carved in it
-    return g;
-  }
-  function catGrid() {
-    const g = new VX.Grid(); g.jit = 0.02;
-    g.ell(0, 4, 0, 3, 4, 3.5, 0x1e1c22); g.box(-2, 0, 2, -1, 2, 3, 0x1e1c22); g.box(1, 0, 2, 2, 2, 3, 0x1e1c22);
-    for (let k = 0; k < 9; k++) g.set(Math.round(Math.sin(k * 0.5) * 3) + 3, 0 + Math.round(k * 0.3), -3 + Math.round(Math.cos(k * 0.5)), 0x1e1c22);   // the tail curled round
-    return g;
-  }
-  function catHeadGrid() {
-    const g = new VX.Grid(); g.jit = 0.02;
-    g.box(-2, -1, -2, 2, 2, 2, 0x1e1c22); g.box(-2, 3, 0, -2, 4, 1, 0x1e1c22); g.box(2, 3, 0, 2, 4, 1, 0x1e1c22);
-    g.set(-1, 1, 3, VX.glow(0xc8e84a)); g.set(1, 1, 3, VX.glow(0xc8e84a)); g.set(0, 0, 3, 0x5a4a52);
-    return g;
-  }
-  function chickenGrid(c) {
-    const g = new VX.Grid(); g.jit = 0.02;
-    g.ell(0, 4, 0, 2.2, 2.2, 3, c); g.box(-1, 6, 2, 1, 8, 3, c); g.set(0, 9, 2, 0xd8303a); g.set(0, 8, 3, 0xd8303a); g.set(0, 7, 4, 0xe8b03a);
-    g.box(-1, 0, 0, -1, 2, 0, 0xe8b03a); g.box(1, 0, 0, 1, 2, 0, 0xe8b03a); g.box(-1, 4, -4, 1, 6, -3, shade(c, 0.85));
-    return g;
-  }
-  function windmillGrid() {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    for (let y = 0; y <= 40; y++) { const r = 8 - y * 0.08; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) > r - 1.3 ? (yy % 9 === 0 ? PAL.TIMBER : 0xe8e0d0) : -1); }
-    for (let k = 0; k < 9; k++) g.disc(0, 0, 6.5 - k * 0.7, 41 + k, 41 + k, PAL.THATCH);
-    g.box(-1, 0, 7, 1, 5, 7, PAL.WOOD2);
-    return g;
-  }
-  function sailsGrid() {                                // the windmill's sails, turning in the xy plane about the hub
-    const g = new VX.Grid(); g.jit = 0;
-    g.box(-1, -1, 0, 1, 1, 1, PAL.WOOD2);
-    for (let k = 0; k < 4; k++) { const a = k * HP; for (let r = 2; r <= 22; r++) { const x = Math.round(Math.cos(a) * r), y = Math.round(Math.sin(a) * r); g.set(x, y, 0, PAL.WOOD2); if (r > 5) for (let w = 1; w <= 4; w++) g.set(x + Math.round(-Math.sin(a) * w), y + Math.round(Math.cos(a) * w), 0, (r + w) % 3 === 0 ? PAL.WOOD : 0xe8e0d0); } }
+  function sailsGrid() {                                 // the windmill's sails, turning in the xy plane about the hub: lattices with canvas
+    const g = grid();
+    g.box(-3, -3, 0, 3, 3, 3, PAL.WOOD2);
+    for (let k = 0; k < 4; k++) { const a = k * HP, c = R(Math.cos(a)), s = R(Math.sin(a)); for (let r = 3; r <= 52; r++) { g.set(c * r, s * r, 1, PAL.WOOD2); if (r > 9) for (let w = 1; w <= 12; w++) { const lat = w === 12 || (r - 9) % 7 === 0 || w % 4 === 0; g.set(c * r - s * w, s * r + c * w, 0, lat ? PAL.WOOD : 0xe8e0d0); } } }
     return g;
   }
   function hillGrid(r, h, seed) {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
+    const g = grid();
     for (let x = -r; x <= r; x++) for (let z = -r; z <= r; z++) {
       const d = Math.hypot(x, z) / r; if (d > 1) continue;
-      const top = Math.round(h * (Math.cos(d * Math.PI) * 0.5 + 0.5) * (0.85 + H(x >> 2, seed, z >> 2) * 0.3));
+      const top = R(h * (Math.cos(d * Math.PI) * 0.5 + 0.5) * (0.9 + H(x >> 3, seed, z >> 3) * 0.2));
       for (let y = Math.max(0, top - 2); y <= top; y++) g.set(x, y, z, y === top ? (H(x >> 2, y >> 1, z >> 2) < 0.5 ? 0x6aa64e : 0x5f9a45) : 0x4f8a3a);
     }
     return g;
   }
   function mountainGrid(seed) {
-    const g = new VX.Grid(); g.jit = 0; g.merge = true;
-    const R = 16, Hh = 18 + (seed % 3) * 4;
-    for (let x = -R; x <= R; x++) for (let z = -R; z <= R; z++) {
-      const d = Math.hypot(x, z) / R; if (d > 1) continue;
-      const top = Math.round(Hh * Math.pow(1 - d, 1.2) * (0.8 + H(x >> 1, seed, z >> 1) * 0.35));
+    const g = grid(), Rr = 16, Hh = 18 + (seed % 3) * 4;
+    for (let x = -Rr; x <= Rr; x++) for (let z = -Rr; z <= Rr; z++) {
+      const d = Math.hypot(x, z) / Rr; if (d > 1) continue;
+      const top = R(Hh * Math.pow(1 - d, 1.2) * (0.8 + H(x >> 1, seed, z >> 1) * 0.35));
       for (let y = Math.max(0, top - 2); y <= top; y++) g.set(x, y, z, y > Hh * 0.62 ? 0xeef2f8 : (y > Hh * 0.45 && H(x >> 1, y >> 1, z >> 1) < 0.5 ? 0xd8e0ea : (H(x >> 2, y >> 2, z >> 2) < 0.5 ? 0x7a88a8 : 0x6a7898)));
     }
     return g;
   }
   function cloudGrid(seed) {
-    const g = new VX.Grid(); g.jit = 0.02;
-    for (let i = 0; i < 5; i++) { const x = (H(i, seed, 1) - 0.5) * 12, z = (H(i, seed, 2) - 0.5) * 6, r = 3 + H(i, seed, 3) * 3; g.ell(x, 0, z, r, 1.5, r * 0.7, (xx, y, zz) => y < 0 ? 0xe6eefc : 0xffffff); }
+    const g = grid();
+    for (let i = 0; i < 6; i++) { const x = (H(i, seed, 1) - 0.5) * 24, z = (H(i, seed, 2) - 0.5) * 12, r = 6 + H(i, seed, 3) * 6; g.ell(x, H(i, seed, 4) * 3, z, r, 3, r * 0.7, (xx, y) => y < 0 ? 0xe6eefc : 0xffffff); }
     return g;
   }
-  // a little sign on an iron bracket (it hangs out from a wall, its faces to +x and -x): an icon for the trade
-  function signGrid(icon) {
-    const g = new VX.Grid(); g.jit = 0.02;
-    g.box(0, 14, 0, 0, 14, 12, PAL.IRON); g.box(0, 15, 0, 0, 15, 1, PAL.IRON);
-    for (const z of [3, 11]) g.set(0, 13, z, PAL.IRON);
-    g.box(0, 2, 2, 0, 12, 12, (x, y, z) => (y === 2 || y === 12 || z === 2 || z === 12) ? 0x5a3a24 : 0xd8c8a0);
-    const put = (y, z, c) => { g.set(1, y, z, c); g.set(-1, y, z, c); };
-    const I = {
-      tankard: () => { for (let y = 4; y <= 9; y++) for (let z = 5; z <= 8; z++) put(y, z, y === 9 ? 0xf1ece2 : 0x8a5a32); for (let y = 5; y <= 8; y++) put(y, 9 + (y === 5 || y === 8 ? 0 : 1), 0x8a5a32); },
-      bread: () => { for (let z = 4; z <= 10; z++) for (let y = 5; y <= 8; y++) if (Math.hypot((z - 7) / 3.4, (y - 6) / 2.4) < 1) put(y, z, (z + y) % 3 === 0 ? 0xa8702e : 0xc8883a); },
-      anvil: () => { for (let z = 4; z <= 10; z++) put(8, z, 0x3a3a42); for (let z = 5; z <= 9; z++) put(7, z, 0x3a3a42); for (let y = 4; y <= 6; y++) put(y, 7, 0x3a3a42); for (let z = 5; z <= 9; z++) put(4, z, 0x3a3a42); },
-      spool: () => { for (let z = 5; z <= 9; z++) { put(4, z, 0x8a5a32); put(9, z, 0x8a5a32); } for (let y = 5; y <= 8; y++) for (let z = 6; z <= 8; z++) put(y, z, 0xb83a5a); put(10, 10, 0x9aa0ac); put(9, 10, 0x9aa0ac); },
-      bottle: () => { for (let y = 4; y <= 7; y++) for (let z = 5; z <= 9; z++) put(y, z, 0x3a8a6a); for (let y = 8; y <= 9; y++) put(y, 7, 0x3a8a6a); put(10, 7, 0x8a5a32); },
-    };
-    if (I[icon]) I[icon]();
-    return g;
+
+  /* the same thing at twice the voxel, for when it's far off: a cell is there if any two of its eight are, in their commonest colour */
+  function coarsen(g) {
+    const cells = new Map(), o = grid();
+    g.each((x, y, z, v) => { const k = Math.floor(x / 2) + ',' + Math.floor(y / 2) + ',' + Math.floor(z / 2); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(v); });
+    for (const [k, c] of cells) { if (c.length < 2) continue; const [x, y, z] = k.split(',').map(Number); let best = c[0], bn = 0; for (const v of c) { const n = c.filter(w => w === v).length; if (n > bn) { bn = n; best = v; } } o.set(x, y, z, best); }
+    return o;
   }
 
   /* ------------------------------------------------------------- town -- */
   class Town {
     constructor(scene) {
-      this.scene = scene; this.walk = WALK; this.colliders = []; this.seats = []; this.clouds = []; this.named = {};
+      this.scene = scene; this.walk = WALK; this.colliders = []; this.seats = []; this.clouds = []; this.named = {}; this.houses = [];
       this.groundSize = GROUND; this.farColor = 0x6aa64e;
       const ground = new THREE.Mesh(new THREE.PlaneGeometry(GROUND, GROUND), new THREE.MeshLambertMaterial({ map: groundTexture() }));
       ground.rotation.x = -HP; scene.add(ground);
+      this.core = coreGround();
       const kinds = {};
-      const kind = (name, grid, s, o) => kinds[name] || (kinds[name] = VX.meshGrid(grid(), s, o || {}));
+      // (everything sits on the 2.4 cm lattice, its lowest row on the ground, so the grain lines up with the voxels)
+      const kind = (name, make, s) => {
+        if (kinds[name]) return;
+        const g = make(); kinds[name] = VX.meshGrid(g, s, { offset: s === S1 ? [-0.5, -0.5, -0.5] : [0, -0.5, 0] });
+        if (s === S1 && kinds[name].lit.index.count / 6 > 1800) kinds[name + '~'] = VX.meshGrid(coarsen(g), S1 * 2, { offset: [-0.5, -0.5, -0.5] });
+      };
       const place = (name, x, z, ry, sc, opts) => {
         const m = VX.meshPair(kinds[name], null, {});
         m.position.set(x, (opts && opts.y) || 0, z); m.rotation.y = ry || 0; if (sc) m.scale.setScalar(sc);
         if (opts && opts.name) m.userData.bake = opts.name;
         if (opts && opts.noCast) m.userData.noCast = true;
-        scene.add(m); return m;
+        if (opts && opts.near) m.userData.near = true;              // a little thing: only drawn close by
+        scene.add(m);
+        if (kinds[name + '~']) { m.userData.lod = 'n'; const f = VX.meshPair(kinds[name + '~'], null, {}); f.position.copy(m.position); f.rotation.y = m.rotation.y; f.userData = { noCast: true, near: m.userData.near, lod: 'f' }; scene.add(f); }
+        return m;
       };
       const col = (x, z, r) => this.colliders.push([x, z, r]);
 
       /* the houses round the square and along the streets: [name, cx, cz, facing, options]. facing is the yaw that
-         turns a house's front (+z) to its street */
+         turns a house's front (+z) to its street; W and D in quarter metres */
       const S = HP, N = 0, E = -HP, Wd = HP;
       const HOUSES = [
         ['inn', -7.5, -14.5, N, { W: 36, D: 36, floors: 3, plaster: 0xeee4cc, roof: 'tile', shutter: 0x3f6a4a, door: 0, sign: 'tankard' }],
-        ['bakery', 0.5, -14, N, { W: 28, D: 32, floors: 2, plaster: 0xf0dca0, roof: 'slate', shutter: 0x4a6aa0, shop: true, awning: 0x3f9a5a, door: 8, sign: 'bread' }],
+        ['bakery', 0.5, -14, N, { W: 28, D: 32, floors: 2, plaster: 0xf0dca0, roof: 'slate', shutter: 0x4a6aa0, shop: 'bread', awning: 0x3f9a5a, door: 8, sign: 'bread' }],
         ['n3', 8, -14, N, { W: 32, D: 32, floors: 3, plaster: 0xecc8c0, roof: 'tile', shutter: 0x6a4a8a, door: -6 }],
-        ['w1', -16.5, -7.75, Wd, { W: 18, D: 36, floors: 3, plaster: 0xc8d0dc, roof: 'slate', shutter: 0x8a3a3a, door: 0 }],
-        ['w2', -16.5, 0.25, Wd, { W: 30, D: 36, floors: 3, plaster: 0xeee4cc, roof: 'tile', shutter: 0x3f6a4a, door: 4 }],
-        ['tailor', -16.5, 7, Wd, { W: 24, D: 36, floors: 2, plaster: 0xe0d0e8, roof: 'thatch', shutter: 0x4a6aa0, shop: true, awning: 0x8a4ab8, door: -7, sign: 'spool' }],
-        ['smith', 16, -6.5, E, { W: 28, D: 32, floors: 2, plaster: 0xd8ccb8, roof: 'slate', shutter: 0x5a5a5a, forge: true, sign: 'anvil' }],
-        ['store', 16, 6.5, E, { W: 28, D: 32, floors: 2, plaster: 0xd8e8d0, roof: 'tile', shutter: 0x8a3a3a, shop: true, awning: 0x2f5fbf, door: 7, sign: 'bottle' }],
+        ['w1', -16.5, -7.75, Wd, { W: 18, D: 36, floors: 3, plaster: 0xc8d0dc, roof: 'slate', shutter: 0x8a3a3a, door: 0, sides: 'L' }],
+        ['w2', -16.5, 0.25, Wd, { W: 30, D: 36, floors: 3, plaster: 0xeee4cc, roof: 'tile', shutter: 0x3f6a4a, door: 4, sides: 'R' }],
+        ['tailor', -16.5, 7, Wd, { W: 24, D: 36, floors: 2, plaster: 0xe0d0e8, roof: 'thatch', shutter: 0x4a6aa0, shop: 'cloth', awning: 0x8a4ab8, door: -7, sign: 'spool' }],
+        ['smith', 16, -6.5, E, { W: 28, D: 32, floors: 2, plaster: 0xd8ccb8, roof: 'slate', shutter: 0x5a5a5a, forge: true, sign: 'anvil', sides: 'R' }],
+        ['store', 16, 6.5, E, { W: 28, D: 32, floors: 2, plaster: 0xd8e8d0, roof: 'tile', shutter: 0x8a3a3a, shop: 'store', awning: 0x2f5fbf, door: 7, sign: 'bottle', sides: 'L' }],
         ['e1', 24, -6.5, N, { W: 32, D: 28, floors: 2, plaster: 0xf0dca0, roof: 'thatch', shutter: 0x3f6a4a, door: 3 }],
         ['e2', 24, 6.5, S + HP, { W: 32, D: 28, floors: 2, plaster: 0xeee4cc, roof: 'tile', shutter: 0x6a4a8a, door: -4 }],
-        ['s1', -7.5, 14.5, Math.PI, { W: 36, D: 36, floors: 2, plaster: 0xecc8c0, roof: 'slate', shutter: 0x3f6a4a, door: 5 }],
-        ['s2', 7.5, 14.5, Math.PI, { W: 36, D: 36, floors: 3, plaster: 0xc8d0dc, roof: 'tile', shutter: 0x8a3a3a, door: -3 }],
+        ['s1', -7.5, 14.5, Math.PI, { W: 36, D: 36, floors: 2, plaster: 0xecc8c0, roof: 'slate', shutter: 0x3f6a4a, door: 5, sides: 'L' }],
+        ['s2', 7.5, 14.5, Math.PI, { W: 36, D: 36, floors: 3, plaster: 0xc8d0dc, roof: 'tile', shutter: 0x8a3a3a, door: -3, sides: 'R' }],
         ['s3', -7, 24.5, Wd, { W: 44, D: 32, floors: 2, plaster: 0xeee4cc, roof: 'thatch', shutter: 0x4a6aa0, door: 6 }],
         ['s4', 7, 24.5, E, { W: 44, D: 32, floors: 2, plaster: 0xf0dca0, roof: 'tile', shutter: 0x3f6a4a, door: -8 }],
-        ['b1', -16.5, -15, N, { W: 36, D: 20, floors: 2, plaster: 0xe0d0c0, roof: 'tile', door: 0 }],
-        ['b2', 16, -14.5, N, { W: 32, D: 32, floors: 2, plaster: 0xeee4cc, roof: 'slate', door: 0 }],
-        ['b3', 24, -14.5, N, { W: 32, D: 32, floors: 3, plaster: 0xd8e8d0, roof: 'tile', door: 0 }],
+        ['b1', -16.5, -15, N, { W: 36, D: 20, floors: 2, plaster: 0xe0d0c0, roof: 'tile', door: 0, plain: true }],
+        ['b2', 16, -14.5, N, { W: 32, D: 32, floors: 2, plaster: 0xeee4cc, roof: 'slate', door: 0, plain: true }],
+        ['b3', 24, -14.5, N, { W: 32, D: 32, floors: 3, plaster: 0xd8e8d0, roof: 'tile', door: 0, plain: true }],
         ['wb', -24, -4.5, Wd, { W: 16, D: 24, floors: 3, plaster: 0xb8b0a4, roof: 'slate', shutter: 0x4a4a4a, noDoor: true }],   // closes the alley
       ];
+      ['tankard', 'bread', 'anvil', 'spool', 'bottle'].forEach(i => kind('sign_' + i, () => T.sign(i), S1));
       HOUSES.forEach(([nm, cx, cz, ry, o], i) => {
         o.seed = i * 7 + 3;
         kind('house_' + nm, () => houseGrid(o), SB);
-        place('house_' + nm, cx, cz, ry);
+        place('house_' + nm, cx, cz, ry, 1, { name: 'house_' + i });
+        if (!o.forge) { kinds['shadow_' + nm] = VX.meshGrid(houseShadowGrid(o), 0.246, { offset: [-0.5, 0, -0.5] }); place('shadow_' + nm, cx, cz, ry, 1, { name: 'shadow_' + i }); }
+        this.houses.push([cx, cz, ry, o.W * 0.25, o.D * 0.25, o.floors * 2.976, o.forge ? 2.9 : 0]);
+        const fx = Math.sin(ry), fz = Math.cos(ry), rx = Math.cos(ry), rz = -Math.sin(ry);
         if (o.sign) {                                  // its sign hangs out over the street, by the door
-          kind('sign_' + o.sign, () => signGrid(o.sign), 0.06);
-          const fx = Math.sin(ry), fz = Math.cos(ry), rx = Math.cos(ry), rz = -Math.sin(ry);
-          const along = ((o.door || 0) + 4.5) * SB, out = o.D / 2 * SB + 0.25;
-          place('sign_' + o.sign, cx + fx * out + rx * along, cz + fz * out + rz * along, ry, 1, { y: 3.3 });
+          const along = ((o.door || 0) + 6) * 0.25, out = o.D / 2 * 0.25 + 0.31;
+          place('sign_' + o.sign, cx + fx * out + rx * along, cz + fz * out + rz * along, ry, 1, { y: 3.1 });
+        }
+        if (o.shop) {                                  // what's set out on its counter
+          kind('display_' + o.shop, () => T.display(o.shop), S1);
+          const dc = (o.door || 0) * 0.25, w2 = o.W * 0.125, sp = dc > 0 ? [-w2 + 0.4, dc - 0.9] : [dc + 0.9, w2 - 0.4], along = (sp[0] + sp[1]) / 2, out = o.D / 2 * 0.25 + 0.03;
+          place('display_' + o.shop, cx + fx * out + rx * along, cz + fz * out + rz * along, ry, 1, { y: 19 * SB, noCast: true, near: true });
         }
       });
-      kind('chapel', chapelGrid, SB); place('chapel', 1, -30, Math.PI, 1, { noCast: true });
-      kind('wall', () => wallGrid(80), SB); kind('gatehouse', gatehouseGrid, SB);
+      kind('chapel', chapelGrid, CB); place('chapel', 1, -30, Math.PI, 1, { noCast: true });
+      kind('wall', wallGrid, SB); kind('gatehouse', gatehouseGrid, SB);
       place('gatehouse', 0, 32.2, 0);
       for (const s of [-1, 1]) place('wall', s > 0 ? 5 : -25, 31.5, 0);
-      kind('parapet', () => { const g = new VX.Grid(); g.jit = 0.03; g.box(0, 0, -14, 2, 4, 14, (x, y, z) => y === 4 ? PAL.STONE3 : (H(x, y, z) < 0.4 ? PAL.STONE2 : PAL.STONE)); return g; }, SB);
-      place('parapet', 28.5, 0, 0);
-      kind('haycart', haycartGrid, 0.1); place('haycart', 0.3, 32.4, 0.08);
+      kind('parapet', parapetGrid, SB); place('parapet', 28.3, 0, 0);
+      kind('haycart', T.cart, S1); place('haycart', 0.3, 32.4, 0.08); kind('hayload', () => T.hay(15, 17, 28, 3), SB); place('hayload', 0.3, 32.4, 0.08, 1, { y: 0.64 });
 
-      /* the square: the fountain, stalls, benches, the well, trees, the anvil, barrels and crates, bunting overhead */
-      kind('fountain', fountainGrid, 0.1); place('fountain', 0, 0, 0); col(0, 0, 1.85);
+      /* the square: the fountain, stalls, benches, the well, trees, the forge's things, barrels and crates, bunting overhead */
+      kind('fountain', T.fountain, SB); place('fountain', 0, 0, 0); kind('statue', T.statue, S1); place('statue', 0, 0, 0); col(0, 0, 1.85);
       const STALLS = [['fruit', 0xc8303a, -6.5, 5.2, Math.PI], ['fish', 0x2f5fbf, 6.5, 5.2, Math.PI], ['cloth', 0x8a4ab8, -6.2, -5.6, 0], ['flowers', 0xe8c24a, 5.4, -5.6, 0], ['bread', 0x3f9a5a, 0.5, -8.4, 0]];
       for (const [goods, c, x, z, ry] of STALLS) {
-        kind('stall_' + goods, () => stallGrid(c, goods), 0.1); place('stall_' + goods, x, z, ry);
+        kind('stall_' + goods, () => T.stall(c), S1); place('stall_' + goods, x, z, ry);
+        kind('goods_' + goods, () => T.goods(goods), S1); place('goods_' + goods, x, z, ry, 1, { noCast: true, near: true });
         const rx = Math.cos(ry), rz = -Math.sin(ry);
         col(x - rx * 0.7, z - rz * 0.7, 0.75); col(x + rx * 0.7, z + rz * 0.7, 0.75);
       }
-      kind('bench', benchGrid, 0.1);
+      kind('bench', T.bench, S1);
       for (const [x, z] of [[-3.4, 3.6], [3.4, -3.6]]) {
         const ry = Math.atan2(-x, -z);
         place('bench', x, z, ry); col(x, z, 0.75);
         if (x < 0) this.seats.push({ x: x + Math.sin(ry) * 0.1, z: z + Math.cos(ry) * 0.1, yaw: ry, h: 0.5 });   // (the old man has the other)
       }
-      kind('well', wellGrid, 0.1); place('well', 8.8, 8.2, 0.4); col(8.8, 8.2, 0.75);
-      kind('tree0', () => treeGrid(1), 0.2); kind('tree1', () => treeGrid(2), 0.2);
-      place('tree0', -10.4, 8.5, 0.3); col(-10.4, 8.5, 0.7); place('tree1', -10.4, -8.7, 1.1); col(-10.4, -8.7, 0.7);
-      kind('anvil', anvilGrid, 0.1); place('anvil', 10.2, -6.5, HP); col(10.2, -6.5, 0.45);
-      kind('barrel', barrelGrid, 0.1); kind('crate', crateGrid, 0.1);
-      for (const [k, x, z, ry, y] of [['barrel', 11.4, -9.4, 0, 0], ['barrel', 10.8, -9.5, 0.4, 0], ['crate', -8.8, -6.6, 0.2, 0], ['barrel', 11.4, 9.3, 0, 0], ['crate', -2.6, -9.4, 0.5, 0], ['barrel', 2.5, 9.6, 0, 0]]) {
-        place(k, x, z, ry, 1, { y }); col(x, z, 0.38);
-      }
-      kind('post', lanternPostGrid, 0.1);
+      kind('well', T.well, S1); place('well', 8.8, 8.2, 0.4); col(8.8, 8.2, 0.75);
+      kind('tree', treeGrid, SB); kind('crown0', () => crownGrid(1), 0.096); kind('crown1', () => crownGrid(4), 0.096);
+      place('tree', -10.4, 8.5, 0); place('crown0', -10.4, 8.5, 0.3); col(-10.4, 8.5, 0.8); place('tree', -10.4, -8.7, 0); place('crown1', -10.4, -8.7, 1.1); col(-10.4, -8.7, 0.8);
+      kind('anvil', T.anvil, S1); place('anvil', 10.2, -6.5, HP); col(10.2, -6.5, 0.4);
+      kind('quench', T.quench, S1); place('quench', 11.2, -8.0, HP); col(11.2, -8.0, 0.42);
+      kind('grind', T.grind, S1); place('grind', 10.9, -4.6, 0.5); col(10.9, -4.6, 0.4);
+      kind('barrel', T.barrel, S1); kind('crate', () => T.crate(), S1); kind('apples', () => T.crate(true), S1); kind('sacks', T.sacks, S1);
+      ['eggs', 'veg', 'apples'].forEach(k => kind('basket_' + k, () => T.basket(k), S1)); ['blue', 'green', 'red'].forEach(k => kind('pot_' + k, () => T.pot(k), S1)); kind('bucket', T.bucket, S1);
+      for (const [k, x, z, ry, r] of [['barrel', 11.4, -9.4, 0, 0.38], ['barrel', 10.7, -9.5, 0.4, 0.38], ['crate', -8.8, -6.6, 0.2, 0.4], ['barrel', 11.4, 9.3, 0, 0.38], ['crate', -2.6, -9.3, 0.5, 0.4], ['barrel', 2.5, 9.6, 0, 0.38], ['apples', -8.7, 5.7, 0.3, 0.4],
+        ['sacks', 11.4, 8.3, -HP, 0.42], ['basket_eggs', -1.5, -9.1, 0.4, 0.26], ['basket_veg', -4.5, 6.1, 1, 0.26], ['basket_apples', 8.4, 5.9, 0, 0.26], ['bucket', 9.75, 7.5, 0.7, 0.2]]) { place(k, x, z, ry, 1, { near: r < 0.3 }); col(x, z, r); }
+      for (const [k, x, z] of [['pot_blue', -8.6, -9.72], ['pot_red', -6.4, -9.72], ['pot_green', 5.6, -9.72], ['pot_blue', 7.1, 9.72], ['pot_red', -10.1, 9.72], ['pot_green', -11.72, 2.2]]) { place(k, x, z, 0, 1, { near: true }); col(x, z, 0.2); }
+      kind('post', T.post, S1);
       for (const [x, z, ry] of [[-11.4, 1.6, 0], [11.4, -1.6, Math.PI], [-2.5, 20, HP], [2.5, 27, -HP]]) { place('post', x, z, ry); col(x, z, 0.2); }
-      kind('bunting1', () => buntingGrid(386), 0.06); kind('bunting2', () => buntingGrid(326), 0.06);
-      place('bunting1', -11.6, -2, 0.18, 1, { y: 6.2, noCast: true });
-      place('bunting2', -9.4, 9.6, -0.33, 1, { y: 5.6, noCast: true });
-      place('bunting2', -9.4, -9.4, 0.3, 1, { y: 6.0, noCast: true });
-      kind('logs', logsGrid, 0.1); place('logs', 2.35, 15.5, HP); col(2.4, 15.0, 0.5); col(2.4, 16.2, 0.5); col(2.35, 14.35, 0.3);
-      kind('bale', haybaleGrid, 0.12); place('bale', -2.2, 29.2, 0.1); col(-2.2, 29.2, 0.6); place('bale', 2.2, 28.8, -0.2); col(2.2, 28.8, 0.6);
+      kind('bunting1', () => buntingGrid(482), SB); kind('bunting2', () => buntingGrid(408), SB);
+      for (const [k, x, z, ry, len, y] of [['bunting1', -11.6, -2, 0.18, 23.2, 6.2], ['bunting2', -9.4, 9.6, -0.33, 19.6, 5.6], ['bunting2', -9.4, -9.4, 0.3, 19.6, 6.0]])
+        place(k, x + Math.cos(ry) * len / 2, z - Math.sin(ry) * len / 2, ry, 1, { y, noCast: true });
+      kind('logs', T.woodpile, S1); place('logs', 2.35, 15.5, HP); col(2.4, 15.0, 0.5); col(2.4, 16.2, 0.5); col(2.35, 14.35, 0.3);
+      kind('bale', T.bale, S1);
+      for (const [x, z, ry, y] of [[-2.2, 29.2, 0.1, 0], [-2.15, 28.55, 0.02, 0], [-2.2, 28.9, 0.2, 0.53], [2.2, 28.8, -0.2, 0], [2.3, 28.75, 1.5, 0.53]]) place('bale', x, z, ry, 1, { y });
+      col(-2.2, 28.9, 0.7); col(2.2, 28.8, 0.6);
 
-      /* the alley: dark and narrow, a room built across it overhead, laundry, crates and barrels along it, and at its
+      /* the alley: dark and narrow, a room built across it overhead, washing, crates and barrels along it, and at its
          end, the door in the ground, a black cat keeping watch */
-      kind('bridge', () => { const g = new VX.Grid(); g.jit = 0; g.merge = true;
-        g.box(-6, 0, -4, 5, 11, 3, (x, y, z) => y <= 1 ? PAL.TIMBER : (y === 11 || Math.abs(x) === 6 || x === 5 || (x % 4 === 0) ? PAL.TIMBER : (Math.abs(z) === 4 || z === 3) && y > 4 && y < 9 && Math.abs(x) < 3 ? PAL.GLASS : 0xd8d0c0));
-        for (let k = 0; k < 6; k++) g.box(-7, 12 + k, -5 + k, 6, 12 + k, 4 - k, (k & 1) ? PAL.SLATE2 : PAL.SLATE); return g; }, SB);
-      place('bridge', -15.6, -4.5, HP, 1, { y: 3.4 });
-      kind('laundry', () => laundryGrid(20), 0.1);
-      for (const [x, y] of [[-13.5, 5.2], [-16.2, 6.0], [-18.8, 4.6]]) place('laundry', x, -3.5, -HP, 1, { y, noCast: false });
-      for (const [k, x, z, ry] of [['crate', -14.2, -5.15, 0.1], ['barrel', -15.0, -3.85, 0], ['barrel', -17.6, -5.2, 0], ['crate', -20.2, -5.15, 0.3], ['crate', -20.25, -3.85, -0.2]]) { place(k, x, z, ry); col(x, z, 0.36); }
-      kind('door_frame', trapdoorFrameGrid, 0.05); kind('door_leaf', trapdoorLeafGrid, 0.05);
+      kind('bridge', bridgeGrid, SB); place('bridge', -15.6, -4.5, HP, 1, { y: 3.4 });
+      for (const [i, x, y] of [[0, -13.5, 5.0], [1, -17.6, 5.6], [3, -19.4, 4.4]]) { kind('laundry' + i, () => T.laundry(83, i), S1); place('laundry' + i, x, -3.5, HP, 1, { y }); }
+      for (const [k, x, z, ry] of [['crate', -14.2, -5.1, 0.1], ['barrel', -15.0, -3.85, 0], ['barrel', -17.6, -5.15, 0], ['crate', -20.2, -5.1, 0.3], ['crate', -20.25, -3.85, -0.2]]) { place(k, x, z, ry); col(x, z, 0.36); }
+      kind('door_frame', T.doorFrame, S1); kind('door_leaf', T.doorLeaf, S1);
       this.door = { x: -18.9, z: -4.5 };
-      place('door_frame', this.door.x, this.door.z, HP, 1, { y: 0.0, noCast: true });
+      place('door_frame', this.door.x, this.door.z, HP, 1, { y: 0.004, noCast: true });
       place('door_leaf', this.door.x - 0.4, this.door.z, HP, 1, { y: 0.05, name: 'door_leaf' });
-      kind('cat', catGrid, 0.04); kind('cat_head', catHeadGrid, 0.04);
-      place('cat', -20.2, -5.15, 0.9, 1, { y: 0.65, name: 'cat' });
-      place('cat_head', -20.2 + Math.sin(0.9) * 0.08, -5.15 + Math.cos(0.9) * 0.08, 0.9, 1, { y: 0.65 + 0.34, name: 'cat_head' });
+      kind('cat', T.cat, S1); kind('cat_head', T.catHead, S1);
+      place('cat', -20.2, -5.1, 0.9, 1, { y: 0.672, name: 'cat' });
+      place('cat_head', -20.2 + Math.sin(0.9) * 0.05, -5.1 + Math.cos(0.9) * 0.05, 0.9, 1, { y: 0.672 + 0.29, name: 'cat_head' });
 
       /* chickens, a little flock by the south street */
-      kind('hen_w', () => chickenGrid(0xf1ece2), 0.04); kind('hen_b', () => chickenGrid(0xa8683a), 0.04);
+      kind('hen_w', () => T.hen(0xf1ece2), S1); kind('hen_b', () => T.hen(0xa8683a), S1);
       this.chickens = 5;
       for (let i = 0; i < 5; i++) place(i % 2 ? 'hen_b' : 'hen_w', -1.6 + (i % 3) * 1.4, 18 + i * 1.3, rnd() * TAU, 1, { name: 'hen_' + i });
 
       /* beyond the town: the windmill, woods, hills, far mountains, clouds */
-      kind('windmill', windmillGrid, 0.25); place('windmill', 48, -9, -HP, 1, { noCast: true });
-      kind('sails', sailsGrid, 0.25); place('sails', 46, 9.8, -HP, 1, { noCast: true, y: 9.8, name: 'sails' });
-      this.sails = { x: 46, y: 9.8, z: -9 };
-      for (let i = 0; i < 3; i++) kind('ftree' + i, () => forestTreeGrid(i), 0.3);
-      for (let i = 0; i < 70; i++) {
-        const a = rnd() * TAU, r = 42 + rnd() * 30, x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (x > 28 && Math.abs(z) < 4) continue;
-        if (Math.abs(x) < 4 && z > 30) continue;
-        place('ftree' + (i % 3), x, z, rnd() * TAU, 0.8 + rnd() * 0.6, { noCast: true });
+      kind('windmill', windmillGrid, WM); place('windmill', 48, -9, -HP, 1, { noCast: true });
+      kind('sails', sailsGrid, WM); place('sails', 44.6, -9, -HP, 1, { noCast: true, y: 11.2, name: 'sails' });
+      this.sails = { x: 44.6, y: 11.2, z: -9 };
+      for (let i = 0; i < 3; i++) kind('ftree' + i, () => forestTreeGrid(i * 5), 0.24);
+      for (let i = 0; i < 66; i++) {
+        const a = rnd() * TAU, r = 44 + rnd() * 30, x = Math.sin(a) * r, z = Math.cos(a) * r;
+        if (x > 28 && Math.abs(z) < 5 || Math.hypot(x - 48, z + 9) < 9) continue;
+        if (Math.abs(x) < 5 && z > 30) continue;
+        place('ftree' + (i % 3), x, z, Math.floor(rnd() * 4) * HP, 0.8 + rnd() * 0.6, { noCast: true });
       }
       for (let i = 0; i < 10; i++) {
         const a = i / 10 * TAU + 0.3, r = 95 + (i % 3) * 18;
-        kind('hill' + (i % 4), () => hillGrid(18 + (i % 4) * 4, 7 + (i % 3) * 3, i % 4), 2.0);
+        kind('hill' + (i % 4), () => hillGrid(27 + (i % 4) * 6, R((7 + (i % 3) * 3) * 1.5), i % 4), 1.3);
         place('hill' + (i % 4), Math.sin(a) * r, Math.cos(a) * r, a, 1, { noCast: true });
       }
       for (let i = 0; i < 12; i++) {
@@ -562,7 +605,7 @@
         kind('mtn' + (i % 4), () => mountainGrid(i % 4), 4.0);
         place('mtn' + (i % 4), Math.sin(a) * r, Math.cos(a) * r, a * 3, 1 + (i % 2) * 0.3, { noCast: true });
       }
-      for (let i = 0; i < 4; i++) kind('cloud' + i, () => cloudGrid(i), 2.2);
+      for (let i = 0; i < 4; i++) kind('cloud' + i, () => cloudGrid(i), 1.1);
       for (let i = 0; i < 12; i++) {
         const m = place('cloud' + (i % 4), (rnd() - 0.5) * 360, (rnd() - 0.5) * 360, rnd() * TAU, 1, { noCast: true, y: 55 + rnd() * 30 });
         this.clouds.push(m);
@@ -577,7 +620,7 @@
         { look: { kid: true, skin: 1, hair: 'blond', shirt: 0x5a8a4a, legs: 0x6a4a32, hat: 'cap', hatColor: 0x8a5a32, tray: true },
           job: 'tray', route: [[2.2, -7.4, 1.2], [-3.5, -7.6, 0], [-6.5, -8.6, 0.6], [-9.3, -3.5, 0], [-7.5, 3.6, 1.0], [0, 6.3, 0], [6.5, 3.6, 1.0], [8.5, -1.5, 0], [8.8, -7.6, 0], [2.2, -7.4, 3]], lines: ['Coming through! Hot bread!', 'Mum says no samples.'] },
         { look: { big: true, skin: 2, bald: true, hair: 'brown', beard: true, shirt: 0x8a7a6a, legs: 0x3a3a3a, apron: C.leather, rolled: true, right: 'hammer', left: 'tongs' },
-          job: 'hammer', at: [11.05, -6.5, -HP], lines: ['Careful. The forge bites.', 'A blade mended by morning, if you like.', 'Good iron sings. Hear that?'] },
+          job: 'hammer', at: [10.83, -6.5, -HP], lines: ['Careful. The forge bites.', 'A blade mended by morning, if you like.', 'Good iron sings. Hear that?'] },
         { look: { h: 1, skin: 1, hair: 'red', style: 'braid', shirt: 0xe8dcc0, dress: 0x5a8a4a, hat: 'straw', lips: true, blush: true, apron: 0xd8c8a8 },
           job: 'hawk', at: [-6.5, 6.1, Math.PI], lines: ['Apples from the eastern orchards! Two for a copper!', 'Pears! Sweet as anything!'], call: true },
         { look: { h: 1, skin: 3, hair: 'black', beard: true, shirt: 0xd8d0c0, vest: C.navy, legs: 0x4a4a5a, hat: 'cap', hatColor: 0x3a4a6a, rolled: true },

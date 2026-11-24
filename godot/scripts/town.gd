@@ -3,7 +3,7 @@ extends Node3D
 ## work: the baker kneading, the smith at the anvil, sellers calling out, shoppers going stall to stall, guards on their
 ## rounds, children chasing round the fountain, a bard, a woodcutter, an innkeeper sweeping, a mage with her book, an old
 ## man on a bench, a water carrier, a farmer with a sack of flour. Chickens, a black cat by the door in the alley, the
-## windmill turning. Townsfolk turn to look at her; G near one of them gets a word.
+## windmill turning. Townsfolk mind their own business; G near one of them gets a word and, for a while, their attention.
 
 var main: Node3D
 var data: Dictionary
@@ -60,15 +60,52 @@ func setup(main_node: Node3D, bake: Dictionary) -> void:
 	f.material_override = fm
 	f.position.y = -0.03
 	add_child(f)
+	# the streets: their own ground, a pixel to each of her voxels
+	var core: Dictionary = data.core
+	var cp := PlaneMesh.new()
+	cp.size = Vector2(core.size, core.size)
+	var cm := ShaderMaterial.new()
+	cm.shader = preload("res://scripts/ground.gdshader")
+	cm.set_shader_parameter("tex", load("res://assets/town_core.png"))
+	var cg := MeshInstance3D.new()
+	cg.mesh = cp
+	cg.material_override = cm
+	if main.light_off.has("core"): cg.visible = false
+	cg.position = Vector3(core.x, 0.004, core.z)
+	cg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(cg)
 	# the town itself
 	var w: Node3D = load("res://assets/town.glb").instantiate()
 	add_child(w)
-	main.voxelize(w)
+	main.voxelize(w, null if main.light_off.has("grain") else main.grain_mat)
 	var by_name := {}
 	for n in w.find_children("*", "Node3D", true, false): by_name[String(n.name)] = n
-	for n in w.find_children("*_nc", "Node3D", true, false):
+	for n in w.find_children("*_nc*", "Node3D", true, false):
 		for gi in [n] + n.find_children("*", "GeometryInstance3D", true, false):
 			if gi is GeometryInstance3D: gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	# the houses: each is shadowed by a plain block of its own shape, and hides what's behind it from being drawn at all
+	for i in (data.houses as Array).size():
+		var h: Array = data.houses[i]
+		var house: Node3D = by_name.get("house_%d" % i)
+		var block: Node3D = by_name.get("shadow_%d" % i)
+		if block:
+			_each_geo(block, func(gi): gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY)
+			if house: _each_geo(house, func(gi): gi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
+		var box := BoxOccluder3D.new()
+		var low: float = h[6]                                # (a forge is open below)
+		box.size = Vector3(float(h[3]) - 0.3, float(h[5]) - low - 0.1, float(h[4]) - 0.3)
+		var oc := OccluderInstance3D.new()
+		oc.occluder = box
+		oc.position = Vector3(h[0], low + box.size.y / 2.0, h[1])
+		oc.rotation.y = h[2]
+		add_child(oc)
+	# the little things are drawn only from nearby; the finer ones have a plainer stand-in from across the square
+	for n in w.find_children("*_near", "Node3D", true, false):
+		_each_geo(n, func(gi): gi.visibility_range_end = 26.0)
+	for n in w.find_children("*_lodn*", "Node3D", true, false):
+		_each_geo(n, func(gi): gi.visibility_range_end = 10.0)
+	for n in w.find_children("*_lodf*", "Node3D", true, false):
+		_each_geo(n, func(gi): gi.visibility_range_begin = 10.0)
 	for i in int(data.clouds):
 		var c: Node3D = by_name.get("cloud_%d" % i)
 		if c == null: continue
@@ -89,11 +126,16 @@ func setup(main_node: Node3D, bake: Dictionary) -> void:
 	_people()
 
 
+func _each_geo(n: Node, f: Callable) -> void:
+	for gi in [n] + n.find_children("*", "GeometryInstance3D", true, false):
+		if gi is GeometryInstance3D: f.call(gi)
+
+
 # --------------------------------------------------------------- the townsfolk --
 func _people() -> void:
 	var pg: Node3D = load("res://assets/people.glb").instantiate()
 	add_child(pg)
-	main.voxelize(pg)
+	main.voxelize(pg, main.grain_mat)
 	var list: Array = data.npcs
 	for i in list.size():
 		var spec: Dictionary = list[i]
@@ -108,7 +150,7 @@ func _people() -> void:
 			"root": root, "P": P, "F": F, "spec": spec, "job": String(spec.job), "hips_y": (F.hips as Node3D).position.y,
 			"pos": Vector3.ZERO, "yaw": 0.0, "i": 0, "wait": 0.0, "phase": rng.randf() * TAU, "t": rng.randf() * 10.0,
 			"head": 0.0, "bubble": null, "bubble_t": 0.0, "call_t": 4.0 + rng.randf() * 8.0, "line": 0, "stuck": 0.0, "last": Vector3.ZERO,
-			"strike": false, "face_t": 0.0,
+			"strike": false, "attend": 0.0, "glance": 0.0, "gap": 2.0 + rng.randf() * 12.0,
 		}
 		if spec.at != null:
 			n.pos = Vector3(spec.at[0], 0, spec.at[1])
@@ -126,7 +168,7 @@ func _people() -> void:
 		npcs.append(n)
 
 
-## One townsperson's turn: walk their way, or work at their job, and look at her when she's near.
+## One townsperson's turn: walk their way, or work at their job; they mind her only when she has spoken to them.
 func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 	n.t += dt
 	var job: String = n.job
@@ -207,28 +249,22 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 			var p := fmod(n.t, 1.15) / 1.15
 			var up := _ease(clampf(p / 0.62, 0.0, 1.0))
 			var down := _ease(clampf((p - 0.62) / 0.1, 0.0, 1.0))
-			E.uArmR = Vector3(lerpf(-0.5, -2.5, up) + (2.0 * down if p > 0.62 else 0.0), 0, -0.15)
-			E.fArmR = Vector3(-0.7, 0, 0)
-			E.uArmL = Vector3(-0.85, 0, 0.1)
-			E.fArmL = Vector3(-0.6, 0, 0)
-			E.torso = Vector3(0.22 + down * 0.1, -0.1, 0)
-			E.head = Vector3(0.3, 0, 0)
+			n.swing = up if p < 0.62 else 1.0 - down            # 0: on the iron, 1: the hammer raised (see _hold)
+			E.torso = Vector3(0.32 - 0.12 * float(n.swing), -0.1 * float(n.swing), 0)
+			E.head = Vector3(0.22, 0, 0)
 			var strike := p > 0.7 and p < 0.78
-			if strike and not n.strike: _spark_at((n.root as Node3D).position + Vector3(sin(n.yaw), 0, cos(n.yaw)) * 0.85 + Vector3(0, 0.95, 0))
+			if strike and not n.strike: _spark_at((n.root as Node3D).position + Vector3(sin(n.yaw), 0, cos(n.yaw)) * 0.62 + Vector3(0, 0.92, 0))
 			n.strike = strike
 		"chop":
 			busy = true
 			var p := fmod(n.t, 1.8) / 1.8
 			var up := _ease(clampf(p / 0.6, 0.0, 1.0))
 			var down := _ease(clampf((p - 0.6) / 0.12, 0.0, 1.0))
-			var a := lerpf(-0.6, -2.9, up) + (2.3 * down if p > 0.6 else 0.0)
-			E.uArmR = Vector3(a, 0, -0.05)
-			E.uArmL = Vector3(a, 0, 0.05)
-			E.fArmR = Vector3(-0.3, 0, 0)
-			E.fArmL = Vector3(-0.3, 0, 0)
-			E.torso = Vector3(-0.1 * up + 0.45 * down * (1.0 if p > 0.6 else 0.0), 0, 0)
+			n.swing = up if p < 0.62 else 1.0 - down            # 0: the axe in the wood, 1: up over the shoulder (see _hold)
+			E.torso = Vector3(0.45 - 0.55 * float(n.swing), 0, 0)
+			E.head = Vector3(0.2, 0, 0)
 			var strike := p > 0.7 and p < 0.78
-			if strike and not n.strike: _chips_at((n.root as Node3D).position + Vector3(sin(n.yaw), 0, cos(n.yaw)) * 0.8 + Vector3(0, 0.55, 0))
+			if strike and not n.strike: _chips_at((n.root as Node3D).position + Vector3(sin(n.yaw), 0, cos(n.yaw)) * 0.76 + Vector3(0, 0.74, 0))
 			n.strike = strike
 		"fold":
 			busy = true
@@ -241,12 +277,8 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 			E.head = Vector3(0.2, 0, 0)
 		"strum":
 			busy = true
-			E.uArmR = Vector3(-0.45, 0, -0.25)
-			E.fArmR = Vector3(-1.0 + sin(n.t * 10.0) * 0.18, 0, 0)
-			E.uArmL = Vector3(-1.1, 0, 0.55)
-			E.fArmL = Vector3(-1.2, 0, 0)
 			E.torso = Vector3(0.02, sin(n.t * 1.1) * 0.1, sin(n.t * 2.2) * 0.04)
-			E.head = Vector3(-0.05 + sin(n.t * 2.2) * 0.07, 0, sin(n.t * 1.1) * 0.1)
+			E.head = Vector3(0.1 + sin(n.t * 2.2) * 0.07, 0.15, sin(n.t * 1.1) * 0.1)      # (the arms: see _hold)
 		"read":
 			busy = true
 			var turn := fmod(n.t, 7.0) > 6.3
@@ -283,12 +315,8 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 				E.head = Vector3(0.05, sin(n.t * 0.5) * 0.5, 0)
 		"sweep":
 			if moving > 0.0 or n.wait > 0.0:
-				var k := sin(n.t * 2.6)
-				E.uArmR = Vector3(-0.55, 0, -0.1)
-				E.uArmL = Vector3(-0.65, 0, 0.35)
-				E.fArmR = Vector3(-0.3, 0, 0)
-				E.fArmL = Vector3(-0.5, 0, 0)
-				E.torso = Vector3(0.2, k * 0.35, 0)
+				E.torso = Vector3(0.22, sin(n.t * 2.6) * 0.16, 0)
+				E.head = Vector3(0.2, 0, 0)
 		"tray":
 			E.uArmL = Vector3(-0.55, 0, 0.05)
 			E.uArmR = Vector3(-0.55, 0, -0.05)
@@ -303,24 +331,34 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 			E.uArmR = Vector3(-2.7, 0, -0.35)
 			E.fArmR = Vector3(-1.6, 0, 0)
 		"patrol":
-			E.uArmR = Vector3(-0.15, 0, -0.08)
-			E.fArmR = Vector3(-0.35, 0, 0)
+			E.uArmL = (E.uArmL as Vector3) * Vector3(0.7, 1, 1)       # (the right hand keeps the spear upright: see _hold)
 		"shop":
 			if moving == 0.0 and n.wait > 0.0:               # at a stall: weighing things up, a gesture now and then
 				var gst := fmod(n.t, 4.0) > 3.2
 				E.uArmR = Vector3(-0.8 if gst else -0.1, 0, -0.1)
 				E.fArmR = Vector3(-0.9 if gst else -0.2, 0, 0)
 				E.head = Vector3(0.18, sin(n.t * 0.7) * 0.3, 0)
-	# she's near: look at her (workers turn their heads; idle folk turn to face her too)
+	# whom they mind: their own business. Spoken to, they give her their attention, and a moment more when she's done;
+	# otherwise it's a passing glance now and then, if she happens to be close by and before them
 	var look := 0.0
-	if near < 4.5 and not (job in ["hammer", "chop"] and fmod(n.t, 1.2) > 0.5):
-		look = wrapf(atan2(to_her.x, to_her.y) - n.yaw, -PI, PI)
-		if moving == 0.0 and not busy and spec.route != null and near < 2.4:
-			n.yaw = lerp_angle(n.yaw, atan2(to_her.x, to_her.y), 1.0 - exp(-3.0 * dt))
-			look *= 0.5
-		look = clampf(look, -1.1, 1.1)
-	n.face_t = maxf(0.0, n.face_t - dt)
-	n.head = lerpf(n.head, look, 1.0 - exp(-5.0 * dt))
+	var bearing := wrapf(atan2(to_her.x, to_her.y) - n.yaw, -PI, PI)
+	var heed: bool = n.attend > 0.0
+	if heed:
+		n.attend -= dt
+		if near > 4.0: n.attend = minf(n.attend, 0.6)            # she has walked off
+		if not (job in ["sit", "hammer", "chop"]) and (moving == 0.0):      # turn to face her (those at work only turn their heads)
+			var turn := bearing if not busy or absf(bearing) > 1.0 else 0.0
+			if turn != 0.0: n.yaw = lerp_angle(n.yaw, n.yaw + turn, 1.0 - exp(-3.5 * dt))
+		look = clampf(bearing, -1.15, 1.15)
+		n.glance = -2.0 - rng.randf() * 4.0
+	else:
+		n.glance -= dt
+		if n.glance > 0.0: look = clampf(bearing, -0.75, 0.75)
+		elif n.glance < -n.gap:
+			n.gap = 7.0 + rng.randf() * 14.0
+			n.glance = (0.6 + rng.randf() * 0.6) if near < 2.6 and absf(bearing) < 1.2 and not busy else 0.0
+		if spec.route == null and job != "sit": n.yaw = lerp_angle(n.yaw, n.home_yaw, 1.0 - exp(-2.5 * dt))      # back to the work
+	n.head = lerpf(n.head, look, 1.0 - exp(-(5.0 if heed else 3.0) * dt))
 	var hv: Vector3 = E.get("head", Vector3.ZERO)
 	E.head = Vector3(hv.x * (1.0 - absf(n.head) * 0.5), hv.y * (1.0 - minf(1.0, absf(n.head) * 2.0)) + n.head, hv.z)
 	(n.root as Node3D).rotation.y = n.yaw
@@ -330,7 +368,9 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 		var jn: Node3D = n.P.get(part)
 		if jn == null: continue
 		var e: Vector3 = E.get(part, Vector3.ZERO)
+		if job in ["chop", "strum", "hammer", "sweep"] and "Arm" in part or job == "patrol" and part in ["uArmR", "fArmR"]: continue
 		jn.quaternion = jn.quaternion.slerp(Quaternion(Basis.from_euler(e, EULER_ORDER_XYZ)), ease_k)
+	if job in ["chop", "strum", "patrol", "hammer", "sweep"]: _hold(n, moving, dt)
 	# sellers call out their wares when she's about
 	if spec.call:
 		n.call_t -= dt
@@ -346,6 +386,87 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 		if n.bubble_t <= 0.0:
 			b.queue_free()
 			n.bubble = null
+
+
+## Things held in both hands. The axe swings on its own arc, the lute rests across the body, and each arm reaches to it:
+## the hands stay on the handle, on the strings and the neck, whatever the body does.
+func _hold(n: Dictionary, moving: float, dt: float) -> void:
+	var torso: Node3D = n.P.torso
+	var root: Node3D = n.root
+	var to_torso := torso.global_transform.affine_inverse()
+	var vs: float = n.spec.s
+	if n.job == "chop":
+		var axe: Node3D = n.P.get("axe")
+		if axe == null: return
+		var u: float = n.get("swing", 0.0)
+		var sh: Vector3 = ((n.F.uArmL as Node3D).position + (n.F.uArmR as Node3D).position) * 0.5
+		var c: Vector3 = root.global_transform.affine_inverse() * (torso.global_transform * sh)
+		var a := deg_to_rad(lerpf(-48.0, 72.0, u))              # where the hands are, round the shoulders
+		var b := deg_to_rad(lerpf(-32.0, 138.0, u))             # which way the handle points: at the wood .. back over the shoulder
+		axe.global_transform = root.global_transform * Transform3D(Basis(Vector3.RIGHT, -b), c + Vector3(0, sin(a), cos(a)) * 0.41)
+		_reach(n, "R", to_torso * (axe.global_transform * Vector3.ZERO), Vector3(-1, -0.35, 0))
+		_reach(n, "L", to_torso * (axe.global_transform * Vector3(0, 0, -7.0 * vs)), Vector3(1, -0.35, 0))
+	elif n.job == "hammer":
+		# the tongs hold the iron on the anvil, the hammer comes down on it
+		var ham: Node3D = n.P.get("hammer")
+		var tg: Node3D = n.P.get("tongs")
+		if ham == null or tg == null: return
+		var u: float = n.get("swing", 0.0)
+		var b := deg_to_rad(lerpf(-4.0, 104.0, u))
+		ham.global_transform = root.global_transform * Transform3D(Basis(Vector3.UP, -0.12) * Basis(Vector3.RIGHT, -b), Vector3(-0.1, 1.0, 0.31).lerp(Vector3(-0.27, 1.5, 0.2), u))
+		_reach(n, "R", to_torso * ham.global_transform.origin, Vector3(-0.9, -0.6, -0.3))
+		var grip := Vector3(0.31, 1.0, 0.36)
+		var jaw := Vector3(0.17, 0.9, 0.62)
+		tg.global_transform = root.global_transform * Transform3D(Basis.looking_at(grip - jaw, Vector3.UP), grip)
+		_reach(n, "L", to_torso * tg.global_transform.origin, Vector3(0.8, -0.7, -0.3))
+	elif n.job == "sweep":
+		# both hands on the broom, its foot swinging across the flags before her
+		var br: Node3D = n.P.get("broom")
+		if br == null: return
+		var k := sin(n.t * 2.6)
+		var foot := Vector3(k * 0.3, 0.01 + maxf(0.0, cos(n.t * 2.6)) * 0.03, 0.52 - absf(k) * 0.06)
+		var up := (Vector3(-0.1 + k * 0.05, 1.35, 0.1) - foot).normalized()
+		var side := up.cross(Vector3.BACK).normalized()
+		br.global_transform = root.global_transform * Transform3D(Basis(side, up, side.cross(up)), foot)
+		_reach(n, "R", to_torso * (br.global_transform * Vector3(0, 47.0 * vs, 0)), Vector3(-1, -0.5, -0.3))
+		_reach(n, "L", to_torso * (br.global_transform * Vector3(0, 36.0 * vs, 0)), Vector3(1, -0.5, -0.3))
+	elif n.job == "patrol":
+		# upright at his side, a forearm's reach before him: carried clear of the ground with each stride, grounded when he stands
+		var spear: Node3D = n.P.get("spear")
+		if spear == null: return
+		n.carry = lerpf(n.get("carry", 0.0), 1.0 if moving > 0.0 else 0.0, 1.0 - exp(-6.0 * dt))
+		var side: float = (n.F.uArmR as Node3D).position.x - 2.5 * vs
+		var bob: float = n.carry * (0.07 + absf(cos(n.phase)) * 0.02)
+		var tilt: float = n.carry * 0.07 + (1.0 - n.carry) * 0.02
+		spear.global_transform = root.global_transform * Transform3D(Basis(Vector3.RIGHT, tilt) * Basis(Vector3.BACK, 0.02), Vector3(side, 44.0 * vs + bob, 0.15))
+		_reach(n, "R", to_torso * spear.global_transform.origin, Vector3(-0.35, -1, -0.5))
+	else:
+		var lute: Node3D = n.P.get("lute")
+		if lute == null: return
+		lute.basis = Basis(Vector3.RIGHT, -0.12) * Basis(Vector3.BACK, -1.08 + sin(n.t * 1.1) * 0.03)
+		var chord: float = [15.0, 12.0, 17.0, 13.5][int(n.t / 1.7) % 4]
+		n.fret = lerpf(n.get("fret", chord), chord, 0.15)
+		var to_lute := to_torso * lute.global_transform
+		var frets: Node3D = n.P.get("frets")
+		if frets: frets.position = Vector3(0, n.fret, 0) * vs
+		_reach(n, "L", to_lute * (Vector3(1.0, n.fret, -1.4) * vs), Vector3(0.6, -1, 0.1))            # the palm behind the neck
+		_reach(n, "R", to_lute * (Vector3(sin(n.t * 10.0) * 1.6, -2.0, 5.2) * vs), Vector3(-0.55, 0.15, 1.0))      # over the body, clear of its face
+
+
+## Reach: bend one arm so its fist comes to a point (in the torso's space), the elbow out toward `pole`.
+func _reach(n: Dictionary, side: String, tgt: Vector3, pole: Vector3) -> void:
+	var a: float = n.spec.ua
+	var b: float = n.spec.fa
+	var d: Vector3 = tgt - (n.F["uArm" + side] as Node3D).position
+	var l := clampf(d.length(), absf(a - b) + 0.01, a + b - 0.004)
+	var bend := PI - acos(clampf((a * a + b * b - l * l) / (2.0 * a * b), -1.0, 1.0))
+	var u1 := Vector3(0, -a - b * cos(bend), b * sin(bend)).normalized()
+	var e := Vector3(0, -a, 0)
+	var p1 := (e - u1 * e.dot(u1)).normalized()
+	var u2 := d.normalized()
+	var p2 := (pole - u2 * pole.dot(u2)).normalized()
+	(n.P["uArm" + side] as Node3D).basis = Basis(u2, p2, u2.cross(p2)) * Basis(u1, p1, u1.cross(p1)).transposed()
+	(n.P["fArm" + side] as Node3D).basis = Basis(Vector3.RIGHT, -bend)
 
 
 func _ease(x: float) -> float:
@@ -389,7 +510,8 @@ func talk(her: Vector3) -> bool:
 	var lines: Array = best.spec.lines
 	say(best, lines[best.line % lines.size()])
 	best.line += 1
-	if best.spec.route != null and best.wait < 1.5: best.wait = 2.5      # they stop to talk
+	best.attend = best.bubble_t + 1.5                        # they attend to her while they speak, and a moment after
+	if best.spec.route != null: best.wait = maxf(best.wait, best.attend)      # (and stop to talk)
 	return true
 
 
@@ -502,6 +624,11 @@ func near_door(her: Vector3) -> bool:
 
 func update(dt: float, her: Vector3) -> void:
 	t += dt
+	if main.light_off.has("lineup"):                      # (dev: everyone stood in rows, to look them over)
+		for i in npcs.size():
+			npcs[i].root.position = Vector3(-4.0 + (i % 11) * 0.8, 0, 6.0 + (i / 11) * 1.6)
+			npcs[i].root.rotation.y = PI if main.light_off.has("backs") else 0.0
+		return
 	for n in npcs: _npc(n, dt, her)
 	# the door: its hatch swings up, the light below brightens, a few sparkles always slip out through the cracks
 	if door_leaf:

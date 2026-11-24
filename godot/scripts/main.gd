@@ -40,6 +40,7 @@ var summon_t := 0.0
 var arrived := false
 var colliders: Array = []
 var bound := 92.0
+var grain_mat: ShaderMaterial               # the scenery's: lit, with her voxel's grain
 var lit_mat: StandardMaterial3D
 var glow_mat: StandardMaterial3D
 
@@ -73,6 +74,7 @@ var title_font: Font
 var shot_path := ""
 var shot_mode := ""
 var shot_at := 150
+var shot_view: Array = []
 var shot_do: PackedStringArray = []
 var shot_cam := Vector3.ZERO
 var shot_camy := 0.0                # dev: raise the camera's target (m), e.g. to frame her head
@@ -98,6 +100,9 @@ func _ready() -> void:
 		elif a.begins_with("--at="): shot_at = int(a.substr(5))
 		elif a.begins_with("--do="): shot_do = a.substr(5).split(",")
 		elif a.begins_with("--camy="): shot_camy = float(a.substr(7))
+		elif a.begins_with("--view="):                  # a free camera for the shot: from x,y,z looking at x,y,z, no panels
+			var v := a.substr(7).split(",")
+			shot_view = [Vector3(float(v[0]), float(v[1]), float(v[2])), Vector3(float(v[3]), float(v[4]), float(v[5]))]
 		elif a.begins_with("--cam="):
 			var c := a.substr(6).split(",")
 			shot_cam = Vector3(float(c[0]), float(c[1]), float(c[2]))
@@ -145,18 +150,24 @@ func _ready() -> void:
 		tt.t_yaw = spawn.z
 	_update_camera(1.0)
 	_fade_layer()
+	if not shot_view.is_empty():
+		for c in get_children(): if c is CanvasLayer: (c as CanvasLayer).visible = false
 
 
 ## Every voxel mesh shows its baked vertex colours: lit (Lambert, no shine), or unlit for glowing voxels.
 func _materials() -> void:
 	lit_mat = StandardMaterial3D.new()
 	lit_mat.vertex_color_use_as_albedo = true
+	lit_mat.vertex_color_is_srgb = true
 	lit_mat.roughness = 1.0
 	lit_mat.specular_mode = BaseMaterial3D.SPECULAR_DISABLED
 	lit_mat.diffuse_mode = BaseMaterial3D.DIFFUSE_LAMBERT
 	glow_mat = StandardMaterial3D.new()
 	glow_mat.vertex_color_use_as_albedo = true
+	glow_mat.vertex_color_is_srgb = true
 	glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	grain_mat = ShaderMaterial.new()
+	grain_mat.shader = preload("res://scripts/grain.gdshader")
 
 
 func voxelize(n: Node, lit: Material = null, glow: Material = null) -> void:
@@ -228,6 +239,8 @@ func _environment() -> void:
 	sun = DirectionalLight3D.new()
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 45.0
+	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
+	sun.directional_shadow_split_1 = 0.2
 	sun.shadow_blur = 1.5
 	add_child(sun)
 	# the rich lighting's settings (switched on and off in _set_lighting)
@@ -254,7 +267,8 @@ func _set_lighting(rich: bool) -> void:
 	env.glow_enabled = on.call("glow")
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY if on.call("sky") else Environment.AMBIENT_SOURCE_COLOR
 	env.fog_aerial_perspective = 0.35 if on.call("haze") else 0.0
-	sun.light_angular_distance = 1.5 if on.call("soft") else 0.0
+	# (in the town's clear sun they're softened evenly instead: cleaner on people, and a good deal quicker)
+	sun.light_angular_distance = 1.5 if on.call("soft") and level == "garden" else 0.0
 	RenderingServer.directional_soft_shadow_filter_set_quality(
 		RenderingServer.SHADOW_QUALITY_SOFT_MEDIUM if on.call("soft") else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 	# the lamp heads go past white, so the glow picks out only them (her gems stay as on the web: a glow made them LEDs)
@@ -296,6 +310,18 @@ func _ground() -> void:
 	g.mesh = plane
 	g.material_override = mat
 	garden.add_child(g)
+	# the courtyard's own ground, a pixel to each of her voxels
+	var cp := PlaneMesh.new()
+	cp.size = Vector2(bake.world.coreSize, bake.world.coreSize)
+	var cm := ShaderMaterial.new()
+	cm.shader = preload("res://scripts/ground.gdshader")
+	cm.set_shader_parameter("tex", load("res://assets/ground_core.png"))
+	var cg := MeshInstance3D.new()
+	cg.mesh = cp
+	cg.material_override = cm
+	cg.position.y = 0.004
+	cg.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	garden.add_child(cg)
 	var far_plane := PlaneMesh.new()
 	far_plane.size = Vector2(900, 900)
 	var fm := StandardMaterial3D.new()
@@ -312,7 +338,7 @@ func _ground() -> void:
 func _scenery() -> void:
 	var w: Node3D = load("res://assets/world.glb").instantiate()
 	garden.add_child(w)
-	voxelize(w)
+	voxelize(w, grain_mat)
 	var by_name := {}
 	for n in w.find_children("*", "Node3D", true, false): by_name[String(n.name)] = n
 	for i in int(bake.world.clouds):
@@ -325,6 +351,7 @@ func _scenery() -> void:
 	summon_mat = StandardMaterial3D.new()
 	summon_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	summon_mat.vertex_color_use_as_albedo = true
+	summon_mat.vertex_color_is_srgb = true
 	for nm in ["summon_outer", "summon_inner"]:
 		if not by_name.has(nm): continue
 		var r: Node3D = by_name[nm]
@@ -342,6 +369,7 @@ func _scenery() -> void:
 		var mm_ := StandardMaterial3D.new()
 		mm_.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mm_.vertex_color_use_as_albedo = true
+		mm_.vertex_color_is_srgb = true
 		mm_.disable_fog = true
 		mm_.albedo_color = Color(1.15, 1.1, 1.1)
 		for mi in [by_name["moon"]] + (by_name["moon"] as Node).find_children("*", "MeshInstance3D", true, false):
@@ -384,7 +412,7 @@ func _scenery() -> void:
 			mm.set_instance_transform(k, Transform3D(b, Vector3(e[12], e[13], e[14])))
 		var mmi := MultiMeshInstance3D.new()
 		mmi.multimesh = mm
-		mmi.material_override = lit_mat
+		mmi.material_override = grain_mat
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		garden.add_child(mmi)
 
@@ -626,6 +654,7 @@ func _set_level(lvl: String) -> void:
 	garden.visible = lvl == "garden"
 	town.visible = lvl == "town"
 	_apply_env(lvl)
+	_set_lighting(rich_light)
 	if hud_place: hud_place.text = "the Wonder Garden" if lvl == "garden" else "the town of Thistlewick"
 
 
@@ -861,6 +890,7 @@ func _update_camera(dt: float) -> void:
 				p.x = q2.x
 				p.z = q2.z
 	cam.look_at_from_position(p, cam_tgt, Vector3.UP)
+	if not shot_view.is_empty(): cam.look_at_from_position(shot_view[0], shot_view[1], Vector3.UP)
 
 
 # -------------------------------------------------------------------- HUD --

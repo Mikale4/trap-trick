@@ -146,15 +146,15 @@
       for (let fi = 0; fi < 6; fi++) {
         const F = FACES[fi];
         const [dx, dy, dz] = F.d;
-        if (grid.has(x + dx, y + dy, z + dz)) continue;
+        if (grid.has(x + dx, y + dy, z + dz) || (grid.inside && grid.inside(x + dx, y + dy, z + dz))) continue;   // (inside: a hollow building's unseen core)
         const base = B.p.length / 3, aos = [];
         const nx = dx * cy + dz * sy, nz = -dx * sy + dz * cy;
-        const fine = grid.tex && !g ? grid.tex.test(x, y, z, v) : 0;
+        const fine = grid.tex && !g ? grid.tex.test(x, y, z, v) : 0, flat = grid.flat && grid.flat.has(v);      // (flat: colours that take no occlusion, as window panes, so they merge)
         const corners = [];
         for (const cr of F.c) {
           corners.push([x - 0.5 + cr[0], y - 0.5 + cr[1], z - 0.5 + cr[2]]);
           let a = 3;
-          if (!g && opts.ao !== false) {
+          if (!g && !flat && opts.ao !== false) {
             const ox = x + dx, oy = y + dy, oz = z + dz;
             const u = [], axes = [0, 1, 2].filter(k => F.d[k] === 0);
             for (const k of axes) u.push(cr[k] ? 1 : -1);
@@ -241,6 +241,23 @@
   const litMat = () => MAT.lit || (MAT.lit = new THREE.MeshLambertMaterial({ vertexColors: true }));
   const glowMat = () => MAT.glow || (MAT.glow = new THREE.MeshBasicMaterial({ vertexColors: true }));
 
+  /* The scenery's material: every 2.4 cm cell (her voxel) its own slight shade, so that a surface whose faces were merged
+     still reads as made of the same voxels as she is (the desktop version's grain.gdshader does the same) */
+  const grainMat = () => {
+    if (MAT.grain) return MAT.grain;
+    const m = MAT.grain = new THREE.MeshLambertMaterial({ vertexColors: true });
+    m.extensions = { derivatives: true };
+    m.onBeforeCompile = sh => {
+      sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGp; varying vec3 vGn;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvGp = position / 0.024; vGn = normal;');
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vGp; varying vec3 vGn;').replace('#include <color_fragment>', `#include <color_fragment>
+        { vec3 gw = fwidth(vGp); float gf = clamp(1.7 - max(gw.x, max(gw.y, gw.z)), 0.0, 1.0);
+          vec3 gq = floor(vGp - vGn * 0.5); gq = mod(gq, 289.0);
+          float gh = fract(sin(dot(gq, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+          diffuseColor.rgb *= 1.0 + (gh - 0.5) * 0.11 * gf; }`);
+    };
+    return m;
+  };
+
   function meshPair(G, mat, opts) {
     opts = opts || {};
     const grp = new THREE.Group();
@@ -325,5 +342,5 @@
     return m;
   }
 
-  window.VX = { Grid, Model, glow, isGlow, meshGrid, meshPair, object, litMat, glowMat, hash3, sky };
+  window.VX = { Grid, Model, glow, isGlow, meshGrid, meshPair, object, litMat, glowMat, grainMat, hash3, sky };
 })();

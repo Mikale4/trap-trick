@@ -313,23 +313,37 @@
     const NSTR = 26;
     const hairCol = (x, y, z) => {
       const k = Math.floor((Math.atan2(x, z + 0.5) + Math.PI) / TAU * NSTR), n = H(x, y, z);
-      if (y >= B + HR && n < 0.5) return hairL;                           // light on the crown
+      if (y >= B + HR && n < (y > B + HR ? 0.45 : 0.2)) return hairL;     // light on the crown
       if (k % 3 === 0) return n < 0.65 ? hairD : hairC;                   // the grooves between the locks
       return n < 0.07 ? hairD : (n > 0.94 ? hairL : hairC);
     };
     const hrx = W + 1.4, hrz = (FZ - Z0) / 2 + 1.4, hcz = (FZ + Z0) / 2 - 0.6, hcy = B + HR * 0.58, hry = HR * 0.49;
-    // a shell of hair over the skull: rows at the front from `front` up, the sides from `side`, the back from `back`
-    const shell = (grow, front, side, back, col) => {
-      const rx = hrx + grow, ry = hry + grow, rz = hrz + grow;
-      for (let x = -Math.ceil(rx) - 1; x <= Math.ceil(rx) + 1; x++)
-        for (let y = Math.floor(hcy - ry) - 1; y <= Math.ceil(hcy + ry) + 1; y++)
-          for (let z = Math.floor(hcz - rz) - 1; z <= Math.ceil(hcz + rz) + 1; z++) {
-            if ((x / (rx + 0.5)) ** 2 + ((y - hcy) / (ry + 0.5)) ** 2 + ((z - hcz) / (rz + 0.5)) ** 2 > 1) continue;
-            if (inSkull(x, y, z)) continue;
-            const r = y - B;
-            if ((z >= FZ - 1 && r < front) || (z > -1 && r < side) || r < back) continue;
-            hd.set(x, y, z, (col || hairCol)(x, y, z));
-          }
+    /* hair over the skull: rows at the front from `front` up, the sides from `side`, the back from `back`. A layer fitted
+       to the box of the skull, so no scalp can show at its edges, filled out round the back and over the crown by an
+       ellipsoid; `reach` voxels thick (1; a headscarf over the hair takes 2) */
+    const shell = (grow, front, side, back, col, reach) => {
+      const rx = hrx + grow, ry = hry + grow, rz = hrz + grow, th = reach || 1, C0 = col || hairCol;
+      for (let x = -W - 3; x <= W + 3; x++) for (let y = B - 1; y <= B + HR + 4; y++) for (let z = Z0 - 4; z <= FZ + 3; z++) {
+        const r = y - B;
+        if ((z >= FZ - 1 && r < front) || (z > -1 && r < side) || r < back) continue;
+        if (inSkull(x, y, z)) continue;
+        const qx = Math.max(0, Math.abs(x) - W), qy = Math.max(0, r - HR + 1), qz = Math.max(0, z - FZ, Z0 - z), d = Math.hypot(qx, qy, qz);
+        let ok = d <= th + (th > 1 ? 0.3 : 0) && !(qx >= th && qz >= th);                                   // the fitted layer, its upright edges rounded
+        if (ok && qy >= th) ok = !(Math.abs(x) >= W && (z <= Z0 || z >= FZ));                                   // and the top's corners
+        if (!ok && qy === th + 1) ok = Math.abs(x) <= W - 2 && z >= Z0 + 1 && z <= FZ - 2 && !(Math.abs(x) === W - 2 && (z === Z0 + 1 || z === FZ - 2));      // the crown, a step in
+        if (!ok && qz <= th) ok = (x / (rx + 0.5)) ** 2 + ((y - hcy) / (ry + 0.5)) ** 2 + ((z - hcz) / (rz + 0.5)) ** 2 <= 1 && qy <= th;
+        if (!ok && z < Z0 - th && r < HR - 1) ok = (x / (rx - 0.3)) ** 2 + ((y - hcy) / (ry + 0.2)) ** 2 + ((z - hcz) / (rz + 0.5 + (th - 1))) ** 2 <= 1;        // fuller behind
+        if (ok) hd.set(x, y, z, C0(x, y, z));
+      }
+      if (!col) {                                          // locks standing a little proud, round the back and sides and over the crown
+        const lock = (k, r, lo, hi) => { const q = ((k + 30) % 4), jag = Math.floor(H(Math.floor((k + 30) / 4), 5, 2) * 3); return q !== 3 && r >= lo + jag && r <= hi - (q === 1 ? 0 : 1); };
+        for (let r = back; r <= HR - 1; r++) {
+          for (let x = -W + 1; x <= W - 1; x++) if (lock(x, r, back, HR - 2)) hd.set(x, B + r, Z0 - 2, hairCol(x, B + r, Z0 - 2));
+          for (const sd of [1, -1]) for (let z = Z0 + 1; z <= 1; z++) if (lock(z + sd, r, z > -1 ? Math.max(side, back) + 1 : back + 1, HR - 2)) hd.set(sd * (W + 2), B + r, z, hairCol(sd * (W + 2), B + r, z));
+        }
+        for (let x = -W + 3; x <= W - 3; x++) for (let z = Z0 + 2; z <= FZ - 3; z++) if (((x + z + 30) >> 1) % 3 !== 0 && Math.abs(x) + Math.abs(z - hcz) < W) hd.set(x, B + HR + 2 - (Math.abs(x) > 1 ? 1 : 0), z, hairCol(x, B + HR + 1, z));
+      }
+      if (!col) hd.paint((x, y, z) => { const r = y - B; return inSkull(x, y, z) && (r >= HR - 1 || (z <= Z0 + 1 && r >= back) || (Math.abs(x) >= W && z <= 0 && r >= side)); }, hairCol);   // the scalp beneath is hair too
     };
     // the fringe: strands over the brow, len(x) rows below the top one
     const bangs = len => {
@@ -354,7 +368,7 @@
       bangs(x => [1, 1, 2, 1, 0, 1, 2, 1, 1, 0, 1, 1, 0][x + 6] || 0);
       for (const s of [1, -1]) hd.box(s * (W + 1), B + 5, 1, s * (W + 1), B + HR - 5, 2, hairCol);   // sideburns
     } else if (style === 'long') {
-      shell(0.2, HR - 3, 2, 1);
+      shell(0.2, HR - 3, 2, 0);
       bangs(FEM_BANGS);
       locks(1, HR - 2);
     } else if (style === 'bun' || style === 'braid') {
@@ -362,9 +376,9 @@
       bangs(FEM_BANGS);
       locks(4, HR - 3);
       if (style === 'bun') {
-        const by = B + HR - 1.5, bz = hcz - hrz - 1.6;
+        const tucked = L.hat === 'kerchief', by = tucked ? B + 3 : B + HR - 2, bz = tucked ? hcz - hrz - 0.6 : Z0 - 4.4;      // (under a headscarf it's worn low, at the nape)
         hd.ell(0, by, bz, 2.7, 2.5, 2.3, (x, y, z) => (Math.floor(Math.hypot(x, y - by) * 1.4) & 1) ? hairC : (H(x, y, z) < 0.5 ? hairD : hairL));
-        hd.line(-4, by + 1, bz, 4, by - 1, bz, WOOD_L);
+        if (!tucked) hd.line(-4, by + 1, bz, 4, by - 1, bz, WOOD_L);
       }
     } else if (style === 'bald') {                                       // a horseshoe of hair round the back and sides
       for (let y = B + 4; y <= B + 8; y++) for (let x = -W - 1; x <= W + 1; x++) for (let z = Z0 - 1; z <= 2; z++) {
@@ -426,6 +440,9 @@
 
     /* ---------------------------------------------------------------- hats */
     const hc = L.hatColor || 0x6a4a2a, T0 = B + HR;
+    // hair stops where a hat begins (the row it sits down to), so that none pokes through it
+    const under = { cap: HR - 2, feather: HR - 1, witch: HR - 1, helmet: HR - 3, straw: HR, kerchief: HR - 3 }[L.hat];
+    if (under != null) { const gone = []; hd.each((x, y, z) => { if (y - B >= under && !inSkull(x, y, z)) gone.push([x, y, z]); }); for (const q of gone) hd.del(...q); }
     if (L.hat === 'cap') {                                                // a soft cap with a short peak
       const R = [hrx + 0.5, hrx + 0.6, hrx + 0.1, hrx - 1.5];
       for (let i = 0; i < 4; i++) hd.disc(0, hcz - 0.3 - i * 0.35, R[i], T0 - 2 + i, T0 - 2 + i, (x, y, z) => i === 0 ? shade(hc, 0.78) : noise(hc, x, y, z, 0.2));
@@ -434,8 +451,9 @@
       for (let z = pz + 1; z <= pz + 3; z++) for (let x = -(5 - (z - pz)); x <= 5 - (z - pz); x++) hd.set(x, T0 - 2, z, shade(hc, 0.85));
     }
     if (L.hat === 'kerchief') {                                           // a headscarf knotted at the nape
-      shell(0.5, HR - 2, HR - 4, 6, (x, y, z) => y === B + HR - 2 && z >= FZ ? tint(hc, 0.18) : noise(hc, x, y, z, 0.2));
-      const kz = Math.round(hcz - hrz - 1.4);
+      { const gone = []; hd.each((x, y, z) => { if (y - B >= 6 && z < 0 && !inSkull(x, y, z)) gone.push([x, y, z]); }); for (const q of gone) hd.del(...q); }
+      shell(0.5, HR - 2, HR - 4, 6, (x, y, z) => y === B + HR - 2 && z >= FZ ? tint(hc, 0.18) : noise(hc, x, y, z, 0.2), 2);
+      const kz = Z0 - 4;
       hd.ell(0, B + 6.5, kz, 1.3, 1.1, 1.1, shade(hc, 0.86));
       hd.line(0, B + 6, kz - 1, -1.5, B + 2, kz - 1.5, shade(hc, 0.9)); hd.line(0, B + 6, kz - 1, 1.5, B + 2.5, kz - 1.2, hc);
     }
@@ -510,35 +528,6 @@
       fa.set(ax, Wr - 1.5, 2, hand); fa.set(ax, Wr - 2.5, 2, hand2);
       // what the hand holds
       const gy = Wr - 1.5, tool = s > 0 ? L.left : L.right;
-      if (tool === 'hammer') {
-        fa.box(ax, gy, 2, ax, gy, 12, (x, y, z) => z < 4 ? WOOD_D : WOOD);
-        fa.box(ax - 1, gy - 3, 11, ax + 1, gy + 2, 13, (x, y, z) => y === gy - 3 ? STEEL_L : (y === gy + 2 ? STEEL : IRON));
-      }
-      if (tool === 'tongs') {
-        fa.line(ax, gy, 2, ax + 1, gy, 11, IRON); fa.line(ax, gy, 2, ax - 1, gy, 11, IRON);
-        fa.box(ax - 1, gy, 12, ax + 1, gy, 14, VX.glow(0xff8a3a)); fa.set(ax, gy, 15, VX.glow(0xffc070));
-      }
-      if (tool === 'axe') {
-        fa.box(ax, gy, -2, ax, gy, 17, (x, y, z) => z === -2 ? WOOD_D : WOOD);
-        fa.box(ax - 1, gy - 1, 15, ax + 1, gy + 1, 16, IRON);
-        for (let k = 1; k <= 5; k++) for (let z = 14 - (k > 3 ? 1 : 0); z <= 17 + (k > 3 ? 1 : 0); z++) fa.set(ax, gy + k, z, k === 5 ? STEEL_L : STEEL);
-      }
-      if (tool === 'broom') {
-        fa.box(ax, 7, 1, ax, Wr + 8, 1, WOOD);
-        const bx = ax + s;
-        for (let y = 0; y <= 6; y++) for (let x = bx - 3; x <= bx + 3; x++) for (let z = -1; z <= 3; z++) {
-          const w = y >= 5 ? 1 : (y >= 3 ? 2 : 3);
-          if (Math.abs(x - bx) > w || (y >= 5 && (z < 0 || z > 2))) continue;
-          fa.set(x, y, z, y === 5 ? 0x8a3a2a : (((x + z) & 1) ? 0xd2b060 : 0xb89448));
-        }
-      }
-      if (tool === 'spear') {
-        const top = B + 16;
-        fa.box(ax, 8, 1, ax, top, 1, WOOD);
-        fa.disc(ax, 1, 1, top, top, IRON);
-        const BL = [1, 1, 1, 1, 0, 0];
-        for (let k = 1; k <= 6; k++) for (let z = 1 - BL[k - 1]; z <= 1 + BL[k - 1]; z++) fa.set(ax, top + k, z, k >= 5 || z !== 1 ? STEEL_L : STEEL);
-      }
       if (tool === 'basket' || tool === 'bucket') {
         const bx = ax + s * 3, by = gy - (tool === 'bucket' ? 9 : 8);
         if (tool === 'basket') {
@@ -581,16 +570,65 @@
         if (Math.abs(x) <= 4) tor.set(x, y0 + 1, z, x === 0 ? 0xd8ccb0 : ((z & 1) && Math.abs(x) >= 1 && Math.abs(x) <= 3 ? 0xc8bca0 : 0xf1e6cc));
       }
     }
-    if (L.lute) {                                                         // a lute slung in front
-      const lx = -2, ly = Wt + 5, lz = (frontOf(tor, lx, ly) || b.dC) + 2.5;
-      tor.ell(lx, ly, lz, 3.4, 4.2, 1.2, (x, y, z) => {
-        if (z >= lz + 1 && Math.hypot(x - lx, y - ly - 1) < 1.3) return 0x2a1a12;
-        return z >= lz + 1 ? 0xc89050 : (((x + 9) & 1) ? 0x8a5a30 : 0x74482a);
-      });
-      tor.box(lx - 1, ly - 2, Math.round(lz + 2), lx + 1, ly - 2, Math.round(lz + 2), WOOD_D);
-      tor.line(lx + 1.5, ly + 4, lz + 1, lx + 7, ly + 11, lz + 1, WOOD_D); tor.line(lx + 1.5, ly + 4, lz, lx + 7, ly + 11, lz, WOOD_D);
-      tor.line(lx + 7, ly + 11, lz + 1, lx + 8, ly + 13, lz - 1, 0x3a2414);
-      tor.set(lx + 8, ly + 12, lz + 1, 0xe8d8b0); tor.set(lx + 7, ly + 12, lz - 1, 0xe8d8b0);
+    if (L.lute) {                                                         // a lute, its own part: the town holds it and puts both hands to it
+      // drawn upright, its neck up (+y) and its face to +z; the pivot is the middle of the body
+      const lx = -4, ly = Wt + 3, lz = Math.round(b.dC + 3), lu = M.part('lute', 'torso', [lx, ly, lz]);
+      const half = y => { const d = y - ly; return d <= -2 ? Math.sqrt(Math.max(0, 1 - ((d + 2) / 6.6) ** 2)) * 6.4 : 6.4 * Math.pow(Math.max(0, 1 - (d + 2) / 13.5), 0.62); };   // a teardrop
+      for (let y = ly - 8; y <= ly + 9; y++) {
+        const w = half(y); if (w < 0.6) continue;
+        for (let x = Math.ceil(lx - w); x <= lx + w; x++) {
+          const e = Math.abs(x - lx) / w, dep = Math.max(0, Math.round(Math.sqrt(Math.max(0, 1 - e * e)) * Math.min(3.4, w * 0.7)));
+          for (let k = 1; k <= dep; k++) lu.set(x, y, lz + 2 - k, (Math.floor((x - lx + 20) / 2) & 1) ? 0x8a5428 : 0x6e3f1e);   // the ribbed bowl of its back
+          const r = Math.hypot(x - lx, y - ly - 1), edge = Math.abs(x - lx) > w - 1;
+          lu.set(x, y, lz + 2, r < 2.4 ? (r < 0.6 || (r > 1.2 && (x + y) & 1) ? 0x8a5a30 : 0x24150e) : r < 3.3 ? 0x7a4a26 : edge ? 0x5a3418 : (y < ly - 6 ? 0xc08a4a : 0xd8a862));   // the face: a pale top, a carved rose
+        }
+      }
+      lu.box(lx - 3, ly - 5, lz + 3, lx + 3, ly - 5, lz + 3, 0x4a2a16);      // the bridge
+      lu.box(lx - 1, ly + 8, lz + 1, lx + 1, ly + 21, lz + 1, 0x6e3f1e);     // the neck, its fingerboard and frets
+      for (let y = ly + 7; y <= ly + 21; y++) lu.box(lx - 1, y, lz + 2, lx + 1, y, lz + 2, (y - ly) % 3 === 0 ? 0xc8a24a : 0x2e1c12);
+      for (let k = 0; k <= 6; k++) lu.box(lx - 1, ly + 22 + (k >> 2), lz + 1 - k, lx + 1, ly + 22 + (k >> 2), lz + 1 - k, 0x4a2a16);   // the pegbox, bent back
+      for (const k of [1, 3, 5]) for (const s of [-1, 1]) lu.set(lx + s * 2, ly + 22 + (k >> 2), lz + 1 - k, 0xe8dcc0);
+      for (let y = ly - 4; y <= ly + 6; y++) for (const x of [-1, 1]) lu.set(lx + x, y, lz + 2, 0xf1e6cc);                             // strings over the face
+      // the fingers of his left hand, curled round from under the neck onto the frets (they slide along it with the hand)
+      const fi = M.part('frets', 'lute', [lx, ly, lz]);
+      for (const k of [-2, -1, 0, 1]) { fi.box(lx + 2, ly + k, lz + 1, lx + 2, ly + k, lz + 3, k & 1 ? skin2 : skin); fi.box(lx + (k & 1 ? 0 : 1), ly + k, lz + 3, lx + 1, ly + k, lz + 3, k & 1 ? skin2 : skin); }
+      // its strap, over the left shoulder and round the back
+      tor.paint((x, y, z) => { const k = (y - Wt - 4) / (Sh - 2 - Wt - 4), sx = -5 + k * 10; return k > -0.1 && k < 1.3 && Math.abs(x - sx) <= 1 && (z >= 2 || z <= -2); }, 0x5a2a3a);
+    }
+    if (L.right === 'hammer') {                                           // a smith's hammer, its own part: handle along +z from the grip, its face down (-y)
+      const hy = Math.round(Sh - 8), hm = M.part('hammer', 'torso', [0, hy, 10]);
+      hm.box(0, hy, 7, 0, hy, 24, (x, y, z) => z < 11 ? WOOD_D : WOOD_L);
+      hm.box(-1, hy - 4, 22, 1, hy + 3, 24, (x, y) => y === hy - 4 ? STEEL_L : y > hy + 1 ? STEEL : IRON); hm.box(-2, hy - 3, 22, 2, hy - 2, 24, IRON); hm.set(0, hy + 4, 23, STEEL);
+    }
+    if (L.left === 'tongs') {                                             // his tongs, their jaws along +z from the grip
+      const ty = Math.round(Sh - 10), tg = M.part('tongs', 'torso', [0, ty, 10]);
+      for (const s of [-1, 1]) { tg.line(s, ty, 4, s, ty, 10, IRON); tg.line(s, ty, 11, 0, ty, 14, IRON); tg.line(0, ty, 14, s, ty, 19, IRON); tg.set(s, ty, 21, STEEL_D); tg.line(s, ty, 19, s, ty, 22, IRON); }
+      tg.set(0, ty + 1, 14, STEEL);
+    }
+    if (L.right === 'broom') {                                            // a birch broom, its own part: drawn standing, the pivot at its foot
+      const br = M.part('broom', 'torso', [0, 0, 0]);
+      br.box(0, 9, 0, 0, 60, 0, (x, y) => y % 17 === 0 ? WOOD_D : WOOD_L);
+      for (let y = 0; y <= 10; y++) { const w = y > 8 ? 1 : y > 5 ? 2 : y > 2 ? 3 : 4, d = y > 5 ? 1 : 2; for (let x = -w; x <= w; x++) for (let z = -d; z <= d; z++) { if (Math.abs(x) === w && Math.abs(z) === d && y < 9) continue; if (y === 0 && H(x, z, 3) < 0.35) continue; br.set(x, y, z, y === 7 || y === 9 ? 0x8a3a2a : ((x + z * 2) & 1) ? 0xd2b060 : 0xb89448); } }
+    }
+    if (L.right === 'spear') {                                            // a guard's spear, its own part: the town keeps it upright in the fist
+      // drawn standing, its butt on the ground; the pivot is where the hand takes it
+      const sp = M.part('spear', 'torso', [0, 44, 0]), top = Math.round(B + 18);
+      sp.box(0, 2, 0, 0, top, 0, (x, y) => y % 23 === 0 ? WOOD_D : WOOD_L); sp.box(0, 0, 0, 0, 1, 0, IRON);      // the ash shaft, an iron butt
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { sp.box(dx, 41, dz, dx, 47, dz, (x, y) => y & 1 ? 0x5a3a24 : 0x6e4a30); sp.box(dx, top - 2, dz, dx, top, dz, IRON); }   // a leather grip, the socket
+      const BL = [1, 2, 2, 2, 1, 1, 1, 0, 0];
+      for (let k = 1; k <= 9; k++) for (let x = -BL[k - 1]; x <= BL[k - 1]; x++) sp.set(x, top + k, 0, x === 0 ? STEEL : k > 1 ? STEEL_L : IRON);                         // the leaf blade, a rib down it
+      sp.set(0, top + 10, 0, STEEL_L); for (const k of [1, 2, 3]) { sp.set(0, top + k, 1, STEEL); sp.set(0, top + k, -1, STEEL); }
+      for (let k = 0; k < 4; k++) { sp.set(1, top - 3 - k, 0, 0x2f4f9e); sp.set(1, top - 3 - k, 1, k & 1 ? 0xe8c24a : 0x2f4f9e); }      // a ribbon in the town's colours
+    }
+    if (L.right === 'axe') {                                              // a long axe, its own part: the town swings it and puts both hands to it
+      // drawn with the handle along +z from the upper grip (the pivot), the blade's edge down (-y): the way it's swung
+      const axv = M.part('axe', 'torso', [0, Sh - 8, 14]), ay = Math.round(Sh - 8), az = 14;
+      axv.box(0, ay, az - 10, 0, ay, az + 19, (x, y, z) => z <= az - 8 ? 0x5a3a20 : ((z & 7) === 0 ? WOOD : WOOD_L));
+      axv.set(0, ay - 1, az - 10, 0x5a3a20); axv.set(0, ay - 1, az - 9, WOOD);              // the handle's curved butt
+      axv.box(-1, ay - 1, az + 15, 1, ay + 1, az + 18, (x, y, z) => x === 0 && (z === az + 16 || z === az + 17) && y === ay + 1 ? WOOD_L : IRON);   // the eye, a wedge in it
+      axv.box(-1, ay + 2, az + 16, 1, ay + 2, az + 17, 0x2e2e36);                              // the poll
+      for (let k = 2; k <= 6; k++) { const f = k < 3 ? 0 : k < 5 ? 1 : 2; for (let z = az + 15 - f; z <= az + 18 + f; z++) axv.set(0, ay - k, z, k === 6 ? STEEL_L : k === 5 ? STEEL : IRON); }
+      for (let z = az + 15; z <= az + 18; z++) for (const x of [-1, 1]) axv.set(x, ay - 2, z, IRON);
     }
     if (L.sack) {                                                         // a sack of grain on the right shoulder
       const sx = -(armX + 0.5), sy = Sh + 2.2, sz = -2.5;
@@ -601,7 +639,7 @@
     // how tall they stand, with the hat (for speech bubbles), and what the town needs to pose them
     let top = 0;
     hd.paint((x, y) => { if (y > top) top = y; return false; }, 0);
-    M.info = { kind, top: (top + 1) * S, seat: b.thR + 0.3, dress: !!L.dress };
+    M.info = { kind, top: (top + 1) * S, seat: b.thR + 0.3, dress: !!L.dress, ua: b.UA * S, fa: (b.FA + 1.5) * S };   // (ua, fa: shoulder to elbow, elbow to the middle of the fist)
     return M;
   }
 

@@ -24,7 +24,7 @@ About twenty townsfolk go about their day:
   the fountain; the bakery boy carries trays; a woman carries water from the well; a farmer brings flour
 - **and more:** chickens peck about the south street and scatter when she comes near
 
-The townsfolk look at her when she's close. **`G`** near one of them gets a word.
+The townsfolk mind their own business. **`G`** near one of them gets a word and, for a moment, their attention.
 
 Off the square on the west there is a **dark alley** under a room built across it, laundry overhead. At its end lies
 **a door in the ground**, a little pink light slipping through its cracks, a black cat watching. **`G`** there opens it:
@@ -82,7 +82,7 @@ controls and gamepad mapping as above, plus **`L`**, which switches the lighting
 web look; the HUD's Light slot shows which). There **`T`** alternates the hat tip with a bow: she lifts her hat off,
 sweeps it out low, crown down, and bows with her other hand on her heart, then puts it back on. **`2`** takes the hat
 off for good (in a puff of cards) or puts it back on; with it off, the full crown of her hair shows (sheet 4), and `T`
-is a bow with one arm swept out. Rich adds ambient occlusion, sun shadows that soften with distance, a
+is a bow with one arm swept out. Rich adds ambient occlusion, sun shadows that soften with distance (in the garden), a
 sky-tinted fill light, a glow on the lamp heads, and haze toward the hills. It's the costlier mode: on an
 integrated Intel UHD at 1280×720 Rich runs about 75 fps and Simple about 130. (Edges are smoothed with SMAA rather than
 MSAA, and the sun's shadow map is 2048 px: on integrated graphics each of those roughly halved the frame rate.)
@@ -163,7 +163,8 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/main.js` | renderer, camera, input, HUD |
 | `tools/serve.py` | the local server (caching off) |
 | `tools/bake_godot.js` | bakes the model, umbrella, cards, garden, town and townsfolk into `godot/assets/` for the desktop version |
-| `js/town.js` | the town (desktop version): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
+| `js/town.js` | the town (desktop version; buildings in 4.8 cm voxels): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
+| `js/things.js` | the town's small things at her own 2.4 cm voxel: food and goods, stalls, benches, barrels, the well, the fountain, the forge, signs, the cat and the hens |
 | `js/people.js` | the townsfolk's voxel rigs, built from a short description each, in her own voxel style and scale (2.4 cm voxels; women about her height, men a little taller) |
 | `godot/` | the Godot desktop version (`scripts/town.gd`: the town and its people) |
 

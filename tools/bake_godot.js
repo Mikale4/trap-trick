@@ -9,16 +9,26 @@
      cards.glb        the four little cards of the magic puffs
      world.glb        every piece of scenery, placed
      ground.png       the garden's ground texture
+     ground_core.png  the courtyard's, a pixel to each of her voxels
      town.glb         the town: houses, the square and its stalls, the alley and the door in the ground, the country round
-     town_ground.png  the town's ground texture
+     town_ground.png  the country round it
+     town_core.png    its streets, a pixel to each of her voxels
      people.glb       the townsfolk, each a small rig: person_N > pN_<part>__frame > pN_<part> > pN_<part>__mesh
      bake.json        the rig's metadata (joints, rest positions, panels, hair chains, sockets...), the world's colliders,
                       seats, clouds and the grass and flower instances
-   Vertex colours are written in linear space (Godot lights in linear and converts to sRGB on output). */
+   Vertex colours are written as sRGB bytes; Godot's materials read them as sRGB (vertex_color_is_srgb, grain.gdshader). */
 'use strict';
 const fs = require('fs'), path = require('path'), vm = require('vm'), zlib = require('zlib');
 const ROOT = path.join(__dirname, '..'), OUT = path.join(ROOT, 'godot', 'assets');
 fs.mkdirSync(OUT, { recursive: true });
+/* write a file only if it has changed, and try again if something else has it open for a moment */
+function writeOut(file, buf) {
+  const f = path.join(OUT, file);
+  for (let k = 0; ; k++) {
+    try { if (fs.existsSync(f) && fs.readFileSync(f).equals(buf)) return; fs.writeFileSync(f, buf); return; }
+    catch (e) { if (k > 20) throw e; Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 250); }
+  }
+}
 
 /* ------------------------------------------------- run the web builders -- */
 globalThis.window = globalThis;
@@ -27,13 +37,12 @@ let groundPixels = null;
 globalThis.document = {
   createElement: () => ({
     width: 0, height: 0,
-    getContext: () => ({ createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), putImageData: img => { groundPixels = img; } }),
+    getContext: () => ({ putCore() {}, createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), putImageData: img => { groundPixels = img; } }),
   }),
 };
-for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'town.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
+for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'things.js', 'town.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
 
 /* ------------------------------------------------------------- GLB writer -- */
-const srgb2lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
 function GLB() {
   const json = {
     asset: { version: '2.0', generator: 'trap-trick bake_godot.js' }, scene: 0, scenes: [{ nodes: [] }], nodes: [], meshes: [], accessors: [], bufferViews: [], buffers: [{ byteLength: 0 }],
@@ -41,7 +50,7 @@ function GLB() {
       { name: 'voxel', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 } },
       { name: 'voxel_glow', pbrMetallicRoughness: { baseColorFactor: [1, 1, 1, 1], metallicFactor: 0, roughnessFactor: 1 }, extensions: { KHR_materials_unlit: {} } },
     ],
-    extensionsUsed: ['KHR_materials_unlit'],
+    extensionsUsed: ['KHR_materials_unlit', 'KHR_mesh_quantization'],
   };
   const parts = []; let len = 0;
   const view = (typed, target) => {
@@ -65,13 +74,18 @@ function GLB() {
       const P = geo.attributes.position.array, N = geo.attributes.normal.array, Cc = geo.attributes.color.array, I = geo.index.array, n = P.length / 3;
       const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
       for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) { const v = P[i * 3 + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
-      // colours as 16-bit normalised RGBA (linear), indices 16-bit where they fit: a third smaller than floats and 32-bit
-      const col = new Uint16Array(n * 4);
-      for (let i = 0; i < n; i++) { for (let k = 0; k < 3; k++) col[i * 4 + k] = Math.round(srgb2lin(Math.min(1, Math.max(0, Cc[i * 3 + k]))) * 65535); col[i * 4 + 3] = 65535; }
+      // lean vertices: the position as floats, the normal as 4 bytes, the colour as 4 bytes (sRGB: the Godot materials
+      // convert it), indices 16-bit where they fit
+      const col = new Uint8Array(n * 4), nor = new Int8Array(n * 4);
+      for (let i = 0; i < n; i++) { for (let k = 0; k < 3; k++) { col[i * 4 + k] = Math.round(Math.min(1, Math.max(0, Cc[i * 3 + k])) * 255); nor[i * 4 + k] = Math.round(N[i * 3 + k] * 127); } col[i * 4 + 3] = 255; }
+      // the alpha byte says which axes of the mesh sit half a 2.4 cm cell off the lattice (for the grain shader)
+      let half = 0; for (let k = 0; k < 3; k++) { const v = P[k] / 0.024; if (Math.abs(v - Math.round(v)) > 0.25) half |= 1 << k; }
+      for (let i = 0; i < n; i++) col[i * 4 + 3] = 255 - half;
       const small = n < 65536;
-      const colAcc = acc(col, 'VEC4', 5123, n, 34962); json.accessors[colAcc].normalized = true;
+      const colAcc = acc(col, 'VEC4', 5121, n, 34962); json.accessors[colAcc].normalized = true;
+      const norAcc = acc(nor, 'VEC3', 5120, n, 34962); json.accessors[norAcc].normalized = true; json.bufferViews[json.accessors[norAcc].bufferView].byteStride = 4;
       out.push({
-        attributes: { POSITION: acc(new Float32Array(P), 'VEC3', 5126, n, 34962, [mn, mx]), NORMAL: acc(new Float32Array(N), 'VEC3', 5126, n, 34962), COLOR_0: colAcc },
+        attributes: { POSITION: acc(new Float32Array(P), 'VEC3', 5126, n, 34962, [mn, mx]), NORMAL: norAcc, COLOR_0: colAcc },
         indices: small ? acc(new Uint16Array(I), 'SCALAR', 5123, I.length, 34963) : acc(new Uint32Array(I), 'SCALAR', 5125, I.length, 34963), material: glow ? 1 : 0,
       });
     }
@@ -102,7 +116,7 @@ function GLB() {
       const head = Buffer.alloc(12); head.writeUInt32LE(0x46546c67, 0); head.writeUInt32LE(2, 4); head.writeUInt32LE(12 + 8 + js.length + 8 + binPad.length, 8);
       const jh = Buffer.alloc(8); jh.writeUInt32LE(js.length, 0); jh.writeUInt32LE(0x4e4f534a, 4);
       const bh = Buffer.alloc(8); bh.writeUInt32LE(binPad.length, 0); bh.writeUInt32LE(0x004e4942, 4);
-      fs.writeFileSync(path.join(OUT, file), Buffer.concat([head, jh, js, bh, binPad]));
+      writeOut(file, Buffer.concat([head, jh, js, bh, binPad]));
       return (12 + 16 + js.length + binPad.length);
     },
   };
@@ -116,7 +130,7 @@ function png(file, w, h, rgba) {
   const raw = Buffer.alloc((w * 4 + 1) * h);
   for (let y = 0; y < h; y++) { raw[y * (w * 4 + 1)] = 0; Buffer.from(rgba.buffer, rgba.byteOffset + y * w * 4, w * 4).copy(raw, y * (w * 4 + 1) + 1); }
   const ih = Buffer.alloc(13); ih.writeUInt32BE(w, 0); ih.writeUInt32BE(h, 4); ih[8] = 8; ih[9] = 6;
-  fs.writeFileSync(path.join(OUT, file), Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
+  writeOut(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
 }
 
 const bake = {};
@@ -177,7 +191,7 @@ const r3 = v => Math.round(v * 1000) / 1000;
       top.add(src);
       continue;
     }
-    if (o.geometry && o.geometry.type === 'PlaneGeometry') continue;      // the ground: rebuilt in Godot from ground.png
+    if (o.geometry && o.geometry.type === 'PlaneGeometry') continue;      // the ground: rebuilt in Godot from ground.png and ground_core.png
     const isCloud = W.clouds.includes(o);
     o.name = isCloud ? 'cloud_' + W.clouds.indexOf(o) : (o.userData && o.userData.bake) || 'prop_' + (k++);   // (moon, float_N keep their names)
     if (o.userData && o.userData.noCast && !isCloud && !o.userData.bake) o.name += '_nc';   // casts no shadow
@@ -185,7 +199,8 @@ const r3 = v => Math.round(v * 1000) / 1000;
   }
   glb.root(glb.node(top));
   console.log('world.glb', (glb.write('world.glb') / 1048576).toFixed(2), 'MB,', k, 'props');
-  bake.world = { colliders: W.colliders.map(c => [r3(c.x), r3(c.z), r3(c.r)]), seats: W.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })), bound: W.bound, clouds: W.clouds.length, instances: inst, groundSize: W.groundSize || 200,
+  png('ground_core.png', W.core.w, W.core.h, W.core.data);
+  bake.world = { coreSize: r3(W.core.size), colliders: W.colliders.map(c => [r3(c.x), r3(c.z), r3(c.r)]), seats: W.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })), bound: W.bound, clouds: W.clouds.length, instances: inst, groundSize: W.groundSize || 200,
     farColor: W.farColor, floaters: (W.floaters || []).length, lights: (W.lights || []).map(l => ({ p: l.p.map(r3), c: l.c, e: l.e, r: l.r })) };
   if (groundPixels) { png('ground.png', groundPixels.width, groundPixels.height, groundPixels.data); console.log('ground.png', groundPixels.width + 'x' + groundPixels.height); }
 }
@@ -200,29 +215,34 @@ const r3 = v => Math.round(v * 1000) / 1000;
     const isCloud = T.clouds.includes(o);
     o.name = isCloud ? 'cloud_' + T.clouds.indexOf(o) : (o.userData && o.userData.bake) || 'prop_' + (k++);
     if (o.userData && o.userData.noCast && !isCloud && !o.userData.bake) o.name += '_nc';
+    if (o.userData && o.userData.near) o.name += '_near';                 // (drawn only close by)
+    if (o.userData && o.userData.lod) o.name += '_lod' + o.userData.lod;    // (n: up close, f: its plainer stand-in from further off)
     top.add(o);
   }
   glb.root(glb.node(top));
+  png('town_core.png', T.core.w, T.core.h, T.core.data);                  // the streets' setts, a pixel to each 2.4 cm
   console.log('town.glb', (glb.write('town.glb') / 1048576).toFixed(2), 'MB,', k, 'props');
   if (groundPixels) png('town_ground.png', groundPixels.width, groundPixels.height, groundPixels.data);
   // the townsfolk: one rig each
   const pg = GLB(), people = [];
   T.npcs.forEach((n, i) => {
-    const M = PEOPLE.build(n.look), rig = M.build();
+    const M = PEOPLE.build(n.look);
+    for (const name of M.order) { M.parts[name].grid.jit = 0; M.parts[name].grid.merge = true; }      // (the grain shader gives them back their voxels' shades)
+    const rig = M.build();
     for (const name in rig.parts) for (const c of rig.parts[name].children) if (!c.name) c.name = 'p' + i + '_' + name + '__mesh';
     for (const name in rig.parts) rig.parts[name].name = 'p' + i + '_' + name;
     for (const name in rig.frames) rig.frames[name].name = 'p' + i + '_' + name + '__frame';
     rig.root.name = 'person_' + i;
     pg.root(pg.node(rig.root));
-    people.push({ parts: M.order, s: M.s, top: r3(M.info.top), seat: M.info.seat, dress: M.info.dress });
+    people.push({ parts: M.order, s: M.s, top: r3(M.info.top), seat: M.info.seat, dress: M.info.dress, ua: r3(M.info.ua), fa: r3(M.info.fa) });
   });
   console.log('people.glb', (pg.write('people.glb') / 1048576).toFixed(2), 'MB,', people.length, 'people');
   bake.town = {
-    walk: T.walk, colliders: T.colliders.map(c => c.map(r3)), seats: T.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })),
+    walk: T.walk, houses: T.houses.map(h => h.map(r3)), core: { x: r3(T.core.x), z: r3(T.core.z), size: r3(T.core.size) }, colliders: T.colliders.map(c => c.map(r3)), seats: T.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })),
     door: T.door, clouds: T.clouds.length, chickens: T.chickens, sails: T.sails, groundSize: T.groundSize, farColor: T.farColor,
     npcs: T.npcs.map((n, i) => ({ job: n.job, at: n.at || null, route: n.route ? n.route.map(p => p.map(r3)) : null, lines: n.lines, call: !!n.call, slow: !!n.slow, seat: !!n.seat, kid: !!n.look.kid, ...people[i] })),
   };
 }
 
-fs.writeFileSync(path.join(OUT, 'bake.json'), JSON.stringify(bake));
+writeOut('bake.json', Buffer.from(JSON.stringify(bake)));
 console.log('bake.json written');
