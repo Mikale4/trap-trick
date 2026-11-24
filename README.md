@@ -8,6 +8,29 @@ pleats, a band of playing cards, then blue, white, navy and lilac ruffles), a bi
 mismatched stockings (dark argyle on her right, white harlequin lattice on her left), blue ankle bows and black platform
 Mary Janes. She carries a **playing-card umbrella**.
 
+## The town (desktop version)
+
+The world is an old, quiet fantasy one: villages and market towns, roads between them, understated magic. The desktop
+game starts in **Thistlewick**, a small half-timbered market town round a cobbled square: a fountain with a little
+statue, market stalls under striped awnings (fruit, fish, cloth, flowers, bread), an inn, a bakery, a blacksmith's open
+forge, a general store, a tailor's, bunting across the square, a street south to the town gate (a hay cart stands in
+it) and one east to a lookout over the fields, the windmill, the chapel's bell tower, hills and far mountains.
+
+About twenty townsfolk go about their day:
+- **at work:** the baker kneads, the smith hammers (sparks fly), the woodcutter splits logs (chips fly), the bard
+  plays his lute, the innkeeper sweeps, the mage reads, the old man on the bench feeds the birds
+- **selling:** the sellers call out their wares
+- **on the move:** shoppers go stall to stall and stop to look; the guards walk their rounds; children chase round
+  the fountain; the bakery boy carries trays; a woman carries water from the well; a farmer brings flour
+- **and more:** chickens peck about the south street and scatter when she comes near
+
+The townsfolk look at her when she's close. **`G`** near one of them gets a word.
+
+Off the square on the west there is a **dark alley** under a room built across it, laundry overhead. At its end lies
+**a door in the ground**, a little pink light slipping through its cracks, a black cat watching. **`G`** there opens it:
+she drops through, and the summoning circle brings her into **the Wonder Garden**. Standing in the circle, **`G`** takes
+her back to the alley.
+
 ## The Wonder Garden
 
 Her own little dimension, which only she can reach (for now). The game's world is older fantasy, quiet villages and
@@ -41,7 +64,7 @@ little lights rise.
 | `Q` | carry / hold: shoulders the umbrella, or takes it back in hand |
 | `E` | trick: umbrella twirl (open) · en-garde with the closed umbrella · card fan (empty hands) |
 | `Z X C V B T` | wave · point · curtsy · spin · peace-sign pose · hat tip |
-| `G` | sit on a toadstool (the four round the courtyard's path) / stand up |
+| `G` | sit / stand up (toadstools; in the town, a bench) · talk to someone near · open the door in the alley · on the circle, back to the town (desktop) |
 | `3`–`7` | expression: smug, smile, happy, pout, surprised |
 | `J` | skeleton view (see-through body, bones and joints) |
 | `H` | hide the controls |
@@ -139,8 +162,10 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/fx.js` | card puffs, dust, the card fan |
 | `js/main.js` | renderer, camera, input, HUD |
 | `tools/serve.py` | the local server (caching off) |
-| `tools/bake_godot.js` | bakes the model, umbrella, cards and garden into `godot/assets/` for the desktop version |
-| `godot/` | the Godot desktop version |
+| `tools/bake_godot.js` | bakes the model, umbrella, cards, garden, town and townsfolk into `godot/assets/` for the desktop version |
+| `js/town.js` | the town (desktop version): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
+| `js/people.js` | the townsfolk's voxel rigs, built from a short description each |
+| `godot/` | the Godot desktop version (`scripts/town.gd`: the town and its people) |
 
 Kept on the local machine only (not in the repository): `reference/` (the character sheets), `tools/viewer.html`
 (a model viewer: `?views=front,side,back&face=happy&item=umbrella&open=1`) and `tools/sheet.js` (renders a strip of

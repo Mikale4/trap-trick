@@ -14,6 +14,17 @@ var fx: Node3D                       # the effects
 var cam: Camera3D
 var sun: DirectionalLight3D
 var env: Environment
+var sky_mat: ProceduralSkyMaterial
+var stars: ImageTexture
+# the two places: the town (the world) and the Wonder Garden (her own dimension, through the door in the alley)
+var level := "town"
+var start_level := "town"
+var garden: Node3D
+var town: Node3D
+var travel := {}                       # going through the door: { to, t }
+var fade: ColorRect
+var hud_place: Label
+var spawn := Vector3.INF               # dev: --pos=x,z,yaw
 var rich_light := true            # L switches between the rich desktop lighting and the web version's simple look
 var clouds: Array[Node3D] = []
 var floaters: Array = []             # the giant cards floating over the garden: { node, y0, ph, spin }
@@ -79,6 +90,10 @@ func _ready() -> void:
 		if a.begins_with("--shot="): shot_path = a.substr(7)
 		elif a == "--walk" or a == "--run": shot_mode = a.substr(2)
 		elif a == "--simple": rich_light = false
+		elif a == "--garden": start_level = "garden"
+		elif a.begins_with("--pos="):
+			var q := a.substr(6).split(",")
+			spawn = Vector3(float(q[0]), float(q[1]), float(q[2]))
 		elif a.begins_with("--no="): light_off = a.substr(5).split(",")
 		elif a.begins_with("--at="): shot_at = int(a.substr(5))
 		elif a.begins_with("--do="): shot_do = a.substr(5).split(",")
@@ -89,6 +104,9 @@ func _ready() -> void:
 	if shot_path != "": DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)   # so the frame rate is real
 	_materials()
 	_environment()
+	garden = Node3D.new()
+	garden.name = "garden"
+	add_child(garden)
 	_ground()
 	_scenery()
 	fx = preload("res://scripts/fx.gd").new()
@@ -109,7 +127,24 @@ func _ready() -> void:
 	add_child(cam)
 	cam.current = true
 	_hud()
+	town = preload("res://scripts/town.gd").new()
+	town.name = "town"
+	add_child(town)
+	town.setup(self, bake)
+	_set_level(start_level)
+	if start_level == "town":
+		summon_t = 99.0                      # (no summoning: she's simply here)
+		arrived = true
+		tt.visible = true
+		tt.position = Vector3(1.5, 0, 6.0)
+		tt.yaw = 0.35
+		tt.t_yaw = 0.35
+	if spawn != Vector3.INF:
+		tt.position = Vector3(spawn.x, 0, spawn.y)
+		tt.yaw = spawn.z
+		tt.t_yaw = spawn.z
 	_update_camera(1.0)
+	_fade_layer()
 
 
 ## Every voxel mesh shows its baked vertex colours: lit (Lambert, no shine), or unlit for glowing voxels.
@@ -136,42 +171,64 @@ func voxelize(n: Node, lit: Material = null, glow: Material = null) -> void:
 			mi.set_surface_override_material(i, glow if unlit else lit)
 
 
-## Twilight in the Wonder Garden: the sun just down in the south-west, the sky deepening to indigo overhead with the
-## first stars, a rose glow along the horizon; a violet fill, a low warm light, lavender mist. The lamps do the rest.
+## The sky and light for each place. The town: a clear afternoon, a warm sun high in the south-west, soft clouds.
+## The Wonder Garden: twilight, the sun just down in the south-west, the sky deepening to indigo overhead with the first
+## stars, a rose glow along the horizon; a violet fill, a low warm light, lavender mist. The lamps do the rest.
+func _apply_env(lvl: String) -> void:
+	if lvl == "garden":
+		sky_mat.sky_top_color = Color("1c2257")
+		sky_mat.sky_horizon_color = Color("d88aa8")
+		sky_mat.sky_curve = 0.11
+		sky_mat.ground_horizon_color = Color("9a6f9c")
+		sky_mat.ground_bottom_color = Color("1d1c35")
+		sky_mat.sky_cover = stars
+		env.ambient_light_color = Color("958cc9")
+		env.ambient_light_energy = 0.56
+		env.fog_light_color = Color("6c5d9c")
+		env.fog_density = 0.008
+		env.fog_height = 0.7
+		env.fog_height_density = 0.05
+		sun.light_color = Color("ffae8c")
+		sun.light_energy = 0.62
+		sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY   # it's below the hills: no disc in the sky
+		sun.transform = Transform3D(Basis.looking_at(-SUN_DIR.normalized(), Vector3.UP), Vector3.ZERO)
+	else:
+		sky_mat.sky_top_color = Color("3f7fd8")
+		sky_mat.sky_horizon_color = Color("c4def8")
+		sky_mat.sky_curve = 0.15
+		sky_mat.ground_horizon_color = Color("c4def8")
+		sky_mat.ground_bottom_color = Color("6a9a52")
+		sky_mat.sky_cover = null
+		env.ambient_light_color = Color(0.86, 0.85, 0.9)
+		env.ambient_light_energy = 0.55
+		env.fog_light_color = Color("c8dcf4")
+		env.fog_density = 0.0035
+		env.fog_height = 0.0
+		env.fog_height_density = 0.0
+		sun.light_color = Color("fff0d8")
+		sun.light_energy = 1.0
+		sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY
+		sun.transform = Transform3D(Basis.looking_at(-Vector3(-0.5, 0.95, 0.55).normalized(), Vector3.UP), Vector3.ZERO)
+
+
 func _environment() -> void:
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("1c2257")
-	sky_mat.sky_horizon_color = Color("d88aa8")
-	sky_mat.sky_curve = 0.11
-	sky_mat.ground_horizon_color = Color("9a6f9c")
-	sky_mat.ground_bottom_color = Color("1d1c35")
-	sky_mat.sky_cover = _stars()
+	sky_mat = ProceduralSkyMaterial.new()
+	stars = _stars()
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	env = Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("958cc9")
-	env.ambient_light_energy = 0.56
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR    # (film tonemapping washes the colours out)
 	env.fog_enabled = true
-	env.fog_light_color = Color("6c5d9c")
-	env.fog_density = 0.008
 	env.fog_sky_affect = 0.0
-	env.fog_height = 0.7
-	env.fog_height_density = 0.05
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
 	sun = DirectionalLight3D.new()
-	sun.light_color = Color("ffae8c")
-	sun.light_energy = 0.62
-	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_ONLY   # it's below the hills: no disc in the sky
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 45.0
 	sun.shadow_blur = 1.5
-	sun.transform = Transform3D(Basis.looking_at(-SUN_DIR.normalized(), Vector3.UP), Vector3.ZERO)
 	add_child(sun)
 	# the rich lighting's settings (switched on and off in _set_lighting)
 	env.ambient_light_sky_contribution = 0.22
@@ -238,7 +295,7 @@ func _ground() -> void:
 	var g := MeshInstance3D.new()
 	g.mesh = plane
 	g.material_override = mat
-	add_child(g)
+	garden.add_child(g)
 	var far_plane := PlaneMesh.new()
 	far_plane.size = Vector2(900, 900)
 	var fm := StandardMaterial3D.new()
@@ -248,13 +305,13 @@ func _ground() -> void:
 	f.mesh = far_plane
 	f.material_override = fm
 	f.position.y = -0.02
-	add_child(f)
+	garden.add_child(f)
 
 
 ## The baked scenery: every prop placed as in the web version; the grass tufts and little flowers as MultiMeshes.
 func _scenery() -> void:
 	var w: Node3D = load("res://assets/world.glb").instantiate()
-	add_child(w)
+	garden.add_child(w)
 	voxelize(w)
 	var by_name := {}
 	for n in w.find_children("*", "Node3D", true, false): by_name[String(n.name)] = n
@@ -309,7 +366,7 @@ func _scenery() -> void:
 		o.omni_range = float(l.r)
 		o.omni_attenuation = 1.4
 		o.shadow_enabled = false
-		add_child(o)
+		garden.add_child(o)
 	if not light_off.has("particles"): _particles()
 	var inst: Array = bake.world.instances
 	for i in inst.size():
@@ -329,7 +386,7 @@ func _scenery() -> void:
 		mmi.multimesh = mm
 		mmi.material_override = lit_mat
 		mmi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		add_child(mmi)
+		garden.add_child(mmi)
 
 
 ## Rose petals drifting down over the courtyard (red and white), and little glowing motes rising slowly.
@@ -369,7 +426,7 @@ func _particles() -> void:
 	pmesh.material = pmat
 	petals.draw_pass_1 = pmesh
 	petals.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(petals)
+	garden.add_child(petals)
 	var motes := GPUParticles3D.new()
 	motes.amount = 50
 	motes.lifetime = 7.0
@@ -408,7 +465,7 @@ func _particles() -> void:
 	mmesh.material = mmat
 	motes.draw_pass_1 = mmesh
 	motes.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	add_child(motes)
+	garden.add_child(motes)
 
 
 ## The summoning circle: where one arrives in her garden. Sparkles and thin streaks of light rise from its rings, little
@@ -459,7 +516,7 @@ func _summon_setup() -> void:
 		p.material_override = mat
 		p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		p.visibility_aabb = AABB(Vector3(-4, -1, -4), Vector3(8, 8, 8))
-		add_child(p)
+		garden.add_child(p)
 		return p
 	# sparkles rising off the rings, slowly, swaying
 	var spm: ParticleProcessMaterial = ring_pm.call(1.6, 2.45, 0.35, 0.9)
@@ -517,7 +574,7 @@ func _summon_setup() -> void:
 	summon_light.light_color = Color("ff8fd0")
 	summon_light.omni_range = 4.0
 	summon_light.omni_attenuation = 1.3
-	add_child(summon_light)
+	garden.add_child(summon_light)
 	tt.visible = false                     # until she is summoned
 
 
@@ -543,6 +600,7 @@ func _summon_update(dt: float) -> void:
 
 ## Push a point out of the scenery's collision circles, and keep it inside the garden.
 func collide(p: Vector3, r: float) -> Vector3:
+	if level == "town": return town.collide(p, r)
 	for c in colliders:
 		var dx: float = p.x - c[0]
 		var dz: float = p.z - c[1]
@@ -559,7 +617,93 @@ func collide(p: Vector3, r: float) -> Vector3:
 
 
 func seats() -> Array:
-	return bake.world.seats
+	return town.seats() if level == "town" else bake.world.seats
+
+
+## Into one place or the other: show its nodes, dress the sky, set her camera behind her.
+func _set_level(lvl: String) -> void:
+	level = lvl
+	garden.visible = lvl == "garden"
+	town.visible = lvl == "town"
+	_apply_env(lvl)
+	if hud_place: hud_place.text = "the Wonder Garden" if lvl == "garden" else "the town of Thistlewick"
+
+
+## G: sit or stand, talk to whoever is near, open the door in the alley, or (in the garden, on the circle) go back.
+func _interact() -> void:
+	if not travel.is_empty(): return
+	if tt.seat != null or tt.near_seat() != null:
+		tt.sit_toggle()
+	elif level == "town" and town.near_door(tt.position):
+		_travel("garden")
+	elif level == "garden" and Vector2(tt.position.x, tt.position.z).length() < 2.2 and arrived:
+		_travel("town")
+	elif level == "town":
+		town.talk(tt.position)
+
+
+# ----------------------------------------------------------------- travel --
+func _fade_layer() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	fade = ColorRect.new()
+	fade.color = Color(1.0, 0.86, 0.96, 0.0)
+	fade.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(fade)
+
+
+## Down through the door into her garden (the hatch swings up, pink light, she drops in, a fade; then the summoning
+## circle brings her in), or back from the circle to the alley (the circle flares, she goes in a puff of cards, a fade,
+## and she's back by the door as it falls shut).
+func _travel(to: String) -> void:
+	travel = { "to": to, "t": 0.0, "switched": false }
+	tt.cancel_action(true)
+
+
+func _travel_update(dt: float) -> void:
+	travel.t += dt
+	var t_: float = travel.t
+	if travel.to == "garden":
+		town.door_open = clampf(t_ / 0.6, 0.0, 1.0)
+		if t_ > 0.5 and tt.visible and not travel.switched:
+			fx.card_puff(tt.position + Vector3(0, 0.8, 0), 10)
+			tt.visible = false
+		fade.color.a = clampf((t_ - 0.55) / 0.35, 0.0, 1.0) if t_ < 1.0 else clampf(1.0 - (t_ - 1.0) / 0.45, 0.0, 1.0)
+		if t_ >= 0.95 and not travel.switched:
+			travel.switched = true
+			_set_level("garden")
+			tt.position = Vector3(0, 0, 0.6)
+			tt.yaw = 0.0
+			tt.t_yaw = 0.0
+			cam_yaw = 0.3
+			cam_tgt = Vector3(0, 1.1, 0.6)
+			summon_t = 0.0                    # the circle summons her in
+			arrived = false
+			town.door_open = 0.0
+		if t_ >= 1.5: travel = {}
+	else:
+		summon_glow += dt * 6.0 if t_ < 0.4 else 0.0
+		if t_ > 0.35 and tt.visible and not travel.switched:
+			fx.card_puff(tt.position + Vector3(0, 0.9, 0), 12)
+			summon_burst.restart()
+			tt.visible = false
+		fade.color.a = clampf((t_ - 0.4) / 0.35, 0.0, 1.0) if t_ < 0.85 else clampf(1.0 - (t_ - 0.85) / 0.45, 0.0, 1.0)
+		if t_ >= 0.8 and not travel.switched:
+			travel.switched = true
+			_set_level("town")
+			var d: Dictionary = bake.town.door
+			tt.position = Vector3(d.x + 1.2, 0, d.z)
+			tt.yaw = PI / 2
+			tt.t_yaw = PI / 2
+			cam_yaw = PI / 2 + 0.3            # from the alley's mouth, looking back at her and the door
+			cam_tgt = tt.position + Vector3(0, 1.1, 0)
+			town.door_open = 1.0
+			tt.visible = true
+			fx.card_puff(tt.position + Vector3(0, 0.9, 0), 10)
+		if travel.switched: town.door_open = clampf(1.0 - (t_ - 0.8) / 0.6, 0.0, 1.0)
+		if t_ >= 1.5: travel = {}
 
 
 # ------------------------------------------------------------------ input --
@@ -621,7 +765,7 @@ func _input_state(dt: float) -> Dictionary:
 			KEY_R: tt.cycle_tilt()
 			KEY_Q: tt.toggle_carry()
 			KEY_E: tt.trick()
-			KEY_G: tt.sit_toggle()
+			KEY_G: _interact()
 			KEY_Z: tt.play("wave")
 			KEY_X: tt.play("point")
 			KEY_C: tt.play("curtsy")
@@ -649,7 +793,7 @@ func _input_state(dt: float) -> Dictionary:
 			JOY_BUTTON_DPAD_RIGHT: tt.play("point")
 			JOY_BUTTON_DPAD_DOWN: tt.play("curtsy")
 			JOY_BUTTON_DPAD_LEFT: tt.play("spin")
-			JOY_BUTTON_RIGHT_STICK: tt.sit_toggle()
+			JOY_BUTTON_RIGHT_STICK: _interact()
 			JOY_BUTTON_START: hud_help.visible = not hud_help.visible
 	pad_pressed.clear()
 	return { "x": x, "z": z, "run": run, "jump": jump, "jump_held": jump_held }
@@ -660,8 +804,12 @@ func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)
 	var inp := _input_state(dt)
 	if shot_path != "": _dev_commands()
+	if not travel.is_empty():
+		_travel_update(dt)
+		inp = { "x": 0.0, "z": 0.0, "run": false, "jump": false, "jump_held": false }
 	tt.update(dt, inp)
-	_summon_update(dt)
+	if level == "garden": _summon_update(dt)
+	else: town.update(dt, tt.position)
 	_update_hud()
 	for c in clouds:
 		c.position.x += dt * 1.2
@@ -696,6 +844,22 @@ func _update_camera(dt: float) -> void:
 	var cp := cos(cam_pitch)
 	var p := cam_tgt + Vector3(sin(cam_yaw) * cp, sin(cam_pitch), cos(cam_yaw) * cp) * cam_dist
 	p.y = maxf(p.y, 0.15)
+	if level == "town":                                 # in the town the camera comes in toward her rather than into a house
+		var f := 1.0
+		for k in range(1, 13):
+			var q := cam_tgt.lerp(p, k / 12.0)
+			if q.y < 10.5 and Vector2(town._in_walk(q, 0.25).x - q.x, town._in_walk(q, 0.25).z - q.z).length() > 0.01:
+				f = (k - 1) / 12.0
+				break
+		if f < 1.0:                                     # blocked: come in (not closer than a metre), rise to look over her
+			var full := p.distance_to(cam_tgt)
+			var keep := maxf(f * full, minf(1.0, full))
+			p = cam_tgt + (p - cam_tgt).normalized() * keep
+			p.y += (1.0 - f) * 1.3
+			var q2: Vector3 = town._in_walk(p, 0.12)
+			if p.y < 10.5:
+				p.x = q2.x
+				p.z = q2.z
 	cam.look_at_from_position(p, cam_tgt, Vector3.UP)
 
 
@@ -717,7 +881,8 @@ func _hud() -> void:
 	var pv := VBoxContainer.new()
 	plate.add_child(pv)
 	pv.add_child(_label("Trap Trick", 28, Color("efe3ff"), title_font))
-	pv.add_child(_label("the Wonder Garden", 13, Color("cdb9f2"), title_font))
+	hud_place = _label("the Wonder Garden", 13, Color("cdb9f2"), title_font)
+	pv.add_child(hud_place)
 	var suits := HBoxContainer.new()
 	pv.add_child(suits)
 	for k in [["♥", "dc2741"], ["♣", "e9e3f6"], ["♦", "dc2741"], ["♠", "e9e3f6"]]: suits.add_child(_label(k[0], 14, Color(k[1])))
@@ -772,7 +937,7 @@ func _hud() -> void:
 		"Drag  camera   Wheel  zoom", "1  umbrella   2  hat off / on",
 		"F  open / close   R  tilt", "Q  carry / hold   E  trick",
 		"Z  wave   X  point   C  curtsy", "V  spin   B  pose   T  tip / bow",
-		"G  sit (toadstools)  3-7 face", "J  skeleton   L  lighting",
+		"G  sit · talk · door   3-7 face", "J  skeleton   L  lighting",
 	]: grid.add_child(_label(line, 13, Color("d8ccf2")))
 	hv.add_child(_label("Umbrella open: jump, then hold Space to float down", 13, Color("f0c6e2")))
 	# the prompt and the skeleton note
@@ -822,7 +987,12 @@ func _label(text: String, size: int, color: Color, font: Font = null) -> Label:
 
 func _update_hud() -> void:
 	var st: Dictionary = tt.status()
-	var key := str(st) + str(skel) + str(rich_light)
+	var where := ""
+	if travel.is_empty():
+		if level == "town" and town.near_door(tt.position): where = "door"
+		elif level == "garden" and arrived and Vector2(tt.position.x, tt.position.z).length() < 2.2 and not st.near and not st.seat: where = "circle"
+		elif level == "town" and town.near_person(tt.position): where = "talk"
+	var key := str(st) + str(skel) + str(rich_light) + where + level
 	if key == hud_last: return
 	hud_last = key
 	hud_umb.text = st.umbrella
@@ -831,8 +1001,11 @@ func _update_hud() -> void:
 	var sb := hud_umb_box.get_theme_stylebox("panel") as StyleBoxFlat
 	sb.border_color = Color("8a74c9") if st.umbrella != "Away" else Color("4a3d73")
 	var prompt := ""
-	if st.near: prompt = "G   Sit on the toadstool"
+	if st.near: prompt = "G   Sit on the toadstool" if level == "garden" else "G   Sit on the bench"
 	elif st.seat: prompt = "G   Stand up"
+	elif where == "door": prompt = "G   Open the door"
+	elif where == "circle": prompt = "G   Return to the town"
+	elif where == "talk": prompt = "G   Talk"
 	elif st.floating: prompt = "Floating  -  hold Space"
 	hud_prompt.text = prompt
 	hud_prompt_box.visible = prompt != ""
@@ -865,5 +1038,11 @@ func _dev_commands() -> void:
 		"skeleton": _toggle_skeleton()
 		"light": _set_lighting(not rich_light)
 		"nohat": tt.toggle_hat()
+		"door":
+			var d: Dictionary = bake.town.door
+			tt.position = Vector3(d.x + 1.0, 0, d.z)
+			_interact()
+		"talk": town.talk(tt.position)
+		"home": _interact()
 		var a: tt.play(a)
 

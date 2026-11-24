@@ -102,6 +102,7 @@
     { d: [0, 0, -1], c: [[1, 0, 0], [0, 0, 0], [0, 1, 0], [1, 1, 0]], s: 0.8 },
   ];
   const AO = [0.55, 0.72, 0.87, 1.0];
+  const NAX = FACES.map(F => F.d.findIndex(v => v !== 0)), AXES = FACES.map(F => [0, 1, 2].filter(k => F.d[k] === 0));
 
   /* opts: { jitter, ao, offset:[x,y,z] (subtracted), yaw (the part frame's yaw: positions are turned by -yaw), solid(x,y,z) }
      FINE DETAIL: a grid may carry `tex = { test(x,y,z,v) -> n, color(px,py,pz,v) -> colour|-1 }`. A voxel that tests n > 1
@@ -135,11 +136,15 @@
         B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
       }
     };
+    /* MERGING (opts.merge or grid.merge): fully lit faces of one colour in one plane are joined into rectangles
+       (a greedy pass after the walk), so a big flat wall is a few quads instead of thousands. Use it with jit 0. */
+    const merge = opts.merge != null ? opts.merge : grid.merge, pend = merge ? new Map() : null;
     grid.each((x, y, z, v) => {
       const g = isGlow(v), B = g ? out.glow : out.lit, rgb = v & 0xffffff;
       col.setHex(rgb);
       const j = 1 + (hash3(x, y, z) - 0.5) * 2 * (g ? jit * 0.3 : jit);
-      for (const F of FACES) {
+      for (let fi = 0; fi < 6; fi++) {
+        const F = FACES[fi];
         const [dx, dy, dz] = F.d;
         if (grid.has(x + dx, y + dy, z + dz)) continue;
         const base = B.p.length / 3, aos = [];
@@ -147,9 +152,7 @@
         const fine = grid.tex && !g ? grid.tex.test(x, y, z, v) : 0;
         const corners = [];
         for (const cr of F.c) {
-          const px = x - 0.5 + cr[0] - off[0], py = y - 0.5 + cr[1] - off[1], pz = z - 0.5 + cr[2] - off[2];
           corners.push([x - 0.5 + cr[0], y - 0.5 + cr[1], z - 0.5 + cr[2]]);
-          if (!fine) { B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s); B.n.push(nx, dy, nz); }
           let a = 3;
           if (!g && opts.ao !== false) {
             const ox = x + dx, oy = y + dy, oz = z + dz;
@@ -163,15 +166,63 @@
             a = s1 && s2 ? 0 : 3 - (s1 + s2 + sc);
           }
           aos.push(a);
-          if (fine) continue;
-          const k = (g ? 1 : F.s * AO[a]) * j;
-          B.c.push(Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k));
         }
         if (fine) { emitFine(B, corners, aos, fine, F, j, rgb, nx, dy, nz); continue; }
+        if (pend) {
+          // faces join along u (or w) only where their shading doesn't change along it, so a merged quad shades exactly
+          // as its faces would have: a flat wall both ways, a roof course along its length
+          const ax = AXES[fi], cu = F.c.map(c => c[ax[0]]), cw = F.c.map(c => c[ax[1]]);
+          let canU = true, canW = true;
+          for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) {
+            if (cw[a] === cw[b] && cu[a] !== cu[b] && aos[a] !== aos[b]) canU = false;
+            if (cu[a] === cu[b] && cw[a] !== cw[b] && aos[a] !== aos[b]) canW = false;
+          }
+          if (canU || canW) {
+            const vv = [x, y, z], key = fi + '|' + vv[NAX[fi]] + '|' + v + '|' + j.toFixed(4) + '|' + aos.join('');
+            let L = pend.get(key);
+            if (!L) pend.set(key, L = { fi, plane: vv[NAX[fi]], g, j, rgb, aos: aos.slice(), canU, canW, cells: new Map() });
+            L.cells.set(vv[ax[0]] + ',' + vv[ax[1]], [vv[ax[0]], vv[ax[1]]]);
+            continue;
+          }
+        }
+        corners.forEach((q, ci) => {
+          const px = q[0] - off[0], py = q[1] - off[1], pz = q[2] - off[2];
+          B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s); B.n.push(nx, dy, nz);
+          const k = (g ? 1 : F.s * AO[aos[ci]]) * j;
+          B.c.push(Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k));
+        });
         if (aos[0] + aos[2] > aos[1] + aos[3]) B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
         else B.i.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
       }
     });
+    if (pend) for (const L of pend.values()) {          // the greedy pass: grow each rectangle along u, then along w
+      const F = FACES[L.fi], na = NAX[L.fi], ax = AXES[L.fi], B = L.g ? out.glow : out.lit;
+      const [dx, dy, dz] = F.d, nx = dx * cy + dz * sy, nz = -dx * sy + dz * cy;
+      col.setHex(L.rgb);
+      const cols = L.aos.map(a => { const k = (L.g ? 1 : F.s * AO[a]) * L.j; return [Math.min(1, col.r * k), Math.min(1, col.g * k), Math.min(1, col.b * k)]; });
+      const cells = [...L.cells.values()].sort((a, b) => a[1] - b[1] || a[0] - b[0]), done = new Set();
+      const has = (u, w) => L.cells.has(u + ',' + w) && !done.has(u + ',' + w);
+      for (const [u0, w0] of cells) {
+        if (done.has(u0 + ',' + w0)) continue;
+        let u1 = u0; if (L.canU) while (has(u1 + 1, w0)) u1++;
+        let w1 = w0;
+        if (L.canW) for (;;) { let ok = true; for (let u = u0; u <= u1 && ok; u++) if (!has(u, w1 + 1)) ok = false; if (!ok) break; w1++; }
+        for (let w = w0; w <= w1; w++) for (let u = u0; u <= u1; u++) done.add(u + ',' + w);
+        const base = B.p.length / 3;
+        F.c.forEach((cr, ci) => {
+          const q = [0, 0, 0];
+          q[na] = L.plane - 0.5 + cr[na];
+          q[ax[0]] = cr[ax[0]] ? u1 + 0.5 : u0 - 0.5;
+          q[ax[1]] = cr[ax[1]] ? w1 + 0.5 : w0 - 0.5;
+          const px = q[0] - off[0], py = q[1] - off[1], pz = q[2] - off[2];
+          B.p.push((px * cy + pz * sy) * s, py * s, (-px * sy + pz * cy) * s); B.n.push(nx, dy, nz);
+          B.c.push(cols[ci][0], cols[ci][1], cols[ci][2]);
+        });
+        const a = L.aos;
+        if (a[0] + a[2] > a[1] + a[3]) B.i.push(base, base + 1, base + 2, base, base + 2, base + 3);
+        else B.i.push(base + 1, base + 2, base + 3, base + 1, base + 3, base);
+      }
+    }
     const mk = B => {
       if (!B.i.length) return null;
       const geo = new THREE.BufferGeometry();

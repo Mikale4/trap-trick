@@ -8,7 +8,10 @@
      umbrella.glb     the umbrella: canopy, eight folding panels, the top bow
      cards.glb        the four little cards of the magic puffs
      world.glb        every piece of scenery, placed
-     ground.png       the plaza and garden ground texture (200 m square)
+     ground.png       the garden's ground texture
+     town.glb         the town: houses, the square and its stalls, the alley and the door in the ground, the country round
+     town_ground.png  the town's ground texture
+     people.glb       the townsfolk, each a small rig: person_N > pN_<part>__frame > pN_<part> > pN_<part>__mesh
      bake.json        the rig's metadata (joints, rest positions, panels, hair chains, sockets...), the world's colliders,
                       seats, clouds and the grass and flower instances
    Vertex colours are written in linear space (Godot lights in linear and converts to sRGB on output). */
@@ -27,7 +30,7 @@ globalThis.document = {
     getContext: () => ({ createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), putImageData: img => { groundPixels = img; } }),
   }),
 };
-for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
+for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'town.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
 
 /* ------------------------------------------------------------- GLB writer -- */
 const srgb2lin = c => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
@@ -62,10 +65,14 @@ function GLB() {
       const P = geo.attributes.position.array, N = geo.attributes.normal.array, Cc = geo.attributes.color.array, I = geo.index.array, n = P.length / 3;
       const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
       for (let i = 0; i < n; i++) for (let k = 0; k < 3; k++) { const v = P[i * 3 + k]; if (v < mn[k]) mn[k] = v; if (v > mx[k]) mx[k] = v; }
-      const col = new Float32Array(Cc.length); for (let i = 0; i < Cc.length; i++) col[i] = srgb2lin(Math.min(1, Math.max(0, Cc[i])));
+      // colours as 16-bit normalised RGBA (linear), indices 16-bit where they fit: a third smaller than floats and 32-bit
+      const col = new Uint16Array(n * 4);
+      for (let i = 0; i < n; i++) { for (let k = 0; k < 3; k++) col[i * 4 + k] = Math.round(srgb2lin(Math.min(1, Math.max(0, Cc[i * 3 + k]))) * 65535); col[i * 4 + 3] = 65535; }
+      const small = n < 65536;
+      const colAcc = acc(col, 'VEC4', 5123, n, 34962); json.accessors[colAcc].normalized = true;
       out.push({
-        attributes: { POSITION: acc(new Float32Array(P), 'VEC3', 5126, n, 34962, [mn, mx]), NORMAL: acc(new Float32Array(N), 'VEC3', 5126, n, 34962), COLOR_0: acc(col, 'VEC3', 5126, n, 34962) },
-        indices: acc(new Uint32Array(I), 'SCALAR', 5125, I.length, 34963), material: glow ? 1 : 0,
+        attributes: { POSITION: acc(new Float32Array(P), 'VEC3', 5126, n, 34962, [mn, mx]), NORMAL: acc(new Float32Array(N), 'VEC3', 5126, n, 34962), COLOR_0: colAcc },
+        indices: small ? acc(new Uint16Array(I), 'SCALAR', 5123, I.length, 34963) : acc(new Uint32Array(I), 'SCALAR', 5125, I.length, 34963), material: glow ? 1 : 0,
       });
     }
     json.meshes.push({ name: name || 'mesh', primitives: out });
@@ -181,6 +188,40 @@ const r3 = v => Math.round(v * 1000) / 1000;
   bake.world = { colliders: W.colliders.map(c => [r3(c.x), r3(c.z), r3(c.r)]), seats: W.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })), bound: W.bound, clouds: W.clouds.length, instances: inst, groundSize: W.groundSize || 200,
     farColor: W.farColor, floaters: (W.floaters || []).length, lights: (W.lights || []).map(l => ({ p: l.p.map(r3), c: l.c, e: l.e, r: l.r })) };
   if (groundPixels) { png('ground.png', groundPixels.width, groundPixels.height, groundPixels.data); console.log('ground.png', groundPixels.width + 'x' + groundPixels.height); }
+}
+
+/* ------------------------------------------------------------------- town -- */
+{
+  const scene = new THREE.Scene(), T = new TOWN(scene), glb = GLB();
+  let k = 0;
+  const top = new THREE.Group(); top.name = 'town';
+  for (const o of [...scene.children]) {
+    if (o.geometry && o.geometry.type === 'PlaneGeometry') continue;
+    const isCloud = T.clouds.includes(o);
+    o.name = isCloud ? 'cloud_' + T.clouds.indexOf(o) : (o.userData && o.userData.bake) || 'prop_' + (k++);
+    if (o.userData && o.userData.noCast && !isCloud && !o.userData.bake) o.name += '_nc';
+    top.add(o);
+  }
+  glb.root(glb.node(top));
+  console.log('town.glb', (glb.write('town.glb') / 1048576).toFixed(2), 'MB,', k, 'props');
+  if (groundPixels) png('town_ground.png', groundPixels.width, groundPixels.height, groundPixels.data);
+  // the townsfolk: one rig each
+  const pg = GLB(), people = [];
+  T.npcs.forEach((n, i) => {
+    const M = PEOPLE.build(n.look), rig = M.build();
+    for (const name in rig.parts) for (const c of rig.parts[name].children) if (!c.name) c.name = 'p' + i + '_' + name + '__mesh';
+    for (const name in rig.parts) rig.parts[name].name = 'p' + i + '_' + name;
+    for (const name in rig.frames) rig.frames[name].name = 'p' + i + '_' + name + '__frame';
+    rig.root.name = 'person_' + i;
+    pg.root(pg.node(rig.root));
+    people.push({ parts: M.order, s: M.s, hip: 20.5 * M.s });
+  });
+  console.log('people.glb', (pg.write('people.glb') / 1048576).toFixed(2), 'MB,', people.length, 'people');
+  bake.town = {
+    walk: T.walk, colliders: T.colliders.map(c => c.map(r3)), seats: T.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })),
+    door: T.door, clouds: T.clouds.length, chickens: T.chickens, sails: T.sails, groundSize: T.groundSize, farColor: T.farColor,
+    npcs: T.npcs.map((n, i) => ({ job: n.job, at: n.at || null, route: n.route ? n.route.map(p => p.map(r3)) : null, lines: n.lines, call: !!n.call, slow: !!n.slow, seat: !!n.seat, kid: !!n.look.kid, ...people[i] })),
+  };
 }
 
 fs.writeFileSync(path.join(OUT, 'bake.json'), JSON.stringify(bake));
