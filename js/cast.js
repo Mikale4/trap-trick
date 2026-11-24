@@ -65,6 +65,17 @@
     agnes: { story: true, fem: true, dress: 0x7a3440, bodice: 0x642834, shirt: 0xf1e6cc, sleeve: 0xf1e6cc, long: true, hair: 'grey', style: 'bun', eye: 0x50607a, skin: 0, h: -2 },
   });
 
+  /* Chapter One. The High Table (third years who wear pale capes and white gloves): Lucan Vael, Dorn, Sibyl Voss. Bet
+     Marl, a scholarship girl who works her way in the kitchen. Proctor Vane, hired to catch a trickster */
+  const PALE = 0xd6d4dc, SILV = 0xe8e2cc, GLOVE = 0xf4f0ea;
+  Object.assign(people, {
+    lucan: boy({ hair: 0xeadfc0, style: 'long', skin: 0, eye: 0x7a78b8, tie: T3, cape: PALE, band: SILV, gloves: GLOVE, h: 5, lips: true }),
+    dorn: { story: true, big: true, tunic: false, uniform: UNI, cape: PALE, band: SILV, tie: T3, legs: SLATE, boots: 0x4a3222, shirt: 0xf4efe2, gloves: GLOVE, hair: 0x4a3626, style: 'short', skin: 1, eye: 0x6e5a3a, h: 1 },
+    sibyl: girl({ hair: 0x3c2c50, style: 'bob', skin: 0, eye: 0x8fb4cc, tie: T3, cape: PALE, band: SILV, trim: SILV, gloves: GLOVE, h: 2, lips: true }),
+    bet: girl({ hair: 0xd8702c, style: 'curls', skin: 1, eye: 0x4f9488, freckles: true, apron: 0xd8ccb0, cape: null, rolled: true, h: -2 }),
+    vane: { story: true, fem: false, dress: 0x3b3e48, long: true, sleeve: 0x3b3e48, shirt: 0x3b3e48, band: 0x8a8a94, hair: 0x22222a, style: 'short', eye: 0x8a96a4, skin: 0, specs: true, gloves: 0x2a2a30, h: 3 },
+  });
+
   function build(name) {
     const L = people[name], M = PEOPLE.build(L);
     if (name === 'maron') {
@@ -164,6 +175,21 @@
       return g;
     },
     cart_rim() { const g = G(); for (let y = -30; y <= 30; y++) for (let z = -30; z <= 30; z++) { const d = Math.hypot(y, z), a = (Math.atan2(y, z) + Math.PI) / TAU * 10, f = Math.abs(a - R(a)) * d * TAU / 10; for (let x = -1; x <= 1; x++) { if (d > 29.4 && d < 30.6) g.set(x, y, z, 0x4a4a52); else if (d > 25.6 && d <= 29.4) g.set(x, y, z, H(R(a * 2) >> 1, 1, 2) < 0.5 ? OAK : OAK_L); else if (d < 5.2) g.set(x, y, z, d < 2 ? 0x3a3a42 : OAK_D); else if (x === 0 && f < 1.2 && d < 26) g.set(x, y, z, OAK_L); } } g.box(-3, -2, -2, 3, 2, 2, (x, y, z) => Math.abs(y) === 2 && Math.abs(z) === 2 ? -1 : 0x3a3a42); return g; },
+    /* Chapter One */
+    tophat() { const g = G(), K = 0x1e1a26; g.disc(0, 0, 10, 0, 0, (x, y, z) => Math.hypot(x, z) > 9 ? 0x342c40 : K); for (let y = 1; y <= 12; y++) g.disc(0, 0, 6.4 + (y > 9 ? 0.5 : 0), y, y, (x, yy, z) => yy < 4 ? 0x3a5fe0 : Math.hypot(x, z) < 5 && yy < 12 ? -1 : K); g.box(-3, 4, 7, 2, 11, 7, (x, y) => (x === -3 || x === 2) && (y === 4 || y === 11) ? -1 : Math.abs(x + 0.5) + Math.abs(y - 7.5) < 2 ? 0xdc2741 : 0xf7f4fd); return g; },
+    turnip() { const g = G(), L2 = VX.glow(0xffc04a); g.ell(0, 5, 0, 6, 5.4, 6, (x, y, z) => { if (z > 4 && ((Math.abs(Math.abs(x) - 2.5) < 1.1 && Math.abs(y - 7) < 1.1) || (y >= 3 && y <= 4 && Math.abs(x) < 4) || (y === 5 && Math.abs(x) > 2.4 && Math.abs(x) < 4.6))) return L2; return y > 7 ? 0xb06aa0 : H(x, y, z) < 0.2 ? 0xe4dcc8 : 0xf0e8d6; }); for (const [x, z] of [[0, 0], [1, 1], [-1, 0], [0, -1]]) g.box(x, 10, z, x + (x ? x : 0), 15, z, 0x5a9a44); g.box(0, -1, 0, 0, -1, 0, 0xd8ccb4); return g; },
+    ledger() { const g = G(), C = 0x2c2436; g.box(-9, 0, -12, 9, 7, 12, (x, y, z) => y === 0 || y === 7 ? C : x === -9 ? mul(C, 0.8) : (x === 9 || Math.abs(z) === 12) ? -1 : PAPER_D); g.box(-8, 1, -11, 8, 6, 11, (x, y, z) => x === 8 || Math.abs(z) === 11 ? (y & 1 ? PAPER_D : PAPER) : -1); g.box(-3, 8, -3, 3, 8, 3, (x, y, z) => Math.abs(x) + Math.abs(z) < 4 ? 0xe8e2cc : -1); return g; },
+    page() { const g = G(); g.box(-5, 0, 0, 5, 14, 0, (x, y) => y > 12 || y < 2 || Math.abs(x) > 3 ? PAPER : (y % 2 === 0 ? (H(x, y, 2) < 0.75 ? INK : PAPER) : PAPER)); g.set(0, 13, 1, 0xdc2741); return g; },
+    tray() { const g = G(); g.box(-11, 0, -7, 11, 0, 7, OAK); g.box(-11, 1, -7, 11, 1, 7, (x, y, z) => Math.abs(x) === 11 || Math.abs(z) === 7 ? OAK_D : -1); for (const [x, z] of [[-6, 0], [5, -2]]) { g.disc(x, z, 4, 1, 1, 0xe8e0d0); g.ell(x, 2, z, 2.4, 1, 2, x < 0 ? 0xc98a42 : 0x8ab060); } g.disc(1, 4, 1.8, 1, 6, 0x8ab0c8); return g; },
+    glove() { const g = G(), W2 = 0xf4f0ea; g.box(-2, 0, -1, 2, 5, 1, W2); for (const [x, h] of [[-2, 9], [-1, 10], [0, 10], [1, 9]]) g.box(x, 6, 0, x, h, 0, W2); g.box(3, 3, 0, 4, 5, 0, W2); g.box(-2, -2, -1, 2, -1, 1, 0xe8e2cc); return g; },
+    hood() { const g = G(), T0 = 0xa4aab4; for (let y = 0; y <= 12; y++) g.disc(0, 0, 4.4, y, y, (x, yy, z) => Math.hypot(x, z) < 3.4 ? -1 : z > 2 && yy > 2 && yy < 10 ? -1 : H(x, yy, z) < 0.2 ? 0x8a9098 : T0); for (let k = 0; k < 4; k++) g.disc(0, 0, 4.4 - k, 13 + k, 13 + k, T0); g.line(0, 16, 0, 0, 19, 0, 0x585c66); g.line(-4, 2, 0, 4, 2, 0, 0x585c66); return g; },
+    stand() { const g = G(), st = (x, y, z) => H(x >> 2, y >> 2, z >> 2) < 0.4 ? 0xb0a692 : 0xbfb5a4; g.box(-9, 0, -9, 9, 3, 9, st); g.box(-7, 4, -7, 7, 6, 7, st); for (let y = 7; y < 38; y++) g.disc(0, 0, 4.6, y, y, (x, yy, z) => Math.cos(Math.atan2(z, x) * 8) < -0.4 ? 0x9a907e : 0xbfb5a4); g.box(-7, 38, -7, 7, 40, 7, st); g.box(-9, 41, -9, 9, 43, 9, (x, y, z) => y === 43 && Math.abs(x) < 8 && Math.abs(z) < 8 ? 0xcabfae : 0xd8cebc); return g; },
+    blackcard() { const g = G(); g.box(-5, 0, 0, 5, 14, 0, (x, y) => (Math.abs(x) === 5 && (y === 0 || y === 14)) ? -1 : Math.abs(x) === 5 || y === 0 || y === 14 ? 0x3a3448 : 0x14111a); for (const [y, w] of [[13, 0], [12, 1], [11, 1], [10, 2], [9, 3], [8, 3], [7, 3], [6, 0], [5, 0], [4, 1]]) for (let x = -w; x <= w; x++) if (!(y === 7 && Math.abs(x) === 1)) g.set(x, y, 1, 0xe8e4f0); return g; },
+    net() { const g = G(); g.line(0, 0, 0, 0, 46, 0, OAK_L, 0.5); for (let k = 0; k < 60; k++) { const a = k / 60 * TAU; g.set(R(Math.cos(a) * 10), R(57 + Math.sin(a) * 10), 0, 0x585c66); } for (let y = 47; y < 67; y++) for (let x = -9; x <= 9; x++) { const d = Math.hypot(x, y - 57); if (d < 9.6 && ((x + y) % 3 === 0 || (x - y + 90) % 3 === 0)) g.set(x, y, -R((9.6 - d) * 0.9), 0xe8e4da); } return g; },
+    bullseye() { const g = G(); g.box(-4, 0, -4, 4, 10, 4, (x, y, z) => Math.abs(x) === 4 || Math.abs(z) === 4 || y === 0 || y === 10 ? 0x3a3a42 : -1); g.disc(0, 0, 3, 11, 12, 0x585c66); g.box(-2, 3, 5, 2, 7, 5, VX.glow(0xffe9a8)); g.box(0, 13, 0, 0, 16, 0, 0x585c66); g.box(-2, 17, 0, 2, 17, 0, 0x585c66); return g; },
+    sprout() { const g = G(); for (let y = 0; y < 7; y++) g.disc(0, 0, 3.4 + y * 0.2, y, y, (x, yy, z) => Math.hypot(x, z) > 2.4 + yy * 0.2 || yy === 5 ? (yy === 5 && Math.hypot(x, z) < 3 ? 0x4a3424 : 0xb0603c) : -1); g.box(0, 6, 0, 0, 13, 0, 0x5a9a44); for (const [x, y, z] of [[1, 10, 0], [2, 11, 0], [-1, 12, 0], [-2, 13, 0], [0, 14, 1], [0, 14, -1], [0, 15, 0]]) g.set(x, y, z, 0x74b04c); g.set(0, 16, 0, VX.glow(0x9af0c0)); return g; },
+    sprout_flat() { const g = G(); for (const [x, z, h] of [[0, 0, 2], [4, 1, 1], [-4, -2, 2], [2, -4, 1], [-2, 4, 1], [5, -3, 1]]) g.box(x - 1, 0, z - 1, x + 1, h, z + 1, 0xb0603c); g.ell(0, 1, 0, 3, 1, 3, 0x4a3424); g.line(0, 2, 0, 6, 1, 3, 0x5a9a44); g.set(6, 2, 3, 0x74b04c); g.set(7, 1, 3, 0x9ac0a0); return g; },
+    bell_bow() { const g = G(), P2 = 0xf2659f; for (const s of [-1, 1]) { g.ell(s * 6, 0, 0, 5, 3.4, 1.4, P2); g.line(s, -1, 0, s * 5, -11, 0, mul(P2, 0.85), 1); } g.ell(0, 0, 0, 2, 2, 2, mul(P2, 0.8)); return g; },
     rune(k) { return G(); },
   };
   delete props.rune;

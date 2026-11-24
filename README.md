@@ -16,6 +16,12 @@ ends up tutoring him. He doesn't know who she is after school.
 - **The Opening Act** (about 15 minutes, twelve parts): dawn at the farm, chores (played), the letter, leaving home,
   Thistlewick (played), the Academy, Owl House (played), the candle lesson, a few bad weeks, the bargain, the first
   lesson, the night. Hold `Tab` to skip a scene. Any part can be started from *Chapters*.
+- **Chapter One, "The Lantern Board"** (about 25 minutes, fourteen parts): the pupils are ranked on a wall of lanterns, and
+  Reiner's is last and unlit. The High Table (Lucan, Dorn and Sibyl) set errands on those below them; Bet, Wim, Kas and
+  others stand by him; Proctor Vane has come to catch whoever is putting hats on things at night. Played: a day of fetches,
+  candle duels ("wicks"), and one night's mischief as Trap Trick, keeping out of the Proctor's lantern.
+- **Wicks:** candle duels on the incantation ring. Blue shelters your flame from a breath, gold calls it higher, rose
+  breathes on theirs.
 - **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there.
 - **School Days:** the whole campus, free to roam: a school of three floors (stairs, doors that open and shut), the
   glasshouse, the practice yard, the court, two boarding houses with a warden, common room and bedrooms each. Three years
@@ -35,10 +41,11 @@ A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, `Y
 How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js` (the places,
 their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
 In Godot: `story.gd` (places, camera, speech, the hour, the player), `act1.gd` (the Opening Act, scene by scene),
+`ch1.gd` (Chapter One),
 `actor.gd` (one of the cast: springs, IK, gestures, faces), `campus.gd` (the school's life), `stage.gd` (a place: floors,
 stairs, doors, paths), `ui.gd`, `sound.gd`. Sound and music are synthesised by `tools/make_audio.py`.
 
-Testing it: `--scene=0` to `--scene=11` starts at a part, `--scene=school16.4` the school at that hour, `--auto` plays on by
+Testing it: `--scene=0` to `--scene=25` starts at a part (Chapter One is 12 to 25), `--scene=school16.4` the school at that hour, `--auto` plays on by
 itself and reports anyone standing closer than 40 cm to someone else, `--film=dir,every,count,from` saves stills,
 `--tour=x,y,z,tx,ty,tz;...` stills from given views, `--scene=simday` a whole school day, `--scene=test` the basics,
 `--free` starts roaming as Trap Trick.

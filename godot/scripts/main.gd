@@ -697,6 +697,14 @@ func _summon_update(dt: float) -> void:
 
 ## Push a point out of the scenery's collision circles, and keep it inside the garden.
 func collide(p: Vector3, r: float) -> Vector3:
+	if mode == "story" and story.stage:
+		var st: Node3D = story.stage
+		var y: float = p.y
+		var q: Vector3 = st.collide(Vector3(p.x, y, p.z), r, Vector3(tt.position.x, y, tt.position.z))
+		var gy: float = st.ground_y(Vector3(q.x, y, q.z)) if not st.floors.is_empty() else 0.0
+		tt.floor_y = 0.0 if is_nan(gy) else gy
+		return Vector3(q.x, y, q.z)
+	tt.floor_y = 0.0
 	if level == "town": return town.collide(p, r)
 	for c in colliders:
 		var dx: float = p.x - c[0]

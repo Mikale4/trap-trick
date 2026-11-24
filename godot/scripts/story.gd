@@ -3,6 +3,7 @@ extends Node3D
 ## menus. What happens in the Opening Act is in act1.gd; the school's life is in campus.gd.
 
 signal tick(dt: float)
+signal never                         # (a scene left behind waits on this: it never comes)
 
 const StageS := preload("res://scripts/stage.gd")
 const ActorS := preload("res://scripts/actor.gd")
@@ -43,6 +44,7 @@ var sway := 1.0
 
 # the player
 var vy := 0.0
+var tt_jump := false
 var locked := false                   # no walking (talking, casting)
 var uses: Array = []                  # things to use here: { pos, r, label, f }
 var use_now = null
@@ -57,6 +59,7 @@ var dt_last := 0.016
 var flames: Array = []
 var parts := {}                       # particle bursts by name
 var mark: Node3D
+var tt_mode := false                 # the player has Trap Trick (a night's mischief)
 var goal = null                       # where the objective is (a Vector3), marked with a bobbing light
 
 
@@ -223,7 +226,7 @@ func set_hour(h: float) -> void:
 	var ik := smoothstep(0.0, 1.0, indoor)
 	e.ambient_light_color = (mixc.call(4) as Color).lerp(Color("e8c8a4"), ik * 0.55)
 	var night := 1.0 if hour > 20.5 or hour < 5.0 else 0.0
-	e.ambient_light_energy = lerpf(mixf.call(5), 0.52 - night * 0.16, ik)
+	e.ambient_light_energy = lerpf(mixf.call(5), 0.52 - night * 0.2, ik)
 	e.ambient_light_sky_contribution = lerpf(0.22, 0.05, ik)
 	e.fog_light_color = mixc.call(6)
 	e.fog_density = mixf.call(7) * (1.0 - ik)
@@ -248,18 +251,26 @@ func is_indoors(p: Vector3) -> bool:
 
 
 # ------------------------------------------------------------- the film kit --
+## One beat of the film. If the player has gone elsewhere meanwhile (another part, the title), the scene stops here for good.
+func beat() -> void:
+	var id: int = act.run_id
+	await tick
+	if act.run_id != id: await never
+
+
 func wait(secs: float) -> void:
 	var e := time + secs
-	while time < e: await tick
+	while time < e: await beat()
 
 
 func until(f: Callable, limit := 30.0) -> void:
 	var e := time + limit
-	while not f.call() and time < e: await tick
+	while not f.call() and time < e: await beat()
 
 
 func film() -> void:
 	mode = "film"
+	ui.watch(0.0)
 	locked = true
 	ui.bars_to = 1.0
 	ui.objective("")
@@ -351,8 +362,8 @@ func fade(to: float, secs := 0.6, c := Color.BLACK) -> void:
 
 
 const NAMES := { "reiner": "Reiner", "reiner_uni": "Reiner", "lotte": "Lotte", "mother": "Mother", "father": "Father", "maron": "Maron", "halden": "Professor Halden", "brandt": "Brandt", "wim": "Wim", "tobin": "Tobin", "isolde": "Isolde", "petra": "Petra", "nadi": "Nadi", "otto": "Otto", "selma": "Selma", "kas": "Kas", "wren": "Professor Wren", "marrow": "Professor Marrow", "corvin": "Master Corvin", "lys": "Professor Lys", "aurel": "Headmistress Aurel", "sabine": "Sabine", "dorle": "Dorle", "hob": "Hob", "agnes": "Agnes",
-	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove" }
-const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man" }
+	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane" }
+const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman" }
 
 
 ## Someone says a line. Waits until it's been read (or passed over).
@@ -363,9 +374,9 @@ func say(n: String, text: String, o := {}) -> void:
 		if o.has("mouth"): a.mouth = o.mouth
 		if o.has("do"): a.do(o.do, o.get("d", 1.4))
 		a.talking = 0.35 + text.length() * 0.029
-	var v: String = VOICE.get(n, "girl" if n in ["isolde", "petra", "nadi", "selma", "ilse", "yve", "marta", "sunniva", "liss", "dove"] else "boy")
+	var v: String = VOICE.get(n, "girl" if n in ["isolde", "petra", "nadi", "selma", "ilse", "yve", "marta", "sunniva", "liss", "dove", "bet"] else "boy")
 	ui.start_line(o.get("as", NAMES.get(n, "")), text, o.get("auto", mode == "film" or main.dev_auto), v)
-	while ui.line_on: await tick
+	while ui.line_on: await beat()
 	ui.end_line()
 	if a: a.talking = 0.0
 	await wait(o.get("after", 0.25))
@@ -374,7 +385,7 @@ func say(n: String, text: String, o := {}) -> void:
 ## Words on the screen that nobody says.
 func tell(text: String) -> void:
 	ui.start_line("", text, mode == "film", "")
-	while ui.line_on: await tick
+	while ui.line_on: await beat()
 	ui.end_line()
 
 
@@ -385,7 +396,7 @@ func title_card(t_: String, s_: String, secs := 3.4) -> void:
 		var k := clampf(minf((e - time) / 0.8, (secs - (e - time)) / 0.9), 0.0, 1.0)
 		ui.title_l.modulate.a = k
 		ui.sub_l.modulate.a = clampf(k * 1.4 - 0.4, 0.0, 1.0)
-		await tick
+		await beat()
 	ui.title_l.modulate.a = 0.0
 	ui.sub_l.modulate.a = 0.0
 
@@ -399,17 +410,56 @@ func cast(words: Array, o := {}) -> float:
 	var t0 := time
 	while not ui.spell.is_empty() and not ui.spell.done:
 		if skipping or main.dev_auto and time > t0 + 1.6: break
-		await tick
+		await beat()
 	var r := 1.0 if skipping or main.dev_auto or ui.spell.is_empty() else float(ui.spell.hit) / words.size()
 	ui.spell_end()
 	locked = was
 	return r
 
 
+## A duel of candles. items: [[syllable, direction, kind]]: g shelter one's own flame, c call it higher, b breathe on theirs.
+## Two flames in the scene may be given (fy, ff: entries of flames); they burn as high as the duel stands. Returns
+## { you, foe, hit, miss }.
+func duel(items: Array, o := {}) -> Dictionary:
+	var was := locked
+	locked = true
+	ui.prompt("")
+	var d := { "you": o.get("you", 0.7), "foe": o.get("foe", 0.9), "name_you": o.get("name_you", "Reiner"), "name_foe": o.get("name_foe", ""), "wind": 0.0 }
+	var fy = o.get("fy", null)
+	var ff = o.get("ff", null)
+	d.cb = func(kind: String, ok: bool) -> void:
+		match kind:
+			"g":
+				main.sfx("gust")
+				d.wind = 1.0
+				if o.has("gust"): (o.gust as Callable).call(ok)
+				if not ok: d.you = maxf(o.get("floor_you", 0.0), d.you - o.get("hurt", 0.16))
+			"c": if ok: d.you = minf(1.0, d.you + o.get("grow", 0.1))
+			"b":
+				if ok:
+					d.foe = maxf(o.get("floor_foe", 0.0), d.foe - o.get("push", 0.1))
+					d.wind = -1.0
+				else: d.you = maxf(o.get("floor_you", 0.0), d.you - 0.03)
+	ui.spell_start(items, { "gap": o.get("gap", 0.8), "wide": o.get("wide", 0.26), "name": o.get("name", "Wicks"), "duel": d })
+	var t0 := time
+	while not ui.spell.is_empty() and not ui.spell.done:
+		d.wind = move_toward(d.wind, 0.0, dt_last * 1.6)
+		d.foe = maxf(o.get("floor_foe", 0.0), d.foe - o.get("foe_decay", 0.0) * dt_last)
+		if fy != null: fy.k = lerpf(fy.k, 0.12 + d.you * 1.2, 1.0 - exp(-6.0 * dt_last))
+		if ff != null: ff.k = lerpf(ff.k, 0.12 + d.foe * 1.2, 1.0 - exp(-6.0 * dt_last))
+		if d.you <= 0.0 or d.foe <= 0.0 or skipping or main.dev_auto and time > t0 + 3.0: break
+		await beat()
+	var r := { "you": d.you, "foe": d.foe, "hit": ui.spell.get("hit", 0), "miss": ui.spell.get("miss", 0) }
+	if skipping or main.dev_auto: r = { "you": maxf(0.2, d.you), "foe": d.foe, "hit": items.size(), "miss": 0 }
+	ui.spell_end()
+	locked = was
+	return r
+
+
 func read(t_: String, b_: String) -> void:
-	reading = true
+	reading = not main.dev_auto
 	ui.read(t_, b_)
-	while reading: await tick
+	while reading: await beat()
 	ui.read_p.visible = false
 
 
@@ -418,7 +468,9 @@ func ask(items: Array) -> int:
 	var was := mode
 	mode = "choice"
 	ui.show_menu(items)
-	while choice < 0: await tick
+	while choice < 0:
+		if main.dev_auto: choice = 0
+		await beat()
 	ui.hide_menu()
 	mode = was
 	return choice
@@ -546,6 +598,16 @@ func key(code: int) -> void:
 		if mode == "film" or locked: return
 	if code == KEY_ESCAPE and mode == "play": pause(true)
 	if mode != "play" or locked: return
+	if tt_mode:
+		match code:
+			KEY_E, KEY_G, KEY_ENTER: if use_now != null: (use_now.f as Callable).call()
+			KEY_SPACE: tt_jump = true
+			KEY_F: main.tt.toggle_open()
+			KEY_1: main.tt.toggle_item()
+			KEY_Z: main.tt.play("wave")
+			KEY_C: main.tt.play("curtsy")
+			KEY_L: main._set_lighting(not main.rich_light)
+		return
 	match code:
 		KEY_E, KEY_G, KEY_ENTER: use()
 		KEY_SPACE: if sitting == null: jump()
@@ -621,13 +683,14 @@ func _step(dt: float) -> void:
 	time += dt
 	if hour_run != 0.0: hour = fposmod(hour + hour_run * dt, 24.0)
 	tick.emit(dt)
+	if mode == "play" and tt_mode: _player_tt(dt)
 	if mode == "play" and hero and not locked: _player(dt)
 	elif mode == "play" and hero: hero.speed = move_toward(hero.speed, 0.0, dt * 8.0)
 	_apart(dt)
 	for k in actors:
 		var a: Node3D = actors[k]
 		if a.visible: a.update(dt)
-	var hp: Vector3 = hero.position if hero else Vector3.ZERO
+	var hp: Vector3 = hero.position if hero else (main.tt.position if tt_mode else Vector3.ZERO)
 	if stage: stage.update(dt, hp)
 	elif place == "town": main.town.update(dt, hp if mode == "play" else Vector3(0, 0, 999))
 	campus.update(dt)
@@ -636,7 +699,7 @@ func _step(dt: float) -> void:
 		var eye: Vector3 = main.cam.global_position
 		indoor_to = 1.0 if is_indoors(eye) else 0.0
 	indoor = move_toward(indoor, indoor_to, dt * 2.2)
-	set_hour(hour)
+	if place != "garden": set_hour(hour)
 	for f in flames:
 		if not is_instance_valid(f.n): continue
 		var u: float = time * 11.0 + f.ph
@@ -675,6 +738,7 @@ func _apart(dt: float) -> void:
 			var fb := _fixed(b)
 			var need := ROOM
 			if a.has_meta("close") or b.has_meta("close"): need = 0.4
+			elif not a.path.is_empty() and not b.path.is_empty(): need = 0.47
 			if main.dev_auto and d < 0.4 and fader < 0.9 and (mode == "film" or campus.show_all):
 				var key := "%d %s+%s" % [act.part, a.who, b.who]
 				if not near_log.has(key) or d < near_log[key][0] - 0.03:
@@ -763,8 +827,41 @@ func _player(dt: float) -> void:
 			main.sfx("step_in" if indoor > 0.5 else "step")
 
 
+func _player_tt(dt: float) -> void:
+	var fwd := 0.0
+	var side := 0.0
+	if not locked:
+		if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): fwd += 1.0
+		if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): fwd -= 1.0
+		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): side += 1.0
+		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): side -= 1.0
+		if Input.get_connected_joypads().size() > 0:
+			var lx := Input.get_joy_axis(0, JOY_AXIS_LEFT_X)
+			var ly := Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
+			if absf(lx) > 0.18: side += lx
+			if absf(ly) > 0.18: fwd -= ly
+	var m := Vector2(fwd, side)
+	if m.length() > 1.0: m = m.normalized()
+	var held_j: bool = not locked and (Input.is_physical_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A))
+	main.tt.update(dt, { "x": -sin(cam_yaw) * m.x + cos(cam_yaw) * m.y, "z": -cos(cam_yaw) * m.x - sin(cam_yaw) * m.y, "run": Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B), "jump": tt_jump, "jump_held": held_j })
+	tt_jump = false
+
+
 func _find_use() -> void:
 	use_now = null
+	if tt_mode and mode == "play" and not locked:
+		var tp: Vector3 = main.tt.position
+		var bb := 1.0
+		for u in uses:
+			if not u.get("on", true): continue
+			var up: Vector3 = u.pos.position if u.pos is Node3D else u.pos
+			if absf(up.y - tp.y) > 1.4: continue
+			var d: float = Vector2(up.x - tp.x, up.z - tp.z).length() / u.r
+			if d < bb:
+				bb = d
+				use_now = u
+		ui.prompt("E   " + String(use_now.label) if use_now != null else "")
+		return
 	if mode != "play" or locked or hero == null:
 		if mode == "play": ui.prompt("")
 		return
@@ -829,8 +926,8 @@ func _camera(dt: float) -> void:
 		cam.look_at_from_position(p, l, Vector3.UP)
 		cam.fov = n[2]
 		return
-	if hero == null: return
-	var want: Vector3 = hero.position + Vector3(0, 1.15 + hero.air * 0.5 - (0.35 if sitting != null else 0.0), 0)
+	if hero == null and not tt_mode: return
+	var want: Vector3 = main.tt.position + Vector3(0, 1.2, 0) if tt_mode else hero.position + Vector3(0, 1.15 + hero.air * 0.5 - (0.35 if sitting != null else 0.0), 0)
 	cam_tgt = cam_tgt.lerp(want, 1.0 - exp(-11.0 * dt))
 	if cam_tgt.distance_to(want) > 5.0: cam_tgt = want
 	var cp := cos(cam_pitch)

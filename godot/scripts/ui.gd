@@ -59,6 +59,7 @@ var toast_l: Label
 var toast_t := 0.0
 var speakers := {}
 
+var seen := 0.0                       # (in the night's sneaking)
 # the incantation ring
 var spell := {}
 
@@ -387,6 +388,7 @@ func update(dt: float) -> void:
 	bell_t += dt
 	bell_l.modulate.a = clampf(bell_t * 2.0, 0.0, 1.0) * clampf(4.6 - bell_t, 0.0, 1.0)
 	toast_t -= dt
+	toast_l.offset_top = -330.0 if not spell.is_empty() else -146.0
 	toast_l.modulate.a = clampf(toast_t, 0.0, 1.0)
 	if not spell.is_empty(): _spell_update(dt)
 
@@ -394,7 +396,7 @@ func update(dt: float) -> void:
 # ----------------------------------------------------------- incantations --
 ## Spell the words out: each syllable drifts to the ring; press its direction as it gets there. opts: speed, forgiving.
 func spell_start(words: Array, opts := {}) -> void:
-	spell = { "w": words, "i": 0, "t": -1.2, "hit": 0, "miss": 0, "gap": opts.get("gap", 0.85), "fx": [], "done": false, "wide": opts.get("wide", 0.24), "end": -1.0, "name": opts.get("name", ""), "flash": 0.0 }
+	spell = { "w": words, "i": 0, "t": -1.2, "hit": 0, "miss": 0, "gap": opts.get("gap", 0.85), "fx": [], "done": false, "wide": opts.get("wide", 0.24), "end": -1.0, "name": opts.get("name", ""), "flash": 0.0, "duel": opts.get("duel", null) }
 
 
 func spell_key(dir: String) -> void:
@@ -406,12 +408,18 @@ func spell_key(dir: String) -> void:
 		spell.flash = 1.0
 		spell.fx.append([spell.i, true])
 		main.sfx("rune")
+		_tell_duel(spell.i, true)
 	else:
 		spell.miss += 1
 		spell.flash = -1.0
 		spell.fx.append([spell.i, false])
 		main.sfx("rune_bad")
+		_tell_duel(spell.i, false)
 	spell.i += 1
+
+
+func _tell_duel(i: int, ok: bool) -> void:
+	if spell.get("duel") != null: (spell.duel.cb as Callable).call(String(spell.w[i][2]) if spell.w[i].size() > 2 else "c", ok)
 
 
 func _spell_update(dt: float) -> void:
@@ -421,6 +429,7 @@ func _spell_update(dt: float) -> void:
 		spell.miss += 1
 		spell.flash = -1.0
 		spell.fx.append([spell.i, false])
+		_tell_duel(spell.i, false)
 		spell.i += 1
 		main.sfx("rune_bad")
 	if spell.i >= spell.w.size():
@@ -440,6 +449,14 @@ const KEYN := { "U": "W", "D": "S", "L": "A", "R": "D" }
 
 
 func _draw_ring() -> void:
+	if seen > 0.01:
+		var e := Vector2(ring.size.x * 0.5, 96)
+		var col := Color("ffd88a").lerp(Color("ff5a4a"), seen)
+		ring.draw_arc(e, 26, PI * 1.15, PI * 1.85, 24, col, 3.0, true)
+		ring.draw_arc(e + Vector2(0, -16), 26, PI * 0.15, PI * 0.85, 24, col, 3.0, true)
+		ring.draw_circle(e + Vector2(0, -8), 4.0 + seen * 4.0, col)
+		ring.draw_rect(Rect2(e.x - 50, e.y + 14, 100, 5), Color(0, 0, 0, 0.5))
+		ring.draw_rect(Rect2(e.x - 50, e.y + 14, 100 * seen, 5), col)
 	if spell.is_empty(): return
 	var sz := ring.size
 	var c := Vector2(sz.x * 0.5, sz.y * 0.74)
@@ -454,10 +471,12 @@ func _draw_ring() -> void:
 		var a: float = k / 12.0 * TAU + spell.t * 0.5
 		ring.draw_line(c + Vector2(cos(a), sin(a)) * (r + 4), c + Vector2(cos(a), sin(a)) * (r + 9), Color(GOLD, 0.6), 1.5)
 	if spell.name != "": ring.draw_string(serif_b, c + Vector2(-400, -50), spell.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("e8d8ac"))
+	if spell.get("duel") != null: _draw_duel(c)
 	for i in spell.w.size():
 		var x: float = c.x + (i * spell.gap - spell.t) * 190.0
 		if x > c.x + 400 or x < c.x - 400: continue
-		var col := CREAM
+		var kind: String = String(spell.w[i][2]) if spell.w[i].size() > 2 else ""
+		var col: Color = { "g": Color("9ad4ff"), "c": Color("ffd88a"), "b": Color("ff9ab8") }.get(kind, CREAM)
 		var up := 0.0
 		for f in spell.fx:
 			if f[0] == i:
@@ -473,6 +492,32 @@ func _draw_ring() -> void:
 
 
 # ------------------------------------------------------------------ menus --
+## The two flames of a duel: each as tall as it has left to burn.
+func _draw_duel(c: Vector2) -> void:
+	for sd in [-1, 1]:
+		var v: float = spell.duel.you if sd < 0 else spell.duel.foe
+		var nm: String = spell.duel.name_you if sd < 0 else spell.duel.name_foe
+		var b := c + Vector2(sd * 360.0, 44.0)
+		ring.draw_rect(Rect2(b.x - 12, b.y, 24, 16), Color("f0e6ce"))
+		var h: float = 18.0 + 74.0 * v
+		var w: float = 9.0 + 13.0 * v
+		var lean: float = sin(spell.t * 5.0 + sd) * 4.0 - sd * spell.duel.get("wind", 0.0) * 12.0
+		if v > 0.01:
+			var col := Color("ffb44a") if sd < 0 else Color("cfd8ff")
+			ring.draw_colored_polygon(PackedVector2Array([b + Vector2(-w, -4), b + Vector2(-w * 0.7, -h * 0.45), b + Vector2(lean, -h), b + Vector2(w * 0.7, -h * 0.45), b + Vector2(w, -4)]), Color(col, 0.9))
+			ring.draw_colored_polygon(PackedVector2Array([b + Vector2(-w * 0.5, -4), b + Vector2(lean * 0.5, -h * 0.6), b + Vector2(w * 0.5, -4)]), Color(1, 0.97, 0.85, 0.95))
+		else: ring.draw_line(b + Vector2(0, -2), b + Vector2(0, -14), Color(0.3, 0.25, 0.25), 2.0)
+		ring.draw_string(serif_b, b + Vector2(-70, 34), nm, HORIZONTAL_ALIGNMENT_CENTER, 140, 16, Color("f4dfa8"))
+	for k in [["g", "shelter", -104], ["c", "call", 0], ["b", "breathe", 104]]:
+		ring.draw_string(serif, c + Vector2(float(k[2]) - 50, 74), k[1], HORIZONTAL_ALIGNMENT_CENTER, 100, 14, Color({ "g": Color("9ad4ff"), "c": Color("ffd88a"), "b": Color("ff9ab8") }[k[0]], 0.8))
+
+
+## How nearly one has been seen (0..1).
+func watch(v: float) -> void:
+	seen = v
+	ring.queue_redraw()
+
+
 func show_menu(items: Array, shade := 0.0) -> void:
 	for c in menu_box.get_children(): c.queue_free()
 	menu_items = []

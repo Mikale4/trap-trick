@@ -56,7 +56,7 @@
     const M = new VX.Model(S);
     const seed = seedOf(L);
     const skin = SKIN[L.skin || 0], skin2 = mul(skin, 0.965, 0.9, 0.875);
-    const hairC = typeof L.hair === 'number' ? L.hair : HAIR[L.hair || 'brown'], hairL = tint(hairC, 0.22), hairD = shade(hairC, 0.72);
+    const hairC = typeof L.hair === 'number' ? L.hair : HAIR[L.hair || 'brown'], hairL = tint(hairC, 0.22), hairD = shade(hairC, L.story && ((hairC >> 16) & 255) + ((hairC >> 8) & 255) + (hairC & 255) > 560 ? 0.86 : 0.72);
     const eyeC = L.eye || EYES[seed % EYES.length];
     const shirt = L.shirt || 0x8a6a4a, legs = L.legs || 0x4a3a30, boots = L.boots || 0x4e3628;
     const mail = !!L.tabard || !!L.mail, robe = !!(L.dress && L.long && L.sleeve);

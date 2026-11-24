@@ -56,6 +56,7 @@ var speed := 0.0
 var vy := 0.0
 var air := 0.0
 var on_ground := true
+var floor_y := 0.0                   # the floor under her (the school has several)
 var vel := Vector3.ZERO
 var accel := Vector3.ZERO
 var phase := 0.0
@@ -272,14 +273,19 @@ func _move(dt: float, inp: Dictionary) -> void:
 		vy -= GRAV * dt * (0.35 if floating else 1.0)
 		if floating: vy = maxf(vy, FLOAT_V)
 		position.y += vy * dt
-		if position.y <= 0.0:
-			position.y = 0.0
+		if position.y <= floor_y:
+			position.y = floor_y
 			on_ground = true
 			var hit := -vy
 			land_k = clampf(hit / 7.0, 0.25, 1.0)
 			if hit > 2.5: fx.dust(position, 8, 0.6)
 			vy = 0.0
 	position = main.collide(position, 0.28)
+	if on_ground and floor_y < position.y - 0.6:                        # off an edge
+		on_ground = false
+		vy = 0.0
+		air = 0.0
+	elif on_ground: position.y = lerpf(position.y, floor_y, 1.0 - exp(-16.0 * dt)) if absf(floor_y - position.y) < 0.6 else floor_y
 	land_k = maxf(0.0, land_k - dt * 3.2)
 	# the gait's phase: by distance, plus little steps when turning on the spot
 	var cyc := lerpf(1.2, 2.3, run_k)

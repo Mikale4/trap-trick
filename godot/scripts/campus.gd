@@ -21,6 +21,7 @@ var day := 1
 var lesson_done := {}
 var flash := 0.0
 var attending := false
+var chapter := 0                      # 1: Chapter One's people are here too
 var show_all := false                # dev: nobody is left out, near or far (to check the whole school at once)
 var taken := {}                        # places spoken for this period
 
@@ -47,6 +48,7 @@ const TABLE := {
 const SUBJECT := { "1A": "Incantation, Lecture Hall 1A", "2A": "History, Room 2A", "2B": "Potions, Room 2B", "3A": "Astronomy, Room 3A", "glass": "Herblore, the Glasshouse", "yard": "Practice, the Yard", "library": "Study, the Library" }
 const STAFF := {
 	"halden": { "p1": "1A", "p2": "1A", "day": "hallL" }, "marrow": { "p1": "2A", "p2": "2A", "day": "corr2" }, "wren": { "p2": "2B", "p3": "glass", "p4": "2B", "day": "glassA" },
+	"vane": { "day": "hall2" },
 	"lys": { "p1": "3A", "p3": "3A", "day": "corr3" }, "corvin": { "p3": "yard", "p4": "yard", "day": "yardA" }, "sabine": { "all": "library", "day": "library" },
 	"dorle": { "all": "refectory", "day": "refectory" }, "hob": { "all": "owl", "day": "owl" }, "agnes": { "all": "hare", "day": "hare" }, "brandt": { "day": "gateA" }, "aurel": { "day": "portalB" },
 }
@@ -72,6 +74,10 @@ const PUPILS := {
 	"cato": { "y": 3, "house": "owl", "late": 8.0, "pace": 1.4, "free": ["obsA", "corr3", "obsA", "owl"], "acts": ["look", "nod", "pointup"], "lines": ["There's a star that isn't on Lys's chart. I've told her. She said, 'Good.' That was all she said.", "Have you noticed the astrolabe's gone faster since spring?"] },
 	"liss": { "y": 3, "house": "hare", "late": 0.0, "pace": 1.7, "free": ["library", "hallR", "eastA", "library"], "acts": ["read", "look"], "lines": ["I'm a prefect. That means I have seen you running and I'm deciding.", "No magic in the library. Sabine can smell it. So can I, but she minds."] },
 	"orin": { "y": 3, "house": "owl", "late": 6.0, "pace": 1.3, "free": ["benchB", "pondA", "treeA", "owl"], "acts": ["talk", "nod"], "lines": ["I was in your year once, when your year was someone else.", "Orlind took nine years over his candle. I think about that on bad days."] },
+	"bet": { "y": 1, "ch": 1, "house": "hare", "late": 7.0, "pace": 1.9, "free": ["refectory", "hallR", "refectory", "gateA"], "acts": ["dust", "look", "stretch"], "lines": ["Scholarship. It means I scrub what you eat off, and then I sit next to you.", "Never carry anything up the front stairs. The back ones creak, but nobody important uses them.", "In Sarrow you learn knots before letters. I'll show you one that only unties if you're lying.", "If the High Table wants a thing fetched, fetch it wrong. Slowly and wrong."] },
+	"lucan": { "y": 3, "ch": 1, "house": "owl", "late": 1.0, "pace": 1.35, "free": ["founderA", "library", "benchC", "library"], "acts": ["nod", "read"], "lines": ["Good day, Reiner. You see, it costs nothing.", "Order is only kindness with the sentiment taken out.", "Do ask Dorn to move, if he's in your way. He will enjoy it."] },
+	"dorn": { "y": 3, "ch": 1, "house": "owl", "late": 2.0, "pace": 1.4, "free": ["yard", "founderA", "yardA", "library"], "acts": ["cross", "stretch"], "lines": ["Mind yourself.", "I don't dislike you. I don't anything you.", "Lucan says be civil. This is civil."] },
+	"sibyl": { "y": 3, "ch": 1, "house": "hare", "late": 1.0, "pace": 1.45, "free": ["library", "benchC", "corr3", "library"], "acts": ["read", "nod"], "lines": ["Everything is written down, you know. I should know. I write it.", "You have ink on your cuff. I'd say so to anyone. I'd note it, too.", "Wards are easy. You decide what isn't coming in. Then it doesn't."] },
 	"dove": { "y": 3, "house": "hare", "late": 4.0, "pace": 1.4, "free": ["lawnC", "rimA", "corr3", "hare"], "acts": ["giggle", "talk"], "lines": ["You'll want to see the lanterns on a still night. They line up. Nobody's told them to.", "My hair was brown when I got here. Potions. Don't ask."] },
 }
 const STAFF_LINES := {
@@ -85,6 +91,7 @@ const STAFF_LINES := {
 	"hob": ["Boots on the mat. Lights out at nine. Trouble on somebody else's night.", "Your bed's upstairs, first door past the landing. Wim's made it for you. I couldn't stop him."],
 	"agnes": ["Boys may stand on the rug, and the rug ends there.", "Not one stair, young man."],
 	"brandt": ["Through the gate, up the path, in at the big door. If you end up in the pond you've gone wrong.", "Porter here thirty years. Never let in a thing I'd have to chase out. Twice, then."],
+	"vane": ["I am not here to be liked. It saves a great deal of time.", "Turn out your pockets. ...A wooden hen. I see. Carry on."],
 	"aurel": ["Reiner. Yes. I signed your letter myself. I'm told that surprises you.", "I ask one thing of a pupil. That they come back in the morning."],
 }
 const TEACH := {
@@ -104,6 +111,10 @@ const CHATS := [
 	["wim", "otto", ["Do you think he'll test us?", "I think he'll feed us. Eventually. Somebody has to."]],
 	["isolde", "wim", ["You dropped this.", "Th-thank you! You noticed!", "It was loud."]],
 	["cato", "dove", ["That star's closer.", "Stars don't get closer.", "I know."]],
+	["bet", "otto", ["Is that your third?", "It's my first. The other two were Wim's."]],
+	["dorn", "sibyl", ["He looked at me.", "People do, Dorn. You are in front of things."]],
+	["lucan", "sibyl", ["Who is last, this term?", "The farm boy.", "Still? ...How patient of him."]],
+	["nadi", "bet", ["So is it true about the hats?", "Which hats?", "ANY hats!"]],
 	["yve", "kas", ["The lilies are opening late this year.", "They're shy of the newt."]],
 ]
 const BOOKS := [
@@ -143,7 +154,8 @@ func open(hour: float) -> void:
 		var beds := { "owl": 2, "hare": 0 }               # (the first owl bed is Reiner's, the next Wim's)
 		for p in people:
 			if p.role != "pupil": continue
-			if p.who == "wim": p.bed = 1
+			if p.who in ["lucan", "dorn", "sibyl"]: p.bed = 0                  # (they keep late hours, in the library)
+			elif p.who == "wim": p.bed = 1
 			else:
 				p.bed = beds[p.house]
 				beds[p.house] += 1
@@ -154,6 +166,10 @@ func open(hour: float) -> void:
 	s.hour_run = 1.0 / HOUR_SECS
 	pi = _period_at(hour)
 	for p in people:
+		p.away = int(PUPILS.get(p.who, {}).get("ch", 1 if p.who == "vane" else 0)) > chapter
+		if p.away:
+			p.a.visible = false
+			continue
 		p.a.stage = st()
 		if not (p.a in st().actors): st().actors.append(p.a)
 		p.a.visible = true
@@ -226,6 +242,7 @@ func _want(p: Dictionary) -> Dictionary:
 			var yy: float = 0.0 if R.f < 0 else (0.048 if rm in ["owl", "hare"] else [0.048, 3.648, 7.248][int(R.f)])
 			return { "key": rm + "T", "p": Vector3(R.teacher.x, yy, R.teacher.z), "yaw": R.teacher.yaw, "pose": "stand", "node": R.node, "via": R.teacher.get("via", []) }
 		return _spot(f.day)
+	if id == "night" and p.who in ["lucan", "dorn", "sibyl"]: return _seat("library", p.year, p.n, "sitread")      # (the High Table keeps no curfew)
 	if id == "night":
 		var b: Dictionary = D.rooms[p.house].beds[p.bed % D.rooms[p.house].beds.size()]
 		return { "key": "bed", "p": Vector3(b.x, b.y, b.z), "yaw": b.yaw, "pose": "lie", "node": b.node, "via": [], "y": b.y }
@@ -276,6 +293,7 @@ func _spot(k: String, p := {}) -> Dictionary:
 
 
 func _assign(p: Dictionary, now := false) -> void:
+	if p.get("away", false): return
 	var w := _want(p)
 	p.spot = w
 	var a: Node3D = p.a
@@ -305,6 +323,7 @@ func _set_off(p: Dictionary) -> void:
 	var from: int = p.node if p.node >= 0 else S.nearest_node(a.position)
 	var to: int = S.node_id[String(w.node)]
 	var route: Array = []
+	var nback: int = (p.back as Array).size() if p.has("back") else 0
 	if p.has("back"):                                  # out of the row again, the way they came in
 		for q in p.back: route.append({ "p": q, "door": "" })
 		p.erase("back")
@@ -327,6 +346,7 @@ func _set_off(p: Dictionary) -> void:
 			var dn: String = String(route[i].get("door", "")) if String(route[i].get("door", "")) != "" else String(route[i + 1].get("door", ""))
 			off = 0.42 if S.doors.has(dn) and S.doors[dn].nodes.size() > 1 else 0.21
 		if here.x > 150.0: off = minf(off, 0.3)
+		if i <= nback and nback > 0 and not tight: off = minf(off, 0.1)            # (between the desks there's only the one way)
 		route[i] = { "p": here + Vector3(-dd.z, 0, dd.x) * off, "door": route[i].get("door", ""), "warp": route[i].get("warp", false) }
 	var back: Array = []
 	var y: float = w.p.y
@@ -474,6 +494,9 @@ func _zone(p: Vector3) -> int:
 
 func _person(p: Dictionary, dt: float, cam: Vector3) -> void:
 	var a: Node3D = p.a
+	if p.get("away", false):
+		a.visible = false
+		return
 	if p.get("busy", false): return                     # a scene has them
 	if p.go != null:
 		p.delay -= dt
@@ -621,6 +644,7 @@ func _chatter(dt: float) -> void:
 	for c in CHATS:
 		var A: Dictionary = by[c[0]]
 		var B: Dictionary = by[c[1]]
+		if A.get("away", false) or B.get("away", false): continue
 		if A.a.visible and B.a.visible and A.a.position.distance_to(B.a.position) < 7.0 and A.a.position.distance_to(cam) < 12.0 and A.heed <= 0.0 and B.heed <= 0.0: ok.append(c)
 	if not ok.is_empty():
 		var c: Array = ok[rng.randi() % ok.size()]
@@ -633,7 +657,7 @@ func find_use(hp: Vector3):
 	var best = null
 	var bd := 1.0
 	for p in people:
-		if not p.a.visible or p.a.pose == "lie": continue
+		if not p.a.visible or p.a.pose == "lie" or p.get("away", false): continue
 		var d: float = p.a.position.distance_to(hp) / 1.55
 		if d < bd and talk_lock <= 0.0:
 			bd = d
@@ -692,6 +716,7 @@ func sign_use(sg: Dictionary) -> void:
 		"books":
 			var b: Array = BOOKS[rng.randi() % BOOKS.size()]
 			s.read(b[0], b[1])
+		"board": s.act.ch1.read_board()
 		"owl": _through("owl_door", PI)
 		"owl_out": _through("dW", PI / 2)
 		"hare":

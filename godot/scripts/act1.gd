@@ -17,7 +17,17 @@ var town_lines := {}
 var got := false
 var fol: Array = []                   # things that follow others: { n, f }
 const SAVE := "user://story.json"
-const PARTS := ["Dawn", "Chores", "The letter", "Leaving home", "Thistlewick", "The Academy", "Owl House", "The candle lesson", "A few bad weeks", "The bargain", "The first lesson", "The night"]
+const PARTS1 := ["Dawn", "Chores", "The letter", "Leaving home", "Thistlewick", "The Academy", "Owl House", "The candle lesson", "A few bad weeks", "The bargain", "The first lesson", "The night"]
+var PARTS: Array = []
+var ch1: Node
+
+
+func _ready() -> void:
+	ch1 = preload("res://scripts/ch1.gd").new()
+	ch1.s = s
+	ch1.a = self
+	add_child(ch1)
+	PARTS = PARTS1 + ch1.NAMES
 
 
 func begin(scene: String) -> void:
@@ -51,6 +61,7 @@ func begin(scene: String) -> void:
 		"skip":                                          # dev: the whole act, skipping every scene
 			s.set_meta("skip", true)
 			start(0)
+		"night": _night_test()
 		"swing": _swing_test()
 		"test": _test()
 		"simtown":
@@ -59,6 +70,42 @@ func begin(scene: String) -> void:
 			s.hour = 11.0
 			s.play()
 		_: school(float(scene.trim_prefix("school")))
+
+
+## Dev: Trap Trick walks in at the great door, up the stairs, and into the Proctor's light.
+func _night_test() -> void:
+	start(20)
+	await s.until(func(): return s.tt_mode and s.mode == "play", 60.0)
+	var tt: Node3D = s.main.tt
+	var press := func(code: int, on: bool) -> void:
+		var e := InputEventKey.new()
+		e.physical_keycode = code
+		e.pressed = on
+		Input.parse_input_event(e)
+	tt.position = Vector3(0, 0, -3.2)
+	press.call(KEY_W, true)
+	for k in 4:
+		await s.wait(1.5)
+		print("walk ", tt.position, " ground ", tt.on_ground, " vane ", s.actor("vane").position)
+	tt.position = Vector3(-4.25, FYT, -9.9)
+	for k in 6:
+		await s.wait(1.2)
+		print("stairs ", tt.position, " ", tt.on_ground)
+	press.call(KEY_W, false)
+	var V: Node3D = s.actor("vane")
+	V.path = []
+	V.place(Vector3(6, FYT, -7.7), PI / 2)
+	ch1.vane.wait = 9.0
+	tt.position = Vector3(9.5, FYT, -7.7)
+	for k in 8:
+		await s.wait(0.4)
+		print("seen %.2f  at %s" % [ch1.spotted, tt.position])
+	await s.wait(3.0)
+	print("after ", tt.position, " visible ", tt.visible, " locked ", s.locked)
+	s.get_tree().quit()
+
+
+const FYT := 0.048
 
 
 ## Dev: the swing's period and height, and whether her hands are on the ropes and she's on the seat.
@@ -71,7 +118,7 @@ func _swing_test() -> void:
 	var was: float = sw.th
 	var hi := 0.0
 	while s.time < 24.0:
-		await s.tick
+		await s.beat()
 		hi = maxf(hi, absf(sw.th))
 		if was < 0.0 and sw.th >= 0.0:
 			if last > 0.0: print("period %.2f s (small swings of %.2f m: %.2f s)  height %.3f rad" % [s.time - last, sw.len, TAU * sqrt(sw.len / 9.81), hi])
@@ -156,6 +203,7 @@ func title() -> void:
 	var items: Array = []
 	if sv > 0 and sv < PARTS.size(): items.append(["continue", "Continue:  " + PARTS[sv]])
 	items.append(["new", "Opening Act"])
+	items.append(["ch1", "Chapter One"])
 	items.append(["chapters", "Chapters"])
 	items.append(["school", "School Days"])
 	items.append(["free", "Roam as Trap Trick"])
@@ -167,12 +215,18 @@ func menu(id: String) -> void:
 	match id:
 		"continue": start(_saved())
 		"new": start(0)
+		"ch1": start(PARTS1.size())
 		"chapters":
+			s.ui.show_menu([["list0", "The Opening Act"], ["list1", "Chapter One:  The Lantern Board"], ["title", "Back"]], 0.35)
+			return
+		"list0", "list1":
 			var items: Array = []
-			for i in PARTS.size(): items.append(["part%d" % i, "%d.  %s" % [i + 1, PARTS[i]]])
+			var from := 0 if id == "list0" else PARTS1.size()
+			var to := PARTS1.size() if id == "list0" else PARTS.size()
+			for i in range(from, to): items.append(["part%d" % i, "%d.  %s" % [i - from + 1, PARTS[i]]])
 			items.append(["title", "Back"])
 			s.ui.show_menu(items, 0.35)
-			s.ui.menu_box.offset_top = -150
+			s.ui.menu_box.offset_top = -190
 			return
 		"school":
 			_shut()
@@ -227,6 +281,7 @@ func start(i: int) -> void:
 	s.fader_to = 1.0
 	s.fader_c = Color.BLACK
 	var list: Array = [p1_dawn, p2_chores, p3_letter, p4_leaving, p5_town, p6_academy, p7_owl, p8_lesson, p9_weeks, p10_bargain, p11_first, p12_night]
+	list.append_array(ch1.list())
 	for k in range(i, list.size()):
 		part = k
 		_save(k)
@@ -239,6 +294,7 @@ func start(i: int) -> void:
 		s.skipping = false
 	_save(0)
 	school(8.0)
+	ch1.levelled = true                                # (after Chapter One the lanterns hang level)
 
 
 ## The school, free to roam.
@@ -247,8 +303,10 @@ func school(h: float) -> void:
 	clean()
 	s.campus.close()
 	s.go_place("academy")
+	s.campus.chapter = 1
 	s.hero = s.enter("reiner_uni", Vector3(0, 0, 22), PI)
 	s.campus.open(h)
+	ch1.board(24, true)
 	s.main.sound.music("school")
 	s.main.sound.air("school")
 	s.busy = false
@@ -274,6 +332,10 @@ func clean() -> void:
 		s.main.fx.visible = false
 	s.uses = []
 	s.goal = null
+	s.tt_mode = false
+	s.ui.watch(0.0)
+	s.campus.chapter = 0 if part < PARTS1.size() else 1
+	ch1.reset()
 
 
 ## Two people put their arms round each other (the only time anyone comes this close), and step apart again.
@@ -292,7 +354,7 @@ func _embrace(a: Node3D, b: Node3D, secs: float) -> void:
 	while s.time < t0 + secs:
 		var u: float = (s.time - t0) / secs
 		a.position = p0.lerp(to, smoothstep(0.0, 0.22, u) * (1.0 - smoothstep(0.78, 1.0, u)))
-		await s.tick
+		await s.beat()
 	a.position = p0
 	a.remove_meta("close")
 	b.remove_meta("close")
@@ -447,6 +509,7 @@ func update(dt: float) -> void:
 	if tt_on:
 		s.main.tt.update(dt, tt_in)
 		s.main.fx.visible = true
+	ch1.update(dt)
 
 
 func _farm(h: float) -> void:
@@ -464,7 +527,7 @@ func reach(p: Vector3, r: float) -> void:
 	var id := run_id
 	while live(id) and Vector2(s.hero.position.x - p.x, s.hero.position.z - p.z).length() > r or absf(s.hero.position.y - p.y) > 1.5:
 		if s.main.dev_auto and s.time > t0 + 1.2: s.hero.place(p, s.hero.yaw)
-		await s.tick
+		await s.beat()
 		if not live(id): return
 	s.goal = null
 
@@ -481,7 +544,7 @@ func use(p: Vector3, label: String, r := 1.3) -> void:
 		if s.main.dev_auto and s.time > t0 + 1.2:
 			s.hero.place(p + Vector3(0.6, 0, 0.3), s.hero.yaw)
 			got = true
-		await s.tick
+		await s.beat()
 	s.uses.erase(u)
 	s.goal = null
 
@@ -526,13 +589,13 @@ func p1_dawn() -> void:
 	var t0: float = s.time
 	while s.time < t0 + 0.9:
 		C.rotation.x = sin((s.time - t0) * 12.0) * 0.12
-		await s.tick
+		await s.beat()
 	t0 = s.time
 	while s.time < t0 + 0.55:
 		var u: float = (s.time - t0) / 0.55
 		C.position = Vector3(15.0 - u * 0.25, 1.1 - u * u * 1.08, 8.0 + u * 0.1)
 		C.rotation = Vector3(u * 2.0, 0, u * 1.5)
-		await s.tick
+		await s.beat()
 	C.rotation = Vector3(0, 0, PI / 2)
 	C.position.y = 0.1
 	s.main.sfx("clunk")
@@ -697,7 +760,7 @@ func p3_letter() -> void:
 	while s.time < t0 + 0.8:
 		bird.n.scale = Vector3.ONE * (1.0 - (s.time - t0) * 0.7)
 		bird.n.rotation.y += 0.22
-		await s.tick
+		await s.beat()
 	s.sparkle(bird.n.position, 24)
 	bird.n.visible = false
 	R.reach.R = null
@@ -860,7 +923,7 @@ func p4_leaving() -> void:
 	while s.time < t0 + 1.6:
 		v = move_toward(v, 1.5, s.dt_last * 1.2)
 		cart.set_meta("v", v)
-		await s.tick
+		await s.beat()
 	L.go_free([Vector3(1.2, 0, 9.4), Vector3(0.6, 0, 12.6)], 3.3)
 	L.feel("happy", "shout")
 	s.cut(Vector3(-4.6, 1.2, 17.4), Vector3(0.8, 1.2, 11), 42)
@@ -1067,7 +1130,7 @@ func p6_academy() -> void:
 	while s.time < t0 + 2.4:
 		gate.call(smoothstep(0.0, 1.0, (s.time - t0) / 2.4))
 		if randf() < 0.1: s.sparkle(Vector3(randf_range(-2, 2), randf_range(0.5, 3.0), 45.9), 3, Color("bff4ea"))
-		await s.tick
+		await s.beat()
 	s.cut(Vector3(-1.9, 1.65, 50.6), Vector3(0.9, 1.45, 47.2), 42)
 	await s.say("brandt", "Straight up the path. Owl House is left of the fountain, the one with the owl. Uniform's on the bed.", { "eyes": "open", "mouth": "flat", "do": "point" })
 	R.look = B
@@ -1107,7 +1170,7 @@ func p7_owl() -> void:
 	var t0: float = s.time
 	while live(id) and R.position.x < 150.0:
 		if s.main.dev_auto and s.time > t0 + 1.0: R.place(s.stage._np(s.stage.node_id["owl_door"]), PI)
-		await s.tick
+		await s.beat()
 	if not live(id): return
 	s.ui.objective("Find your bed: upstairs, the first door past the landing")
 	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
@@ -1364,7 +1427,7 @@ func p8_lesson() -> void:
 			spark.position = (pts[k] as Vector3).lerp(pts[k + 1], minf(1.0, u))
 			spark.rotation = Vector3(u * 8.0, u * 5.0, 0)
 			if randf() < 0.5: s.burst(spark.position, Color("ffd27a"), Color("ff8a3a"), 3, 0.6, -2.0, 0.025, 0.5)
-			await s.tick
+			await s.beat()
 		s.main.sfx("bounce")
 		for n in CLASS:
 			if randf() < 0.3: s.actor(n).do("shield", 0.8)
@@ -1547,7 +1610,7 @@ func p9_weeks() -> void:
 	while s.time < t0 + 1.3:
 		stack[5].position.y = y + 0.744 + 0.6 + (s.time - t0) * 0.12 + sin(s.time * 16.0) * 0.01
 		stack[5].rotation.y += 0.02
-		await s.tick
+		await s.beat()
 	R.feel("wide", "grin")
 	s.face(R, 0.3, 1.3, 36)
 	await s.wait(0.6)
@@ -1563,7 +1626,7 @@ func p9_weeks() -> void:
 		v.y -= 5.2 * s.dt_last
 		if stack[5].position.y > y + 2.9: v.y = -1.0
 		stack[5].rotation += Vector3(0.1, 0.12, 0.05)
-		await s.tick
+		await s.beat()
 	s.main.sfx("clunk")
 	R.do("shield", 1.2)
 	M.reach.R = stack[5].position
@@ -1573,7 +1636,7 @@ func p9_weeks() -> void:
 	while s.time < t0 + 0.5:
 		stack[5].position = from.lerp(M.head_pos() + Vector3(-0.42, 0.18, 0.12), (s.time - t0) / 0.5)
 		M.reach.R = stack[5].position
-		await s.tick
+		await s.beat()
 	s.main.sfx("catch")
 	await s.wait(0.7)
 	s.face(SB, 0.2, 1.5, 36)
@@ -1632,7 +1695,7 @@ func p9_weeks() -> void:
 			sp.position = a.lerp(b, minf(1.0, u)) + Vector3(0, sin(minf(1.0, u) * PI) * arc, 0)
 			sp.rotation = Vector3(u * 8.0, u * 6.0, 0)
 			if randf() < 0.4: s.burst(sp.position, Color("bfe8ff"), Color("7ad0ff"), 2, 0.4, 0.0, 0.025, 0.5)
-			await s.tick
+			await s.beat()
 	s.cut(Vector3(-38, 1.6, -5.2), Vector3(-41, 1.2, -8), 46)
 	await fly_to.call(R.position + Vector3(-0.6, 1.3, 0), Vector3(-41.3, 1.06, -8), 0.5, 0.2)
 	s.main.sfx("bounce")
@@ -1947,7 +2010,7 @@ func p10_bargain() -> void:
 	while s.time < t0 + 0.9:
 		half.position.x = kx + 0.45 - (s.time - t0) * 0.5
 		M.reach.R = half.position + Vector3(0.1, 0.06, 0.0)
-		await s.tick
+		await s.beat()
 	s.main.sfx("coin")
 	M.reach.R = null
 	s.face(M, 0.3, 1.2, 36)
@@ -2054,7 +2117,7 @@ func p11_first() -> void:
 	var t0: float = s.time
 	while s.time < t0 + 1.6:
 		s.flames[-1].k = lerpf(0.05, 1.0, smoothstep(0.0, 1.0, (s.time - t0) / 1.6))
-		await s.tick
+		await s.beat()
 	s.main.sound.music("wonder")
 	s.face(R, 0.25, 1.1, 32)
 	R.feel("wide", "oh")
@@ -2085,7 +2148,7 @@ func p11_first() -> void:
 		h = maxf(0.0, oy + v_up * u - 4.905 * u * u)
 		L.position = Vector3(hw.x, h, hw.z) + fwd * v_out * u
 		L.prev_pos = L.position
-		await s.tick
+		await s.beat()
 	L.position.y = 0.0
 	L.remove_meta("close")
 	s.main.sfx("step")
@@ -2222,7 +2285,7 @@ func p12_night() -> void:
 	var t0: float = s.time
 	while s.time < t0 + 0.9:
 		T.door_open = smoothstep(0.0, 1.0, (s.time - t0) / 0.9)
-		await s.tick
+		await s.beat()
 	s.main.sfx("chime")
 	# one look back, at the hills
 	tt.t_yaw = PI / 2
@@ -2240,7 +2303,7 @@ func p12_night() -> void:
 	t0 = s.time
 	while s.time < t0 + 0.7:
 		T.door_open = 1.0 - smoothstep(0.0, 1.0, (s.time - t0) / 0.7)
-		await s.tick
+		await s.beat()
 	T.door_open = 0.0
 	s.main.sfx("door_shut")
 	await s.wait(1.0)

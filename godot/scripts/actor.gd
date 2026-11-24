@@ -450,7 +450,7 @@ func _move(dt: float) -> void:
 			if jam < 7.0:                                                      # (solid: never a step nearer anyone than this)
 				for o in others:
 					if o == self or not is_instance_valid(o) or not o.visible or absf(o.position.y - position.y) > 1.0: continue
-					var r := 0.36 if o.speed < 0.1 and not (o.pose in UPRIGHT) else 0.5
+					var r := 0.34 if o.speed < 0.1 and not (o.pose in UPRIGHT) else 0.43
 					var to := Vector2(o.position.x - position.x, o.position.z - position.z)
 					var ol := to.length()
 					if ol > r + 0.3 or ol < 0.001: continue

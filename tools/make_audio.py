@@ -205,6 +205,42 @@ def m_night():
     s.done('night', 2.6, 0.4)
 
 
+def harpsi(f, d, v=1.0):
+    t = T(max(d, 0.9)); y = np.zeros_like(t)
+    for h in range(1, 14):
+        if f * h > SR * 0.45: break
+        y += np.sin(TAU * f * h * t) * (0.8 ** (h - 1)) * np.exp(-t * (2.6 + h * 0.5))
+    return y * env(len(t), 0.001, 0.15) * v * 0.16
+def m_high():
+    s = Score(96, 16, 3)
+    P = 'G3m D37 G3m C3m F3 Bb3 Eb3 D37 ' 'G3m C3m F37 Bb3 C3m G3m D37 G3m'
+    s.chords(harpsi, P, 3, 0.9, -0.15, arp=[0, 1, 2, 3, 2, 1]); s.chords(harpsi, P, 3, 1.0, 0, arp=[0, None, None], tr=-12); s.chords(strings, P, 3, 0.3, 0.2)
+    s.line(harpsi, 'D5:1 G5:1 A5:1 Bb5:1.5 A5:.5 G5:1 F#5:1 D5:1 A5:1 G5:3 Eb5:1 C5:1 G5:1 F5:1.5 Eb5:.5 C5:1 D5:1 F5:1 Bb5:1 A5:2 F5:1 G5:1 Bb5:1 Eb6:1 D6:1.5 C6:.5 Bb5:1 A5:1 F#5:1 D5:1 F#5:3 Bb5:1 A5:1 G5:1 Eb5:2 G5:1 F5:1 A5:1 C6:1 Bb5:3 Eb6:1 D6:1 C6:1 Bb5:2 G5:1 A5:1 F#5:1 D5:1 G5:3', 0, 1.1, 0.15)
+    s.done('high', 1.8, 0.28)
+def m_duel():
+    s = Score(132, 16, 4)
+    P = 'D3m D3m Bb3 A37 D3m F3 G3m A37 ' 'Bb3 F3 G3m D3m Eb3 Bb3 A37 A37'
+    s.chords(pluck, P, 4, 1.1, 0, arp=[0, 0, 1, 0, 2, 0, 1, 0], tr=-12); s.chords(strings, P, 4, 0.75, 0.1)
+    s.line(strings, 'A4:2 D5:2 F5:3 E5:1 D5:2 F5:2 E5:4 A5:2 F5:1 E5:1 F5:2 C5:2 Bb4:2 D5:2 C#5:4 D5:2 F5:1 Bb5:1 A5:2 C6:2 Bb5:1 A5:1 G5:2 F5:4 G5:2 Bb5:2 F5:2 D5:2 E5:1 F5:1 G5:1 E5:1 A5:4', 0, 1.3, -0.1)
+    for b in range(64): (b % 2 == 0) and s.at(b, drum(60, 1, 0.8 if b % 4 == 0 else 0.5)); s.at(b + 0.5, shake(0, 0, 0.5), 0.3); (b % 4 == 3) and s.at(b + 0.5, drum(90, 1, 0.4))
+    s.done('duel', 1.2, 0.2)
+def m_sneak():
+    s = Score(104, 16, 4)
+    P = 'A3m A3m D3m E37 A3m F3 D3m E37 ' 'C3 A3m F3 D3m Bb3 F3 E37 E37'
+    s.chords(pluck, P, 4, 1.1, 0, arp=[0, None, 2, None, 1, None, 2, None]); s.chords(pluck, P, 4, 1.1, 0, arp=[0, None, None, None, 2, None, None, None], tr=-12)
+    s.line(reed, 'A4:.5 -:.5 C5:.5 -:.5 E5:.5 D#5:.5 E5:1 -:1 A4:.5 B4:.5 C5:1 A4:1 D5:.5 -:.5 F5:.5 -:.5 A5:.5 G#5:.5 A5:1 -:1 G#5:.5 E5:.5 B4:2', 0, 0.65, -0.2)
+    s.line(box, '-:16 E6:.5 C6:.5 A5:1 -:2 F6:.5 D6:.5 A5:1 -:2 F6:1 E6:1 D6:1 B5:1 G#5:1 B5:1 E6:2 G6:.5 E6:.5 C6:1 -:2 E6:.5 C6:.5 A5:1 -:2 A5:1 C6:1 F6:2 D6:2 A5:2 Bb5:1 D6:1 F6:2 C6:2 A5:2 G#5:1 B5:1 D6:1 E6:1 -:4', 0, 0.8, 0.25)
+    for b in range(64): (b % 2) and s.at(b, shake(0, 0, 0.4), 0.3)
+    s.done('sneak', 2.2, 0.34)
+def m_founder():
+    s = Score(80, 16, 4)
+    P = 'D3 G3 A3 D3 B3m G3 E3m A3sus ' 'G3 D3 A3 B3m G3 E3m A3sus D3'
+    s.chords(harp, P, 4, 0.9, -0.1, arp=[0, 2, 1, 3, 2, 4, 3, 1]); s.chords(strings, P, 4, 0.5, 0.15)
+    s.line(flute, 'D5:1 F#5:1 A5:2 B5:1.5 A5:.5 G5:2 E5:1 A5:1 C#6:2 D6:4 B5:2 A5:1 F#5:1 G5:2 B5:2 E5:1 F#5:1 G5:2 A5:4 B5:2 D6:2 A5:3 F#5:1 E5:2 C#5:2 D5:2 B4:2 G5:2 B5:1 A5:1 G5:2 E5:2 F#5:2 E5:2 D5:4', 0, 0.85, 0.15)
+    for b in range(0, 64, 8): s.at(b, bell(hz(midi('D5')), 4, 0.25), -0.3)
+    s.done('founder', 2.8, 0.38)
+
+
 # ============================================================ the air ==
 def loopn(y, x=2.0):
     k = int(x * SR); f = np.linspace(0, 1, k); y = y.copy(); y[:k] = y[:k] * f + y[-k:] * (1 - f); return y[:-k]
@@ -228,6 +264,10 @@ def a_farm(): d = 26; save('amb_farm', loopn(wind(d, 120, 700) * 0.35 + birds(d,
 def a_town(): d = 24; save('amb_town', loopn(wind(d, 120, 600) * 0.25 + birds(d, 8, v=0.16) + murmur(d, 0.6)), 0.5)
 def a_school(): d = 26; save('amb_school', loopn(wind(d, 140, 800) * 0.3 + birds(d, 16, v=0.22) + murmur(d, 0.32)), 0.5)
 def a_night(): d = 22; save('amb_night', loopn(wind(d, 90, 500) * 0.3 + crickets(d) * 3), 0.45)
+def a_rain():
+    d = 18; y = bp(noise(d), 900, 7000) * 0.4 + wind(d, 80, 400) * 0.4
+    for _ in range(260): i = rng.integers(0, len(y) - 900); n = 500; y[i:i + n] += np.sin(TAU * rng.uniform(900, 2600) * np.arange(n) / SR) * np.exp(-np.arange(n) / 90) * rng.uniform(0.1, 0.5)
+    save('amb_rain', loopn(y), 0.4)
 def a_room():
     d = 20; y = wind(d, 60, 260) * 0.25
     for _ in range(90):
@@ -294,10 +334,26 @@ def effects():
     S('coins', y, 0.6, 0.35)
     t = T(0.7); f = 520 + 340 * np.sin(np.pi * t / 0.7) - 160 * t; ph = TAU * np.cumsum(f) / SR; S('meow', sum(np.sin(ph * h) / h for h in range(1, 7)) * np.sin(np.pi * t / 0.7) ** 0.8, 1.0, 0.3)
 
+    # Chapter One
+    S('ting', box(hz(93), 1, 1) * 0.9 + box(hz(81), 1, 0.4), 1.6, 0.34)
+    t = T(0.8); S('gust', bp(noise(0.8), 250, 2400) * np.sin(np.pi * t / 0.8) ** 1.5 * (0.7 + 0.3 * np.sin(TAU * 9 * t)), 0.5, 0.45)
+    t = T(0.6); S('wick_out', bp(noise(0.6), 1800, 8000) * np.exp(-t * 9) * 0.7 + np.sin(TAU * 420 * t * (1 - 0.4 * t)) * np.exp(-t * 16) * 0.3, 0.6, 0.34)
+    y = np.zeros(int(1.4 * SR))
+    for p in range(9):
+        f = [190, 240, 300, 340, 210, 280, 390, 260, 320][p]; d = rng.uniform(0.35, 0.6); t = T(d); ph = TAU * f * (1 + 0.25 * t / d) * t
+        c2 = (sum(np.sin(ph * h) * np.exp(-((f * h - 700) / 330) ** 2) for h in range(1, 10)) * 0.35 + bp(rng.standard_normal(len(t)), 900, 4200) * 0.7) * np.sin(np.pi * t / d) ** 0.8; i = int(rng.uniform(0, 0.18) * SR); n = min(len(c2), len(y) - i); y[i:i + n] += c2[:n]
+    S('gasp', y, 1.0, 0.4)
+    y = np.zeros(int(3.4 * SR))
+    for p in range(16):
+        f = rng.uniform(190, 430); d = rng.uniform(0.9, 1.8); t = T(d); ph = TAU * np.cumsum(f * (1 + 0.18 * np.sin(np.pi * t / d) + 0.02 * np.sin(TAU * 6 * t))) / SR
+        c2 = sum(np.sin(ph * h) * (np.exp(-((f * h - 850) / 350) ** 2) + 0.2 * np.exp(-((f * h - 1400) / 400) ** 2)) for h in range(1, 12)) * np.sin(np.pi * t / d) ** 0.5; i = int(rng.uniform(0, 1.3) * SR); n = min(len(c2), len(y) - i); y[i:i + n] += c2[:n]
+    for _ in range(120): i = rng.integers(0, len(y) - 1500); n = 700; y[i:i + n] += bp(rng.standard_normal(n), 900, 4000)[:n] * np.exp(-np.arange(n) / 110) * rng.uniform(0.3, 1.0)
+    S('cheer', y, 1.2, 0.5)
+
 
 if __name__ == '__main__':
     only = sys.argv[1:]
-    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, a_farm, a_town, a_school, a_night, a_room, effects]
+    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, m_high, m_duel, m_sneak, m_founder, a_farm, a_town, a_school, a_night, a_rain, a_room, effects]
     for j in jobs:
         if only and j.__name__ not in only: continue
         j(); print(j.__name__)
