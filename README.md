@@ -1,12 +1,26 @@
 # Trap Trick
 
-A fully jointed voxel model of **Trap Trick** (stage name), playable in an open garden plaza. Her look follows the
+A fully jointed voxel model of **Trap Trick** (stage name), playable in **the Wonder Garden**. Her look follows the
 character sheets in `reference/`: a performer with a big mane of bright pink curls in a black top hat (heart card in the band, a big
 blue bow, a dangling card charm), a flat-faced head with a V chin, a navy puff-sleeved bodice with a jabot and a gem
 bow tie, a black corset with pink buttons, a navy waist bow with a red gem and ribbons, a poofy tiered skirt (periwinkle
 pleats, a band of playing cards, then blue, white, navy and lilac ruffles), a big back bow whose tails end in cards,
 mismatched stockings (dark argyle on her right, white harlequin lattice on her left), blue ankle bows and black platform
 Mary Janes. She carries a **playing-card umbrella**.
+
+## The Wonder Garden
+
+Her own little dimension, which only she can reach (for now). The game's world is older fantasy, quiet villages and
+old roads; the Wonder Garden is hers alone: a round rose courtyard at twilight, closed by a wrought-iron fence of card
+suits, the lamps lit. In the middle is her stage, a paved round with a red heart inside the summoning circle (where one arrives in her
+world: two rings of glowing runes and suits turning opposite ways; in the desktop version it pulses, sparkles, streaks of
+light and little cards rise from it, it brightens when she stands in it, and it flares as she is summoned in at the
+start), ringed by a bed of
+red, white, half-painted and blue roses. Through the gate a path runs to the Heart Castle and its clock tower, a great
+moon rising beside it. Outside the fence are a teacup glasshouse glowing amber, a brick tower roofed with a giant top
+hat, toadstools, twisted trees hung with lanterns, topiary suits and giant playing cards, some standing in the lawn and
+some floating in the air. A hedge runs round the edge of her world. In the desktop version rose petals drift down and
+little lights rise.
 
 ## Play
 
@@ -27,7 +41,7 @@ Mary Janes. She carries a **playing-card umbrella**.
 | `Q` | carry / hold: shoulders the umbrella, or takes it back in hand |
 | `E` | trick: umbrella twirl (open) · en-garde with the closed umbrella · card fan (empty hands) |
 | `Z X C V B T` | wave · point · curtsy · spin · peace-sign pose · hat tip |
-| `G` | sit on a crate (the four single crates around the plaza) / stand up |
+| `G` | sit on a toadstool (the four round the courtyard's path) / stand up |
 | `3`–`7` | expression: smug, smile, happy, pout, surprised |
 | `J` | skeleton view (see-through body, bones and joints) |
 | `H` | hide the controls |
@@ -40,7 +54,7 @@ twirls the open umbrella. She blinks.
 
 ## The desktop version (Godot)
 
-`godot/` is the same game as a desktop project for **Godot 4.7.2** (the standard build, not .NET). Same model, plaza,
+`godot/` is the same game as a desktop project for **Godot 4.7.2** (the standard build, not .NET). Same model, garden,
 controls and gamepad mapping as above, plus **`L`**, which switches the lighting between **Rich** and **Simple** (the
 web look; the HUD's Light slot shows which). There **`T`** alternates the hat tip with a bow: she lifts her hat off,
 sweeps it out low, crown down, and bows with her other hand on her heart, then puts it back on. **`2`** takes the hat
@@ -55,7 +69,7 @@ MSAA, and the sun's shadow map is 2048 px: on integrated graphics each of those 
   open `godot/project.godot` from Godot's project manager.
 - **Assets** (`godot/assets/`) are baked from the web version's builders, so the two never drift apart: her rig with
   every face and hand variant (`trap_trick.glb`), the umbrella (`umbrella.glb`), the puff cards (`cards.glb`), the
-  plaza (`world.glb`, `ground.png`) and the joint, pivot, spring and collider data (`bake.json`). After changing anything
+  garden (`world.glb`, `ground.png`) and the joint, pivot, spring and collider data (`bake.json`). After changing anything
   in `js/`, re-bake with `node tools/bake_godot.js`.
 - **Scripts:** `godot/scripts/main.gd` (scene, lighting, camera, input, HUD), `trap_trick.gd` (the character: the same
   movement, gait, IK, actions and springs as `js/anim.js`) and `fx.gd` (card puffs, dust, the card fan).
@@ -121,11 +135,11 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/trap-trick.js` | her model, part by part |
 | `js/props.js` | the umbrella, and the little cards of her magic puffs |
 | `js/anim.js` | the character: movement, poses, IK, actions, springs, skeleton view |
-| `js/world.js` | the garden plaza, castle, trees, crates, giant cards |
+| `js/world.js` | the Wonder Garden: courtyard, fence and gate, lamps, roses, toadstools, the castle, moon, glasshouse, hat tower, trees, cards |
 | `js/fx.js` | card puffs, dust, the card fan |
 | `js/main.js` | renderer, camera, input, HUD |
 | `tools/serve.py` | the local server (caching off) |
-| `tools/bake_godot.js` | bakes the model, umbrella, cards and plaza into `godot/assets/` for the desktop version |
+| `tools/bake_godot.js` | bakes the model, umbrella, cards and garden into `godot/assets/` for the desktop version |
 | `godot/` | the Godot desktop version |
 
 Kept on the local machine only (not in the repository): `reference/` (the character sheets), `tools/viewer.html`

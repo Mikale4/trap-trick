@@ -13,11 +13,12 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(0xcfe4ff, 70, 260);
-  VX.sky(scene, 0x4f8fe0, 0xbfe0ff, 0xdcebff);
-  const hemi = new THREE.HemisphereLight(0xdfeaff, 0x6f9a52, 0.72); scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xfff2dc, 0.82);
-  const SUN_DIR = new THREE.Vector3(0.55, 1.0, 0.42).normalize();
+  // twilight in the Wonder Garden: indigo overhead, a rose glow on the horizon, a low warm sun just down in the south-west
+  scene.fog = new THREE.Fog(0x6c5d9c, 30, 140);
+  VX.sky(scene, 0x1c2257, 0xd88aa8, 0x9a6f9c);
+  const hemi = new THREE.HemisphereLight(0x9a90cf, 0x2e3a33, 0.62); scene.add(hemi);
+  const sun = new THREE.DirectionalLight(0xffae8c, 0.55);
+  const SUN_DIR = new THREE.Vector3(-0.72, 0.34, 0.6).normalize();
   sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
   Object.assign(sun.shadow.camera, { left: -11, right: 11, top: 11, bottom: -11, near: 1, far: 80 });
   sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.025;
@@ -25,13 +26,14 @@
   const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.05, 900);
 
   const world = new WORLD(scene);
+  for (const l of world.lights) { const p = new THREE.PointLight(l.c, l.e * 0.8, l.r, 1.6); p.position.set(l.p[0], l.p[1], l.p[2]); scene.add(p); }   // the lamps
   const fx = new FXSYS(scene);
   const tt = new CHARACTER.Character(scene, fx);
   tt.seats = world.seats;
-  tt.pos.set(0, 0, 3.5); tt.yaw = Math.PI; tt.tYaw = Math.PI;
+  tt.pos.set(0, 0, 1.2); tt.yaw = 0; tt.tYaw = 0;   // on her stage, the gate and the castle behind her
 
   /* ------------------------------------------------------------ camera -- */
-  const cam = { yaw: Math.PI + 0.35, pitch: 0.16, dist: 3.7, tgt: new THREE.Vector3(0, 1.1, 3.5), drag: false };
+  const cam = { yaw: 0.3, pitch: 0.1, dist: 3.7, tgt: new THREE.Vector3(0, 1.1, 1.2), drag: false };
   function updateCamera(dt) {
     const want = new THREE.Vector3(tt.pos.x, tt.pos.y * 0.6 + 1.05 - (tt.seat ? 0.25 : 0), tt.pos.z);
     cam.tgt.x += (want.x - cam.tgt.x) * (1 - Math.exp(-12 * dt));
@@ -130,7 +132,7 @@
     $('st-umb').textContent = s.umbrella; $('st-face').textContent = s.face;
     $('st-umb').parentElement.classList.toggle('on', s.umbrella !== 'Away');
     const pr = $('prompt');
-    if (s.near) { pr.innerHTML = '<kbd>G</kbd> Sit on the crate'; pr.classList.remove('hide'); }
+    if (s.near) { pr.innerHTML = '<kbd>G</kbd> Sit on the toadstool'; pr.classList.remove('hide'); }
     else if (s.seat) { pr.innerHTML = '<kbd>G</kbd> Stand up'; pr.classList.remove('hide'); }
     else if (s.floating) { pr.innerHTML = 'Floating — hold <kbd>Space</kbd>'; pr.classList.remove('hide'); }
     else pr.classList.add('hide');

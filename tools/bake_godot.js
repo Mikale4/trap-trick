@@ -172,12 +172,14 @@ const r3 = v => Math.round(v * 1000) / 1000;
     }
     if (o.geometry && o.geometry.type === 'PlaneGeometry') continue;      // the ground: rebuilt in Godot from ground.png
     const isCloud = W.clouds.includes(o);
-    o.name = isCloud ? 'cloud_' + W.clouds.indexOf(o) : 'prop_' + (k++);
+    o.name = isCloud ? 'cloud_' + W.clouds.indexOf(o) : (o.userData && o.userData.bake) || 'prop_' + (k++);   // (moon, float_N keep their names)
+    if (o.userData && o.userData.noCast && !isCloud && !o.userData.bake) o.name += '_nc';   // casts no shadow
     top.add(o);
   }
   glb.root(glb.node(top));
   console.log('world.glb', (glb.write('world.glb') / 1048576).toFixed(2), 'MB,', k, 'props');
-  bake.world = { colliders: W.colliders.map(c => [r3(c.x), r3(c.z), r3(c.r)]), seats: W.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })), bound: W.bound, clouds: W.clouds.length, instances: inst, groundSize: 200 };
+  bake.world = { colliders: W.colliders.map(c => [r3(c.x), r3(c.z), r3(c.r)]), seats: W.seats.map(s => ({ x: r3(s.x), z: r3(s.z), yaw: r3(s.yaw), h: s.h })), bound: W.bound, clouds: W.clouds.length, instances: inst, groundSize: W.groundSize || 200,
+    farColor: W.farColor, floaters: (W.floaters || []).length, lights: (W.lights || []).map(l => ({ p: l.p.map(r3), c: l.c, e: l.e, r: l.r })) };
   if (groundPixels) { png('ground.png', groundPixels.width, groundPixels.height, groundPixels.data); console.log('ground.png', groundPixels.width + 'x' + groundPixels.height); }
 }
 
