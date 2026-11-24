@@ -82,6 +82,19 @@ var dev_hold_jump := false
 var frames := 0
 var light_off: PackedStringArray = []   # dev: rich-lighting features to leave off (ssao, soft, sky, glow, haze)
 var bench_us := 0                  # dev: time from frame 40 to the shot, to report the frame rate
+# the story (the Opening Act and the school): see story.gd. Free roaming as Trap Trick is the other way to play
+var story: Node3D
+var sound: Node
+var mode := "free"                 # free (as Trap Trick), story
+var hud_layer: CanvasLayer
+var dev_scene := ""                # dev: --scene=name starts the story there
+var film_dir := ""                 # dev: --film=dir,every,count saves small stills as the story plays
+var film_every := 30
+var film_n := 0
+var film_max := 40
+var film_from := 8
+var tour: Array = []                # dev: --tour=view;view;... a still of each into --film's folder
+var dev_auto := false              # dev: --auto walks the story on by itself
 
 
 func _ready() -> void:
@@ -93,6 +106,18 @@ func _ready() -> void:
 		elif a == "--walk" or a == "--run": shot_mode = a.substr(2)
 		elif a == "--simple": rich_light = false
 		elif a == "--garden": start_level = "garden"
+		elif a.begins_with("--scene="): dev_scene = a.substr(8)
+		elif a == "--auto": dev_auto = true
+		elif a.begins_with("--tour="):
+			for v in a.substr(7).split(";"):
+				var q := v.split(",")
+				tour.append([Vector3(float(q[0]), float(q[1]), float(q[2])), Vector3(float(q[3]), float(q[4]), float(q[5]))])
+		elif a.begins_with("--film="):
+			var fa := a.substr(7).split(",")
+			film_dir = fa[0]
+			if fa.size() > 1: film_every = int(fa[1])
+			if fa.size() > 2: film_max = int(fa[2])
+			if fa.size() > 3: film_from = int(fa[3])
 		elif a.begins_with("--pos="):
 			var q := a.substr(6).split(",")
 			spawn = Vector3(float(q[0]), float(q[1]), float(q[2]))
@@ -152,6 +177,50 @@ func _ready() -> void:
 	_fade_layer()
 	if not shot_view.is_empty():
 		for c in get_children(): if c is CanvasLayer: (c as CanvasLayer).visible = false
+	sound = preload("res://scripts/sound.gd").new()
+	add_child(sound)
+	sound.setup()
+	story = preload("res://scripts/story.gd").new()
+	add_child(story)
+	story.setup(self)
+	if dev_scene != "" or (shot_path == "" and not OS.get_cmdline_user_args().has("--free")): start_story(dev_scene)
+
+
+## Into the story: its title screen, or (dev) straight to a scene.
+func start_story(scene := "") -> void:
+	mode = "story"
+	tt.visible = false
+	fx.visible = false
+	hud_layer.visible = false
+	travel = {}
+	story.act.begin(scene)
+
+
+## Out of it, to roam as Trap Trick.
+func start_free() -> void:
+	mode = "free"
+	story.mode = "off"
+	story.ui.hide_menu()
+	story.ui.bars_to = 0.0
+	story.ui.bars = 0.0
+	for k in story.stages: story.stages[k].visible = false
+	for k in story.actors: story.actors[k].visible = false
+	fx.visible = true
+	tt.visible = true
+	hud_layer.visible = true
+	_set_level("town")
+	sound.music("")
+	sound.air("town")
+	summon_t = 99.0
+	arrived = true
+	tt.position = Vector3(1.5, 0, 6.0)
+	tt.yaw = 0.35
+	tt.t_yaw = 0.35
+	cam.fov = 50.0
+
+
+func sfx(n: String, at = null, db := 0.0) -> void:
+	if sound: sound.play(n, at, db)
 
 
 ## Every voxel mesh shows its baked vertex colours: lit (Lambert, no shine), or unlit for glowing voxels.
@@ -737,6 +806,19 @@ func _travel_update(dt: float) -> void:
 
 # ------------------------------------------------------------------ input --
 func _unhandled_input(e: InputEvent) -> void:
+	if mode == "story":
+		if e is InputEventKey and e.pressed and not e.echo: story.key(e.physical_keycode)
+		elif e is InputEventJoypadButton and e.pressed:
+			var map := { JOY_BUTTON_A: KEY_E if story.mode != "play" else KEY_SPACE, JOY_BUTTON_X: KEY_E, JOY_BUTTON_Y: KEY_T, JOY_BUTTON_START: KEY_ESCAPE, JOY_BUTTON_DPAD_UP: KEY_UP, JOY_BUTTON_DPAD_DOWN: KEY_DOWN, JOY_BUTTON_DPAD_LEFT: KEY_LEFT, JOY_BUTTON_DPAD_RIGHT: KEY_RIGHT }
+			if map.has(e.button_index): story.key(map[e.button_index])
+		elif e is InputEventMouseButton:
+			if e.button_index == MOUSE_BUTTON_LEFT:
+				dragging = e.pressed
+				if e.pressed: story.click()
+			elif e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_UP: story.wheel(0.9)
+			elif e.pressed and e.button_index == MOUSE_BUTTON_WHEEL_DOWN: story.wheel(1.11)
+		elif e is InputEventMouseMotion and dragging: story.drag(e.relative)
+		return
 	if e is InputEventKey and e.pressed and not e.echo:
 		pressed.append(e.physical_keycode)
 	elif e is InputEventJoypadButton and e.pressed:
@@ -831,6 +913,11 @@ func _input_state(dt: float) -> Dictionary:
 # ------------------------------------------------------------------- loop --
 func _process(dt: float) -> void:
 	dt = minf(dt, 0.05)
+	if sound: sound.update(dt, mode == "story" and story.skipping)
+	if mode == "story":
+		story.process(dt)
+		_dev_frame()
+		return
 	var inp := _input_state(dt)
 	if shot_path != "": _dev_commands()
 	if not travel.is_empty():
@@ -849,7 +936,27 @@ func _process(dt: float) -> void:
 		n.position.y = f.y0 + sin(garden_t * 0.6 + f.ph) * 0.45
 		n.rotation.y += dt * f.spin
 	_update_camera(dt)
+	_dev_frame()
+
+
+func _dev_frame() -> void:
 	frames += 1
+	if not tour.is_empty() and frames >= 30:
+		var i := (frames - 30) / 20
+		if (frames - 30) % 20 == 0 and i > 0:
+			var im := get_viewport().get_texture().get_image()
+			im.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+			im.save_jpg("%s/t%02d.jpg" % [film_dir, i - 1], 0.85)
+			print("view %d tris %.2fM draws %d" % [i - 1, RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME) / 1e6, RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME)])
+		if i >= tour.size(): get_tree().quit()
+		else: shot_view = tour[i]
+		return
+	if film_dir != "" and frames % film_every == 0 and frames > film_from:
+		var im := get_viewport().get_texture().get_image()
+		im.resize(640, 360, Image.INTERPOLATE_LANCZOS)
+		im.save_jpg("%s/f%04d.jpg" % [film_dir, film_n], 0.8)
+		film_n += 1
+		if film_n >= film_max: get_tree().quit()
 	if frames == 40: bench_us = Time.get_ticks_usec()
 	if shot_path != "" and frames == shot_at:
 		if shot_at > 40: print("fps %.1f" % ((shot_at - 40) / ((Time.get_ticks_usec() - bench_us) / 1e6)))
@@ -903,6 +1010,7 @@ func _hud() -> void:
 	(title_font as SystemFont).font_names = PackedStringArray(["Georgia", "Times New Roman", "serif"])
 	(title_font as SystemFont).font_weight = 700
 	var layer := CanvasLayer.new()
+	hud_layer = layer
 	add_child(layer)
 	# name plate
 	var plate := _panel()

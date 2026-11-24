@@ -14,6 +14,8 @@
      town_ground.png  the country round it
      town_core.png    its streets, a pixel to each of her voxels
      people.glb       the townsfolk, each a small rig: person_N > pN_<part>__frame > pN_<part> > pN_<part>__mesh
+     cast.glb         the story's cast and beasts; props.glb: what they handle (cast.js)
+     farm.glb, academy.glb (and their _core.png, _ground.png): the story's places
      bake.json        the rig's metadata (joints, rest positions, panels, hair chains, sockets...), the world's colliders,
                       seats, clouds and the grass and flower instances
    Vertex colours are written as sRGB bytes; Godot's materials read them as sRGB (vertex_color_is_srgb, grain.gdshader). */
@@ -40,7 +42,7 @@ globalThis.document = {
     getContext: () => ({ putCore() {}, createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), putImageData: img => { groundPixels = img; } }),
   }),
 };
-for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'things.js', 'town.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
+for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'things.js', 'town.js', 'stage.js', 'cast.js', 'farm.js', 'academy.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
 
 /* ------------------------------------------------------------- GLB writer -- */
 function GLB() {
@@ -133,11 +135,12 @@ function png(file, w, h, rgba) {
   writeOut(file, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ih), chunk('IDAT', zlib.deflateSync(raw, { level: 9 })), chunk('IEND', Buffer.alloc(0))]));
 }
 
-const bake = {};
+const ONLY = process.argv[2] === 'story';               // just the story's cast and places (quicker); the rest is kept as it was
+const bake = ONLY ? JSON.parse(fs.readFileSync(path.join(OUT, 'bake.json'), 'utf8')) : {};
 const r3 = v => Math.round(v * 1000) / 1000;
 
 /* ------------------------------------------------------------- Trap Trick -- */
-{
+if (!ONLY) {
   const B = TRAPTRICK.build(), rig = B.model.build(), M = B.meta, glb = GLB();
   for (const name in rig.parts) for (const c of rig.parts[name].children) {
     if (c.name && c.name.includes(':') && !c.name.endsWith(':frame')) c.name = name + '__v_' + c.name.split(':')[1];
@@ -157,7 +160,7 @@ const r3 = v => Math.round(v * 1000) / 1000;
 }
 
 /* --------------------------------------------------------------- umbrella -- */
-{
+if (!ONLY) {
   const U = PROPS.umbrella(), glb = GLB();
   U.setOpen(1);
   U.root.name = 'umbrella'; U.canopy.name = 'canopy';
@@ -170,14 +173,14 @@ const r3 = v => Math.round(v * 1000) / 1000;
 }
 
 /* ------------------------------------------------------------------ cards -- */
-{
+if (!ONLY) {
   const glb = GLB();
   for (const suit of ['heart', 'spade', 'diamond', 'club']) { const m = PROPS.cardMesh(suit); m.name = 'card_' + suit; glb.root(glb.node(m)); }
   console.log('cards.glb', (glb.write('cards.glb') / 1024).toFixed(0), 'KB');
 }
 
 /* ------------------------------------------------------------------ world -- */
-{
+if (!ONLY) {
   const scene = new THREE.Scene(), W = new WORLD(scene), glb = GLB();
   const inst = [];
   let k = 0;
@@ -206,7 +209,7 @@ const r3 = v => Math.round(v * 1000) / 1000;
 }
 
 /* ------------------------------------------------------------------- town -- */
-{
+if (!ONLY) {
   const scene = new THREE.Scene(), T = new TOWN(scene), glb = GLB();
   let k = 0;
   const top = new THREE.Group(); top.name = 'town';
@@ -242,6 +245,53 @@ const r3 = v => Math.round(v * 1000) / 1000;
     door: T.door, clouds: T.clouds.length, chickens: T.chickens, sails: T.sails, groundSize: T.groundSize, farColor: T.farColor,
     npcs: T.npcs.map((n, i) => ({ job: n.job, at: n.at || null, route: n.route ? n.route.map(p => p.map(r3)) : null, lines: n.lines, call: !!n.call, slow: !!n.slow, seat: !!n.seat, kid: !!n.look.kid, ...people[i] })),
   };
+}
+
+/* -------------------------------------------------- the story: its cast -- */
+{
+  const glb = GLB(), cast = {};
+  const rigOut = (name, M) => {
+    for (const k of M.order) { M.parts[k].grid.jit = 0; M.parts[k].grid.merge = true; for (const v in M.parts[k].variants) { const g = M.parts[k].variants[v]; g.jit = 0; g.merge = true; } }
+    const rig = M.build();
+    for (const k in rig.parts) for (const c of rig.parts[k].children) { if (c.name && c.name.includes(':') && !c.name.endsWith(':frame')) c.name = name + '_' + k + '__v_' + c.name.split(':')[1]; else if (!c.name) c.name = name + '_' + k + '__mesh'; }
+    for (const k in rig.parts) rig.parts[k].name = name + '_' + k;
+    for (const k in rig.frames) rig.frames[k].name = name + '_' + k + '__frame';
+    rig.root.name = name;
+    glb.root(glb.node(rig.root));
+    return { parts: M.order, s: M.s, info: M.info || {}, variants: Object.fromEntries(M.order.filter(k => Object.keys(M.parts[k].variants).length).map(k => [k, Object.keys(M.parts[k].variants)])), def: Object.fromEntries(M.order.map(k => [k, M.parts[k].o.defaultVariant || ''])) };
+  };
+  for (const name in CAST.people) cast[name] = rigOut(name, CAST.build(name));
+  for (const name in CAST.beasts) cast[name] = rigOut(name, CAST.beasts[name]());
+  console.log('cast.glb', (glb.write('cast.glb') / 1048576).toFixed(2), 'MB,', Object.keys(cast).length, 'rigs');
+  const pg = GLB();
+  for (const name in CAST.props) { const m = VX.object(CAST.props[name](), 0.024, { offset: [0, -0.5, 0] }); m.name = 'prop_' + name; pg.root(pg.node(m)); }
+  console.log('props.glb', (pg.write('props.glb') / 1024).toFixed(0), 'KB');
+  bake.cast = cast;
+}
+
+/* ------------------------------------------------------ the story: places -- */
+for (const [name, Cls] of [['farm', FARM], ['academy', ACADEMY]]) {
+  const scene = new THREE.Scene(), S = new Cls(scene), glb = GLB(), top = new THREE.Group(); top.name = name;
+  let k = 0;
+  for (const o of [...scene.children]) {
+    if (o.position.z <= -400) continue;                       // (a kind placed only to be known)
+    const isCloud = S.clouds.includes(o);
+    o.name = isCloud ? 'cloud_' + S.clouds.indexOf(o) : (o.userData && o.userData.bake) || 'prop_' + (k++);
+    if (o.userData.noCast && !isCloud && !o.userData.bake) o.name += '_nc';
+    if (o.userData.near) o.name += '_near';
+    if (o.userData.lod) o.name += '_lod' + o.userData.lod;
+    top.add(o);
+  }
+  const insts = [];
+  S.instances.forEach((q, i) => { const m = VX.meshPair(q.geo, null, {}); m.name = 'inst_' + i; top.add(m); insts.push({ near: q.near, list: q.list.map(e => e.map(r3)) }); });
+  glb.root(glb.node(top));
+  let quads = 0; top.traverse(o => { if (o.isMesh) quads += o.geometry.index.count / 6; });
+  console.log(name + '.glb', (glb.write(name + '.glb') / 1048576).toFixed(2), 'MB,', k, 'props,', (quads / 1000).toFixed(0) + 'k quads placed');
+  if (S.core) png(name + '_core.png', S.core.w, S.core.h, S.core.data);
+  if (S.ground) png(name + '_ground.png', S.ground.w, S.ground.h, S.ground.data);
+  const rr = a => (a || []).map(e => Array.isArray(e) ? e.map(v => typeof v === 'number' ? r3(v) : v) : e);
+  bake[name] = { core: S.core && { x: r3(S.core.x), z: r3(S.core.z), size: r3(S.core.size) }, ground: S.ground && { x: S.ground.x, z: S.ground.z, size: S.ground.size }, farColor: S.farColor, walk: S.walk, colliders: rr(S.colliders), blocks: rr(S.blocks), seats: S.seats, clouds: S.clouds.length,
+    lights: S.lights, marks: S.marks, hens: S.hens, instances: insts, floors: rr(S.floors), ramps: rr(S.ramps), slabs: rr(S.slabs), doors: S.doors || [], rooms: S.rooms || {}, spots: S.spots || {}, signs: S.signs || [], nodes: rr(S.nodes), edges: S.edges || [], nodeId: S.nodeId || {}, floaters: S.floaters || 0, kitchen: S.kitchen || null };
 }
 
 writeOut('bake.json', Buffer.from(JSON.stringify(bake)));

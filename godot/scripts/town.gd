@@ -26,6 +26,8 @@ var chips: GPUParticles3D
 var t := 0.0
 var bubble_font: Font
 var rng := RandomNumberGenerator.new()
+var extra: Array = []                # the story's people in the town: walked round too
+var near_seen := {}                  # dev: the closest any two have come
 
 const NPC_R := 0.3
 
@@ -126,6 +128,40 @@ func setup(main_node: Node3D, bake: Dictionary) -> void:
 	_people()
 
 
+## Nobody walks inside anybody: whoever is walking is eased off those they meet (those at their work stay put).
+func _apart(dt: float) -> void:
+	for i in npcs.size():
+		var a: Dictionary = npcs[i]
+		if a.spec.route != null:
+			for o in extra:
+				if not is_instance_valid(o) or not o.visible: continue
+				var ex: float = a.pos.x - o.position.x
+				var ez: float = a.pos.z - o.position.z
+				var el := sqrt(ex * ex + ez * ez)
+				if el < 0.7 and el > 0.001: a.pos = _keep_out(a.pos + Vector3(ex / el, 0, ez / el) * (0.7 - el) * (1.0 - exp(-10.0 * dt)), 0.25)
+		for j in range(i + 1, npcs.size()):
+			var b: Dictionary = npcs[j]
+			var dx: float = b.pos.x - a.pos.x
+			var dz: float = b.pos.z - a.pos.z
+			if absf(dx) > 0.7 or absf(dz) > 0.7: continue
+			var d := sqrt(dx * dx + dz * dz)
+			var need := 0.5 if a.spec.kid and b.spec.kid else 0.64
+			if main.dev_auto and d < 0.4 and (not near_seen.has([i, j]) or d < near_seen[[i, j]] - 0.04):
+				near_seen[[i, j]] = d
+				print("TOWN NEAR %s+%s %.2f" % [a.job, b.job, d])
+			if d >= need: continue
+			var fa: bool = a.spec.route == null
+			var fb: bool = b.spec.route == null
+			if fa and fb: continue
+			if d < 0.001:
+				dx = 0.01
+				d = 0.01
+			var push := (need - d) * (1.0 - exp(-18.0 * dt))
+			var ka := 0.0 if fa else (1.0 if fb else 0.5)
+			if not fa: a.pos = _keep_out(a.pos - Vector3(dx / d, 0, dz / d) * push * ka, 0.25)
+			if not fb: b.pos = _keep_out(b.pos + Vector3(dx / d, 0, dz / d) * push * (1.0 - ka), 0.25)
+
+
 func _each_geo(n: Node, f: Callable) -> void:
 	for gi in [n] + n.find_children("*", "GeometryInstance3D", true, false):
 		if gi is GeometryInstance3D: f.call(gi)
@@ -196,7 +232,32 @@ func _npc(n: Dictionary, dt: float, her: Vector3) -> void:
 				n.stuck = 0.0
 			elif not blocked:
 				var want := atan2(d.x, d.y)
+				# others in the way: pass on the right, or hang back until there's room
+				var fw := d.normalized()
+				var swerve := 0.0
+				var slow := 1.0
+				for o in npcs:
+					if o == n or not (o.root as Node3D).visible: continue
+					var to := Vector2(o.pos.x - n.pos.x, o.pos.z - n.pos.z)
+					var ol := to.length()
+					if ol > 1.5 or ol < 0.001 or d.length() < ol - 0.4: continue
+					var off := to.x * fw.y - to.y * fw.x
+					if to.dot(fw) < 0.0 or absf(off) > 0.66: continue
+					var k := clampf(1.0 - (ol - 0.5) / 1.0, 0.0, 1.0)
+					swerve += (-1.0 if off >= -0.04 else 1.0) * k * 1.15
+					if ol < 0.75: slow = minf(slow, 0.5)
+				for o in extra:
+					if not is_instance_valid(o) or not o.visible: continue
+					var to := Vector2(o.position.x - n.pos.x, o.position.z - n.pos.z)
+					var ol := to.length()
+					if ol > 1.9 or ol < 0.001: continue
+					var off := to.x * fw.y - to.y * fw.x
+					if to.dot(fw) < 0.0 or absf(off) > 0.8: continue
+					swerve += (-1.0 if off >= -0.04 else 1.0) * clampf(1.0 - (ol - 0.5) / 1.4, 0.0, 1.0) * 1.3
+				want += -clampf(swerve, -1.2, 1.2)
+				speed *= slow
 				n.yaw = lerp_angle(n.yaw, want, 1.0 - exp(-(9.0 if run else 6.0) * dt))
+				if swerve != 0.0: d = Vector2(sin(want), cos(want)) * d.length()
 				var step := minf(speed * dt, d.length())
 				var dir := Vector2(sin(n.yaw), cos(n.yaw)).lerp(d.normalized(), 0.5).normalized()
 				n.pos += Vector3(dir.x, 0, dir.y) * step
@@ -630,6 +691,7 @@ func update(dt: float, her: Vector3) -> void:
 			npcs[i].root.rotation.y = PI if main.light_off.has("backs") else 0.0
 		return
 	for n in npcs: _npc(n, dt, her)
+	_apart(dt)
 	# the door: its hatch swings up, the light below brightens, a few sparkles always slip out through the cracks
 	if door_leaf:
 		var a := _ease(door_open) * 1.85

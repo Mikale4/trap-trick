@@ -14,6 +14,10 @@
      the shoulder pivot. L.h adds rows to one person's height.
    Parts: hips (root) > torso > head, uArmL/R > fArmL/R; hips > thighL/R >
    shinL/R; hips > skirt (dresses). Hands and tools ride on the forearms.
+
+   L.story (the cast of the story: cast.js) gives a person what the cutscenes
+   need: eyes and mouth as parts with expressions, hands as parts with shapes,
+   feet that flex, a skirt in two halves, a cape or a hat that moves.
    ========================================================================== */
 (function () {
   'use strict';
@@ -38,23 +42,25 @@
     woman: { K: 18.5, Hp: 33.5, Wt: 38, Sh: 52.5, UA: 9, FA: 8, legX: 3, thR: 2.3, knR: 1.9, caR: 2.1, anR: 1.6, hipW: 4.6, wW: 3.6, wC: 4.5, dW: 2.7, dC: 3.0, bust: 0.8, upR: 1.8, foR: 1.5, head: 13, jaw: 'v' },
     man:   { K: 20.5, Hp: 36.5, Wt: 41, Sh: 56.5, UA: 10, FA: 9, legX: 3, thR: 2.3, knR: 2.0, caR: 2.2, anR: 1.8, hipW: 4.7, wW: 4.6, wC: 5.4, dW: 3.0, dC: 3.3, bust: 0, upR: 2.0, foR: 1.8, head: 13, jaw: 'square' },
     big:   { K: 21.5, Hp: 38.5, Wt: 43, Sh: 59.5, UA: 10, FA: 9, legX: 4, thR: 3.0, knR: 2.3, caR: 2.6, anR: 2.0, hipW: 6.0, wW: 5.8, wC: 6.4, dW: 3.8, dC: 3.9, bust: 0, upR: 2.6, foR: 2.0, head: 13, jaw: 'square' },
+    teen:  { K: 18.5, Hp: 33.5, Wt: 37, Sh: 51.5, UA: 9, FA: 8, legX: 3, thR: 2.1, knR: 1.8, caR: 2.0, anR: 1.6, hipW: 4.2, wW: 3.9, wC: 4.6, dW: 2.7, dC: 2.9, bust: 0, upR: 1.8, foR: 1.5, head: 13, jaw: 'v' },
     kid:   { K: 11.5, Hp: 21.5, Wt: 25, Sh: 36.5, UA: 7, FA: 6, legX: 2, thR: 1.6, knR: 1.5, caR: 1.5, anR: 1.4, hipW: 3.4, wW: 3.2, wC: 3.6, dW: 2.3, dC: 2.5, bust: 0, upR: 1.5, foR: 1.5, head: 12, jaw: 'v' },
   };
   const seedOf = L => { let h = 7; const s = JSON.stringify(L); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
 
   function build(L) {
-    const kind = L.kid ? 'kid' : L.big ? 'big' : (L.fem != null ? (L.fem ? 'woman' : 'man') : (L.dress ? 'woman' : 'man'));
+    const kind = L.kid ? 'kid' : L.teen ? 'teen' : L.big ? 'big' : (L.fem != null ? (L.fem ? 'woman' : 'man') : (L.dress ? 'woman' : 'man'));
     const b = Object.assign({}, BODY[kind]);
     if (L.h) { b.K += Math.round(L.h / 2); b.Hp += L.h; b.Wt += L.h; b.Sh += L.h; }
-    const fem = kind === 'woman' || (kind === 'kid' && !!L.dress);
+    const fem = kind === 'woman' || (kind === 'kid' && !!L.dress), story = !!L.story;
+    const young = fem || kind === 'kid' || kind === 'teen';                // big eyes, a soft mouth
     const M = new VX.Model(S);
     const seed = seedOf(L);
     const skin = SKIN[L.skin || 0], skin2 = mul(skin, 0.965, 0.9, 0.875);
-    const hairC = HAIR[L.hair || 'brown'], hairL = tint(hairC, 0.22), hairD = shade(hairC, 0.72);
+    const hairC = typeof L.hair === 'number' ? L.hair : HAIR[L.hair || 'brown'], hairL = tint(hairC, 0.22), hairD = shade(hairC, 0.72);
     const eyeC = L.eye || EYES[seed % EYES.length];
     const shirt = L.shirt || 0x8a6a4a, legs = L.legs || 0x4a3a30, boots = L.boots || 0x4e3628;
     const mail = !!L.tabard || !!L.mail, robe = !!(L.dress && L.long && L.sleeve);
-    const sleeve = L.sleeve || shirt;
+    const sleeve = L.uniform || L.sleeve || shirt;
     const { K, Hp, Wt, Sh } = b;
     const E = Sh - b.UA, Wr = E - b.FA, B = Sh + 3.5, topRow = Sh + 0.5;
     const noise = (c, x, y, z, k) => H(x, y, z) < (k || 0.16) ? shade(c, 0.93) : c;
@@ -101,7 +107,7 @@
     }
 
     /* ================================================================ LEGS == */
-    const bootTop = L.dress ? 2 : (kind === 'kid' ? Math.round(K * 0.45) : Math.round(3 + (K - 3) * 0.5));
+    const bootTop = L.uniform ? Math.round(3 + (K - 3) * 0.42) : L.dress ? 2 : (kind === 'kid' ? Math.round(K * 0.45) : Math.round(3 + (K - 3) * 0.5));
     const legR = y => {
       if (y >= K) { const t = (y - K) / (Hp - K); return b.knR + (b.thR - b.knR) * Math.min(1, t * 1.7); }
       const t = (y - 3) / (K - 3);
@@ -115,48 +121,51 @@
       const sh = M.part('shin' + n, 'thigh' + n, [cx, K, 0]);
       for (let y = 3; y <= K - 0.5; y++) {
         const boot = y <= bootTop, r = boot ? Math.max(legR(y) + 0.35, b.anR + 0.5) : legR(y);
-        sh.disc(cx, 0, r, y, y, (x, yy, z) => boot ? (H(x, yy, z) < 0.2 ? shade(shoe, 0.9) : shoe) : noise(legs, x, yy, z, 0.12));
+        sh.disc(cx, 0, r, y, y, (x, yy, z) => boot ? (H(x, yy, z) < 0.2 ? shade(shoe, 0.9) : shoe) : L.patch && s < 0 && yy >= K - 4 && z >= 1 && Math.abs(x - cx) <= 1 ? (yy === Math.round(K - 4) ? shade(L.patch, 0.8) : L.patch) : noise(legs, x, yy, z, 0.12));
       }
       if (bootTop > 4)                                                    // the boot top, turned down
         sh.disc(cx, 0, Math.max(legR(bootTop) + 0.35, b.anR + 0.5) + 0.6, bootTop, bootTop, (x, y, z) => x * s <= 0 ? -1 : tint(shoe, 0.16));
       // the foot: a sole, the upper, the instep sloping to the toe; women's shoes have a buckle
       const fw = Math.max(1, Math.round(b.anR)), toe = kind === 'kid' ? 4 : (fem ? 5 : 6), heel = kind === 'kid' ? -2 : -3;
+      const ft = story ? M.part('foot' + n, 'shin' + n, [cx, 3, 0]) : sh;
       for (let y = 0; y <= 2; y++) for (let x = cx - fw; x <= cx + fw; x++) for (let z = heel; z <= toe; z++) {
         const ex = Math.abs(x - cx);
         if (ex === fw && (z === heel || z === toe)) continue;
         if (y === 2 && z > toe - 2) continue;
         if (y === 1 && z === toe && ex === fw - 1 && fw > 1) continue;
-        sh.set(x, y, z, y === 0 ? shade(shoe, 0.5) : (y === 1 && z <= heel + 1 ? shade(shoe, 0.8) : shoe));
+        ft.set(x, y, z, y === 0 ? shade(shoe, 0.5) : (y === 1 && z <= heel + 1 ? shade(shoe, 0.8) : shoe));
       }
-      if (fem) sh.set(cx, 2, toe - 2, BRASS);
+      if (fem) ft.set(cx, 2, toe - 2, BRASS);
     }
 
     /* ======================================================= DRESS SKIRT == */
     let skirt = null;
     if (L.dress) {
+      const halves = story && !L.long, pleat = !!L.uniform;
       skirt = M.part('skirt', 'hips', [0, Wt, 0]);
-      const hem = L.long ? 2 : Math.round(K - (kind === 'kid' ? 3 : 7));
-      const flare = L.long ? 5.4 : (kind === 'kid' ? 2.6 : 4.6), span = Wt - 1 - hem;
+      const skF = halves ? M.part('skirtF', 'hips', [0, Wt - 1, 0]) : skirt, skB = halves ? M.part('skirtB', 'hips', [0, Wt - 1, 0]) : skirt;
+      const hem = pleat ? Math.round(K + 1) : L.long ? 2 : Math.round(K - (kind === 'kid' ? 3 : 7));
+      const flare = pleat ? 3.4 : L.long ? 5.4 : (kind === 'kid' ? 2.6 : 4.6), span = Wt - 1 - hem;
       const trim = L.trim || tint(L.dress, 0.3);
       for (let y = hem; y <= Wt - 1; y++) {
         const t = (Wt - 1 - y) / span, rx = b.hipW + 0.8 + flare * Math.pow(t, 1.1), rz = b.dW + 1.2 + flare * 0.8 * t;
         for (let x = -Math.ceil(rx) - 1; x <= Math.ceil(rx) + 1; x++) for (let z = -Math.ceil(rz) - 1; z <= Math.ceil(rz) + 1; z++) {
           if ((x / (rx + 0.45)) ** 2 + (z / (rz + 0.45)) ** 2 > 1) continue;
           if (y < Wt - 1 && (x / (rx - 1.2)) ** 2 + (z / (rz - 1.2)) ** 2 < 1) continue;
-          const f = Math.cos(Math.atan2(z / rz, x / rx) * 10 + 0.3);
-          let c = t > 0.22 && f < -0.55 ? shade(L.dress, 0.84) : (t > 0.22 && f > 0.8 ? tint(L.dress, 0.07) : noise(L.dress, x, y, z, 0.1));
+          const f = Math.cos(Math.atan2(z / rz, x / rx) * (pleat ? 14 : 10) + 0.3);
+          let c = pleat ? (f < -0.35 ? shade(L.dress, 0.74) : f > 0.75 ? tint(L.dress, 0.08) : L.dress) : t > 0.22 && f < -0.55 ? shade(L.dress, 0.84) : (t > 0.22 && f > 0.8 ? tint(L.dress, 0.07) : noise(L.dress, x, y, z, 0.1));
           if (y === hem) c = shade(L.dress, 0.74);
           else if (y === hem + 2 && !robe) c = trim;
-          skirt.set(x, y, z, c);
+          (y >= Wt - 2 ? skirt : z >= 0 ? skF : skB).set(x, y, z, c);
         }
       }
       if (L.apron) {                                                      // the apron over the skirt's front, a pocket on it
         for (let y = hem + 3; y <= Wt - 1; y++) {
           const t = (Wt - 1 - y) / span, aw = Math.round(2.6 + t * 2.2);
           for (let x = -aw; x <= aw; x++) {
-            const z = frontOf(skirt, x, y); if (z == null) continue;
+            const sk = y >= Wt - 2 ? skirt : skF, z = frontOf(sk, x, y); if (z == null) continue;
             const pocket = y >= hem + 7 && y <= hem + 10 && x >= 1 && x <= 3;
-            skirt.set(x, y, z + 1, y === hem + 3 ? shade(L.apron, 0.86) : (pocket && (y === hem + 10 || x === 1 || x === 3) ? shade(L.apron, 0.9) : L.apron));
+            sk.set(x, y, z + 1, y === hem + 3 ? shade(L.apron, 0.86) : (pocket && (y === hem + 10 || x === 1 || x === 3) ? shade(L.apron, 0.9) : L.apron));
           }
         }
       }
@@ -167,6 +176,20 @@
     const bod = L.dress ? (L.bodice || L.dress) : shirt;
     const torsoCol = (x, y, z, p) => {
       const ax = Math.abs(x), front = z >= 1 && z === fz(x, p);
+      if (L.uniform) {                                                    // the academy's jacket over a white shirt: lapels edged in gold, a tie, brass buttons
+        const cut = topRow - 5 - (fem ? 0 : 1);
+        if (front && y >= cut && ax <= Math.ceil((y - cut + 1) * 0.5)) {
+          const edge = ax === Math.ceil((y - cut + 1) * 0.5);
+          if (edge && ax > 0) return L.band || BRASS;
+          if (ax === 0 && y < topRow) return (y - cut) & 1 ? L.tie : shade(L.tie, 0.82);
+          return 0xf4efe2;
+        }
+        if (front && ax === 1 && x > 0 && (y === cut - 2 || y === cut - 4)) return BRASS;
+        if (y === Wt) return L.band || BRASS;
+        if (ax === Math.round(p[0]) && z === 0) return shade(L.uniform, 0.85);
+        return noise(L.uniform, x, y, z, 0.12);
+      }
+      if (L.braces && z !== 0 && (ax === 3) && y < topRow) return y === Wt + 1 && z > 0 ? BRASS : L.braces;
       if (L.dress && !robe) {                                             // a bodice laced over the chemise
         if (front && y >= topRow - 2 && ax <= 3) return y === topRow - 2 ? tint(shirt, 0.2) : shirt;
         if (front && ax === 0) return shirt;
@@ -216,7 +239,7 @@
       put(-1, cy - 2, 0x4f8a44); put(1, cy - 2, 0x4f8a44); put(-2, cy - 2, 0x3f7a3a); put(2, cy - 2, 0x3f7a3a);
     }
     // a belt with a buckle (tunics), or a waist sash line (dresses)
-    if (!L.dress) {
+    if (!L.dress && !L.uniform) {
       const belt = L.belt || 0x3a281c;
       for (const [x, z] of ring(tor, Wt)) tor.set(x, Wt, z, belt);
       const bz = frontOf(tor, 0, Wt);
@@ -258,6 +281,30 @@
       for (const s of [1, -1]) tor.set(s * 3, topRow, frontOf(tor, s * 3, topRow) + 1, BRASS);
     }
 
+    if (L.cape) {                                                         // the academy's half-cape: hangs from the shoulders behind, and swings
+      const cp = M.part('cape', 'torso', [0, topRow, (backOf(tor, 0, topRow - 1) || -3) - 0.5]);
+      const bot = Math.round(Wt - (fem ? 4 : 5)), zb0 = (backOf(tor, 0, topRow - 3) || -3) - 1;
+      for (let y = bot; y <= topRow; y++) {
+        const t = (topRow - y) / (topRow - bot), hw = Math.round(chestX + 0.4 + t * 2.4);
+        for (let x = -hw; x <= hw; x++) {
+          const fold = Math.cos(x * 1.15), z = Math.round(zb0 - 0.3 - t * 1.2 - fold * 0.4 * t);
+          const c = y === bot || (Math.abs(x) === hw && t > 0.1) ? (L.band || BRASS) : fold < -0.4 ? shade(L.cape, 0.84) : noise(L.cape, x, y, z, 0.12);
+          cp.set(x, y, z, c); if (t < 0.12) cp.set(x, y, z + 1, L.cape);
+        }
+      }
+      for (const s of [1, -1]) {                                          // it comes over the shoulders to a clasp on the chest
+        for (let z = zb0; z <= 1; z++) for (let x = chestX - 2; x <= chestX; x++) tor.set(s * x, topRow + 1, z, x === chestX - 2 ? (L.band || BRASS) : L.cape);
+        for (let x = 3; x <= chestX; x++) { const z = frontOf(tor, s * x, topRow - 1); if (z != null) { tor.set(s * x, topRow - 1, z + 1, x === 3 ? BRASS : L.cape); tor.set(s * x, topRow, z + 1, L.cape); } }
+      }
+    }
+    if (L.satchel) {                                                      // a strap across the chest, a leather satchel on the left hip
+      const lea = 0x8a5a34;
+      tor.paint((x, y, z) => { const k = (y - Wt) / (topRow - Wt), sx = 5 - k * 9; return y >= Wt && y <= topRow && Math.abs(x - sx) <= 0.9 && (z >= 2 || z <= -2) && (z === frontOf(tor, x, y) || z === backOf(tor, x, y)); }, 0x6a4226);
+      const bx = chestX + 2, st = M.part('satchel', 'hips', [bx - 2, Wt, 0]);
+      st.box(bx - 1, Wt - 8, -4, bx + 1, Wt - 1, 4, (x, y, z) => y === Wt - 8 || Math.abs(z) === 4 ? shade(lea, 0.8) : (H(x, y, z) < 0.15 ? shade(lea, 0.92) : lea));
+      st.box(bx + 2, Wt - 5, -4, bx + 2, Wt - 1, 4, (x, y, z) => y === Wt - 5 ? shade(lea, 0.75) : tint(lea, 0.08)); st.set(bx + 2, Wt - 5, 0, BRASS); st.set(bx + 2, Wt - 4, 0, BRASS);
+    }
+
     /* ================================================================ HEAD == */
     const hd = M.part('head', 'torso', [0, Sh + 1.5, 0]);
     const nw = fem || kind === 'kid' ? 1 : 2;
@@ -276,10 +323,11 @@
       if (inSkull(x, y, z)) hd.set(x, y, z, z >= 2 ? skin : skin2);
     for (const s of [1, -1]) { hd.set(s * (W + 1), B + 5, 0, skin2); hd.set(s * (W + 1), B + 6, 0, skin2); hd.set(s * (W + 1), B + 5, -1, skin2); }
 
+    if (story) paintFace({ M, hd, skin, skin2, B, FZ, HR, W, inSkull, L, young, fem, kind, eyeC, hairC, hairD, seed });
     // the face, painted on the front plane like hers: lash, iris (dark to light), two catch-lights
     const put = (x, r, c) => hd.set(x, B + r, FZ, c);
     const eD = shade(eyeC, 0.5), eL = tint(eyeC, 0.4);
-    for (const s of [1, -1]) {
+    if (!story) for (const s of [1, -1]) {
       const X = i => s * (2 + i), hiX = s > 0 ? X(0) : X(2), loX = s > 0 ? X(2) : X(0);
       if (L.old) {                                                        // kindly, crinkled, nearly shut
         put(s * 1, 5, LASH); put(s * 2, 6, LASH); put(s * 3, 6, LASH); put(s * 4, 6, LASH); put(s * 5, 5, LASH);
@@ -303,8 +351,8 @@
       }
     }
     const mouth = fem || kind === 'kid' ? (L.lips ? LIP : mix(skin, LIP, 0.45)) : shade(skin, 0.7);
-    for (const x of [-1, 0, 1]) put(x, 2, mouth);
-    if (L.blush || kind === 'kid') {
+    if (!story) for (const x of [-1, 0, 1]) put(x, 2, mouth);
+    if (!story && (L.blush || kind === 'kid')) {
       const bc = mix(skin, BLUSH, 0.6);
       for (const s of [1, -1]) if (kind === 'kid') { put(s * 3, 3, bc); put(s * 4, 3, bc); } else { put(s * 4, 3, bc); put(s * 5, 3, bc); put(s * 5, 4, bc); }
     }
@@ -380,6 +428,36 @@
         hd.ell(0, by, bz, 2.7, 2.5, 2.3, (x, y, z) => (Math.floor(Math.hypot(x, y - by) * 1.4) & 1) ? hairC : (H(x, y, z) < 0.5 ? hairD : hairL));
         if (!tucked) hd.line(-4, by + 1, bz, 4, by - 1, bz, WOOD_L);
       }
+    } else if (style === 'messy') {                                      // Reiner's: a farm boy's mop, tufts every way, one that won't lie down
+      shell(0.1, HR - 3, HR - 6, 3);
+      for (const [x, z, rx, ry] of [[-4, 2, 1.9, 1.2], [3.5, 2.5, 1.9, 1.1], [0.5, 0, 2.3, 1.7], [-3, -3, 2, 1.4], [4, -2, 1.8, 1.4], [0, -4, 2.2, 1.2]]) hd.ell(x, B + HR + 0.9, z, rx, ry, rx, hairCol);
+      hd.line(1, B + HR + 2, -2, 3, B + HR + 5, -4, hairCol, 0.5); hd.line(0, B + HR + 2, -2, -1, B + HR + 4, -5, hairCol, 0.4);      // the cowlick
+      for (const sd of [1, -1]) {
+        for (const [r, z] of [[HR - 4, -2], [HR - 6, 0], [HR - 8, -3], [HR - 3, 1]]) hd.line(sd * (W + 1), B + r + 1, z, sd * (W + 3), B + r - 1, z - 1, hairCol, 0.4);
+        hd.box(sd * (W + 1), B + 5, 1, sd * (W + 1), B + HR - 5, 2, hairCol);
+      }
+      for (const [x, r] of [[-4, 2], [-1, 3], [3, 2], [0, 5], [5, 4]]) hd.line(x, B + r + 1, Z0 - 1, x * 1.1, B + r - 1, Z0 - 3, hairCol, 0.4);
+      bangs(x => [3, 2, 3, 2, 1, 2, 4, 3, 1, 2, 3, 2, 3][x + 6] || 0);
+      for (let x = -4; x <= 4; x++) if ((x + 20) % 3 !== 1) hd.box(x, B + HR - 3 + (x & 1), FZ + 2, x, B + HR, FZ + 2, hairCol);      // the fringe stands out in two layers
+    } else if (style === 'pigtails') {                                   // a little girl's: two bunches tied high
+      shell(-0.1, HR - 3, HR - 5, 3);
+      bangs(FEM_BANGS);
+      locks(5, HR - 3);
+      for (const sd of [1, -1]) {
+        const g = M.part('tuft' + (sd > 0 ? 'L' : 'R'), 'head', [sd * (W + 2), B + HR - 3, -2]), rb = L.ribbon || 0xd84a5a;
+        g.ell(sd * (W + 4), B + HR - 5, -2.5, 2.3, 3.4, 2.2, hairCol); g.ell(sd * (W + 4.5), B + HR - 8.5, -2.5, 1.5, 2.2, 1.4, hairCol);
+        g.box(sd * (W + 2), B + HR - 4, -3, sd * (W + 2), B + HR - 2, -1, rb); g.set(sd * (W + 2), B + HR - 1, -3, rb); g.set(sd * (W + 2), B + HR - 1, -1, shade(rb, 0.8));
+      }
+    } else if (style === 'bob') {                                        // cut straight at the jaw
+      shell(0.2, HR - 3, 2, 1);
+      bangs(x => [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3][x + 6] || 0);
+      locks(2, HR - 2);
+    } else if (style === 'curls') {
+      shell(0.4, HR - 3, HR - 7, 3);
+      for (let i = 0; i < 34; i++) { const a = H(i, 3, seed & 255) * TAU, r = HR - 6 + H(i, 5, 1) * 8, x = Math.sin(a) * (W + 0.8), z = Math.cos(a) * (W - 0.2) - 1; if (z > 3 && r < HR - 1) continue; hd.ell(x, B + r, z, 1.4, 1.4, 1.4, hairCol); }
+      bangs(x => [2, 2, 1, 2, 2, 1, 2, 2, 1, 2, 2, 1, 2][x + 6] || 0);
+    } else if (style === 'maron') {                                      // Trap Trick's own hair, brushed and tied for school: see cast.js
+      for (const sd of [1, -1]) for (let r = 2; r <= HR - 2; r++) for (let z = r < 4 ? 3 : 2; z <= 4; z++) hd.set(sd * (W + 1), B + r, z, r <= 2 ? hairD : hairCol(sd * (W + 1), B + r, z));
     } else if (style === 'bald') {                                       // a horseshoe of hair round the back and sides
       for (let y = B + 4; y <= B + 8; y++) for (let x = -W - 1; x <= W + 1; x++) for (let z = Z0 - 1; z <= 2; z++) {
         if (inSkull(x, y, z)) continue;
@@ -435,7 +513,7 @@
           if (ok) hd.set(x, y, z, r === bot && long ? hairD : hairCol(x, y, z));
         }
       }
-      for (const x of [-1, 0, 1]) put(x, 2, 0x5a3030);
+      if (!story) for (const x of [-1, 0, 1]) put(x, 2, 0x5a3030);
     }
 
     /* ---------------------------------------------------------------- hats */
@@ -488,7 +566,8 @@
       hd.line(5, y0 + 2, hcz - 1, 8, y0 + 7, hcz - 5, fc, 0.6); hd.line(8, y0 + 7, hcz - 5, 9, y0 + 10, hcz - 9, tint(fc, 0.3), 0.45);
       hd.line(5, y0 + 2, hcz - 1, 9, y0 + 10, hcz - 9, shade(fc, 0.75));
     }
-    if (L.hat === 'witch') {                                              // a mage's pointed hat, bent over at the tip
+    if (L.hat === 'witch') {
+      const hd = story ? M.part('hat', 'head', [0, T0 - 1, hcz]) : M.parts.head.grid;                                              // a mage's pointed hat, bent over at the tip
       const y0 = T0 - 1;
       for (let x = -13; x <= 13; x++) for (let z = -14; z <= 12; z++) { const d = Math.hypot(x, z - hcz); if (d <= 11.8) hd.set(x, d > 10.8 ? y0 - 1 : y0, z, d > 10.8 ? shade(hc, 0.8) : noise(hc, x, y0, z, 0.15)); }
       for (let y = y0 + 1; y <= y0 + 16; y++) {
@@ -497,6 +576,9 @@
         hd.disc(ox, hcz + oz, r, y, y, (x, yy, z) => y <= y0 + 2 ? (L.band || BRASS) : noise(hc, x, yy, z, 0.15));
       }
     }
+    if (L.ears === 'fox') for (const sd of [1, -1]) for (let k = 0; k < 7; k++) { const hw = k < 2 ? 2 : k < 5 ? 1.4 : 0.6; for (let x = -2; x <= 2; x++) if (Math.abs(x) <= hw) for (let z = -1; z <= 0; z++) hd.set(sd * (5 - k * 0.12) + x, T0 + k, z + 1, z === 0 && Math.abs(x) < hw - 0.4 && k < 5 ? 0xf0d0c0 : k > 4 ? hairD : hairC); }
+    if (L.ears === 'long') for (const sd of [1, -1]) { hd.line(sd * (W + 1), B + 5, 0, sd * (W + 6), B + 8, -3, skin, 0.5); hd.set(sd * (W + 7), B + 9, -3, skin2); }
+    if (L.horns) for (const sd of [1, -1]) for (let t = 0; t <= 1; t += 0.05) hd.ell(sd * (4.5 + Math.sin(t * 2.6) * 4.5), B + HR - 2 + t * 4 - t * t * 2, 2 - t * 9 + t * t * 5, 1.5 - t, 1.5 - t, 1.5 - t, Math.floor(t * 10) & 1 ? 0x8a7a68 : 0xa09080);
     if (L.flower) {                                                       // a flower tucked behind the ear
       const fx = W + 2, fy = B + HR - 3;
       hd.set(fx, fy, 3, 0xffd04a);
@@ -505,8 +587,8 @@
 
     /* ================================================================ ARMS == */
     const sleeveCol = (x, y, z) => mail ? (((x + z + y) & 1) ? STEEL : STEEL_D) : noise(sleeve, x, y, z, 0.14);
-    const cuffCol = mail ? STEEL_L : (robe ? (L.band || BRASS) : tint(sleeve, 0.2));
-    const puff = L.dress && !robe;
+    const cuffCol = mail ? STEEL_L : (robe || L.uniform ? (L.band || BRASS) : tint(sleeve, 0.2));
+    const puff = L.dress && !robe && !L.uniform;
     for (const s of [1, -1]) {
       const n = s > 0 ? 'L' : 'R', ax = s * armX;
       const ua = M.part('uArm' + n, 'torso', [ax, Sh, 0]);
@@ -523,9 +605,20 @@
       else if (!robe) fa.disc(ax, 0, b.foR + 0.45, Wr + 0.5, Wr + 0.5, cuffCol);
       // the hand: a palm, the fingers on the inner side, a thumb in front
       const hand = L.gloves || skin, hand2 = L.gloves ? shade(L.gloves, 0.85) : skin2;
+      if (story) {                                                        // hands of their own: they turn at the wrist and take shapes
+        const w = Math.round(Wr - 0.5);
+        M.part('hand' + n, 'fArm' + n, [ax, w + 0.5, 0], { defaultVariant: 'relax' });
+        const palm = (g, y0) => g.box(ax - 1, y0, -1, ax + 1, w, 1, hand), V = k => M.variant('hand' + n, k);
+        const relax = V('relax'); palm(relax, w - 2); relax.box(ax - (s > 0 ? 1 : 0), w - 3, -1, ax + (s > 0 ? 0 : 1), w - 3, 1, hand2); relax.set(ax, w - 1, 2, hand); relax.set(ax, w - 2, 2, hand2);
+        const fist = V('fist'); palm(fist, w - 2); for (let z = -1; z <= 1; z++) fist.set(ax - s, w - 2, z, hand2); fist.set(ax - s, w - 1, 1, hand2); fist.set(ax, w - 1, 2, hand2);
+        const point = V('point'); palm(point, w - 2); point.box(ax, w - 5, 1, ax, w - 3, 1, hand); point.set(ax, w - 5, 1, hand2); point.set(ax, w - 1, 2, hand2);
+        const open = V('open'); palm(open, w - 2); for (const z of [-1, 0, 1]) open.box(ax, w - (z === 0 ? 5 : 4), z, ax, w - 3, z, z === 0 ? hand2 : hand); open.set(ax, w - 1, 2, hand); open.set(ax, w - 2, 3, hand);
+        const hold = V('hold'); palm(hold, w - 2); hold.box(ax - s, w - 2, 2, ax, w - 2, 2, hand); hold.set(ax - s, w - 3, 1, hand2); hold.set(ax - s, w - 3, 0, hand2); hold.set(ax, w - 1, 2, hand2);
+      } else {
       fa.box(ax - 1, Wr - 2.5, -1, ax + 1, Wr - 0.5, 1, hand);
       fa.box(ax - (s > 0 ? 1 : 0), Wr - 3.5, -1, ax + (s > 0 ? 0 : 1), Wr - 3.5, 1, hand2);
       fa.set(ax, Wr - 1.5, 2, hand); fa.set(ax, Wr - 2.5, 2, hand2);
+      }
       // what the hand holds
       const gy = Wr - 1.5, tool = s > 0 ? L.left : L.right;
       if (tool === 'basket' || tool === 'bucket') {
@@ -639,8 +732,93 @@
     // how tall they stand, with the hat (for speech bubbles), and what the town needs to pose them
     let top = 0;
     hd.paint((x, y) => { if (y > top) top = y; return false; }, 0);
-    M.info = { kind, top: (top + 1) * S, seat: b.thR + 0.3, dress: !!L.dress, ua: b.UA * S, fa: (b.FA + 1.5) * S };   // (ua, fa: shoulder to elbow, elbow to the middle of the fist)
+    M.info = { kind, top: (top + 1) * S, seat: b.thR + 0.3, dress: !!L.dress, ua: b.UA * S, fa: (b.FA + 1.5) * S,
+      thigh: (Hp - K) * S, shin: K * S, hip: Hp * S, head: (Sh + 1.5) * S, eye: (B + 6) * S, sh: Sh * S, armX: armX * S };   // (ua, fa: shoulder to elbow, elbow to the middle of the fist)
     return M;
+  }
+
+  /* The faces of the story's cast. The eyes (rows 4-10) and the mouth (rows 1-3) are plates of their own on the face's
+     plane, each in several expressions, so any eyes go with any mouth and people can blink, look and talk. */
+  function paintFace(o) {
+    const { M, hd, skin, skin2, B, FZ, HR, W, inSkull, L, young, kind, eyeC, hairC, hairD } = o;
+    const eD = shade(eyeC, 0.5), eL = tint(eyeC, 0.4), brow = hairD, DARK = 0x5a2030, TONGUE = 0xe07a86, TEETH = 0xfdf7f2;
+    const lipC = L.lips ? LIP : young ? mix(skin, LIP, 0.5) : shade(skin, 0.68), bc = mix(skin, BLUSH, 0.6);
+    const on = (x, r) => inSkull(x, B + r, FZ) && Math.abs(x) <= W - 1;
+    M.part('eyes', 'head', M.parts.head.pivot, { defaultVariant: 'open' });
+    M.part('mouth', 'head', M.parts.head.pivot, { defaultVariant: 'flat' });
+    for (let x = -W; x <= W; x++) for (let r = 1; r <= 10; r++) if (on(x, r)) hd.del(x, B + r, FZ);
+    for (let x = -W; x <= W; x++) for (let r = 1; r <= 10; r++) if (on(x, r) && inSkull(x, B + r, FZ - 1)) hd.set(x, B + r, FZ - 1, skin2);
+    const blushAt = (x, r) => (L.blush || kind === 'kid') && (kind === 'kid' ? r === 3 && (Math.abs(x) === 3 || Math.abs(x) === 4) : (r === 3 && (Math.abs(x) === 4 || Math.abs(x) === 5)) || (r === 4 && Math.abs(x) === 5));
+    const freckle = (x, r) => L.freckles && ((r === 4 && (Math.abs(x) === 1)) || (r === 3 && Math.abs(x) === 3) || (r === 3 && Math.abs(x) === 1 && x > 0));
+    const base = (x, r) => blushAt(x, r) ? bc : freckle(x, r) ? mix(skin, 0xb06a40, 0.45) : skin;
+    const plate = (part, name, r0, r1, draw) => {
+      const g = M.variant(part, name);
+      for (let x = -W; x <= W; x++) for (let r = r0; r <= r1; r++) if (on(x, r)) g.set(x, B + r, FZ, base(x, r));
+      draw((x, r, c) => { if (on(x, r) && r >= r0 && r <= r1) g.set(x, B + r, FZ, c); });
+    };
+    /* eyes: f(put, s) draws one; s +1 the person's left (+x), -1 the right. X(i): i 0 inner .. 2 outer */
+    const eyes = (name, f) => plate('eyes', name, 4, 10, put => { for (const s of [1, -1]) f(put, s, i => s * (2 + i)); });
+    const brows = (put, s, kindOf) => {                      // up, flat, worry (inner up), stern (inner down)
+      if (kind === 'kid') return;
+      for (let i = 1; i <= 4; i++) { const r = kindOf === 'up' ? 10 : kindOf === 'worry' ? (i <= 2 ? 10 : 9) : kindOf === 'stern' ? (i <= 2 ? 8.6 : 9.6) : 9.6; put(s * i, Math.round(r), brow); }
+    };
+    if (young) {
+      const lid = (put, s, r) => { for (let i = -1; i <= 2; i++) put(s * (2 + i), r, LASH); if (!L.boy) put(s * 5, r - 1, LASH); };
+      const iris = (put, s, X, top, dx) => {                 // three wide, from row `top` down to row 4 (kids 5), the light at the bottom
+        const x = i => X(i) + (dx || 0), hi = s > 0 ? x(0) : x(2), lo = s > 0 ? x(2) : x(0);
+        if (dx) for (let i = -1; i <= 3; i++) for (let r = 4; r <= top; r++) if (Math.abs(2 + i - 3) <= 2) put(s * (2 + i), r, i < 0 || i > 2 ? skin : WHITE);
+        for (let i = 0; i <= 2; i++) for (let r = 4; r <= top; r++) put(x(i), r, r >= 6 ? (r === 6 && i === 1 ? eD : r >= 7 ? eD : eyeC) : r === 5 ? (i === 1 ? eD : eyeC) : i === 2 ? eyeC : eL);
+        put(hi, Math.min(top, 7), WHITE); if (top >= 7) put(hi, 6, WHITE); put(lo, 4, WHITE);
+      };
+      eyes('open', (put, s, X) => { lid(put, s, 8); iris(put, s, X, 7); brows(put, s, 'flat'); });
+      eyes('lookL', (put, s, X) => { lid(put, s, 8); iris(put, s, X, 7, 1); brows(put, s, 'flat'); });
+      eyes('lookR', (put, s, X) => { lid(put, s, 8); iris(put, s, X, 7, -1); brows(put, s, 'flat'); });
+      eyes('half', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6); brows(put, s, 'flat'); });
+      eyes('soft', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6); brows(put, s, 'up'); });
+      eyes('shut', (put, s) => { put(s, 6, LASH); for (let i = 2; i <= 4; i++) put(s * i, 5, LASH); put(s * 5, 6, LASH); brows(put, s, 'flat'); });
+      eyes('happy', (put, s) => { put(s, 5, LASH); put(s * 2, 6, LASH); put(s * 3, 7, LASH); put(s * 4, 6, LASH); put(s * 5, 5, LASH); brows(put, s, 'up'); });
+      eyes('wide', (put, s, X) => { for (let i = -1; i <= 2; i++) put(s * (2 + i), 9, LASH); for (let i = -1; i <= 2; i++) for (let r = 5; r <= 8; r++) put(s * (2 + i), r, WHITE); for (let i = 0; i <= 1; i++) for (let r = 5; r <= 7; r++) put(X(i), r, r === 7 ? eD : r === 6 ? eD : eyeC); put(X(s > 0 ? 0 : 1), 7, WHITE); brows(put, s, 'up'); });
+      eyes('sad', (put, s, X) => { put(s, 8, LASH); put(s * 2, 8, LASH); put(s * 3, 7, LASH); put(s * 4, 7, LASH); put(s * 5, 6, LASH); iris(put, s, X, 6); put(s * 2, 7, eD); brows(put, s, 'worry'); });
+      eyes('worry', (put, s, X) => { lid(put, s, 8); iris(put, s, X, 7); brows(put, s, 'worry'); });
+      eyes('stern', (put, s, X) => { put(s, 6, LASH); put(s * 2, 7, LASH); put(s * 3, 7, LASH); put(s * 4, 8, LASH); put(s * 5, 8, LASH); for (let i = 0; i <= 2; i++) for (let r = 4; r <= 6 + (i === 2 ? 1 : 0); r++) put(X(i), r, r >= 6 ? eD : r === 5 ? (i === 1 ? eD : eyeC) : eL); brows(put, s, 'stern'); });
+      eyes('squeeze', (put, s) => { put(s, 6, LASH); put(s * 2, 6, LASH); put(s * 3, 7, LASH); put(s * 4, 8, LASH); put(s * 3, 5, LASH); put(s * 4, 4, LASH); put(s * 2, 6, LASH); brows(put, s, 'stern'); });      // > <
+      eyes('down', (put, s, X) => { for (let i = -1; i <= 2; i++) put(s * (2 + i), 6, LASH); put(s * 5, 5, LASH); for (let i = 0; i <= 2; i++) { put(X(i), 5, eD); put(X(i), 4, eyeC); } brows(put, s, 'flat'); });
+      eyes('wink', (put, s, X) => { if (s > 0) { lid(put, s, 8); iris(put, s, X, 7); } else { put(s, 5, LASH); put(s * 2, 6, LASH); put(s * 3, 7, LASH); put(s * 4, 6, LASH); put(s * 5, 5, LASH); } brows(put, s, 'flat'); });
+    } else {
+      const crow = put => {};
+      const lid = (put, s, r) => { for (let i = -1; i <= 2; i++) put(s * (2 + i), r, LASH); };
+      const iris = (put, s, X, top, dx) => { const x = i => X(i) + (dx || 0); if (dx) for (let i = 0; i <= 2; i++) for (let r = 5; r <= top; r++) put(X(i), r, WHITE); for (let i = 0; i <= 2; i++) for (let r = 5; r <= top; r++) put(x(i), r, r === top && top > 5 ? eD : i === 1 ? eL : eyeC); put(s > 0 ? x(0) : x(2), top, WHITE); };
+      eyes('open', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6); brows(put, s, 'flat'); });
+      eyes('lookL', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6, 1); brows(put, s, 'flat'); });
+      eyes('lookR', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6, -1); brows(put, s, 'flat'); });
+      eyes('half', (put, s, X) => { lid(put, s, 6); iris(put, s, X, 5); brows(put, s, 'flat'); });
+      eyes('soft', (put, s, X) => { lid(put, s, 6); iris(put, s, X, 5); brows(put, s, 'up'); });
+      eyes('shut', (put, s) => { for (let i = -1; i <= 2; i++) put(s * (2 + i), 5, LASH); brows(put, s, 'flat'); });
+      eyes('happy', (put, s) => { put(s, 5, LASH); put(s * 2, 6, LASH); put(s * 3, 6, LASH); put(s * 4, 5, LASH); brows(put, s, 'up'); });
+      eyes('wide', (put, s, X) => { lid(put, s, 8); for (let i = 0; i <= 2; i++) for (let r = 5; r <= 7; r++) put(X(i), r, WHITE); put(X(1), 6, eD); put(X(1), 5, eyeC); put(X(0), 6, eD); put(X(0), 5, eyeC); brows(put, s, 'up'); });
+      eyes('sad', (put, s, X) => { put(s, 7, LASH); put(s * 2, 7, LASH); put(s * 3, 6, LASH); put(s * 4, 6, LASH); iris(put, s, X, 5); put(X(0), 6, eD); brows(put, s, 'worry'); });
+      eyes('worry', (put, s, X) => { lid(put, s, 7); iris(put, s, X, 6); brows(put, s, 'worry'); });
+      eyes('stern', (put, s, X) => { put(s, 6, LASH); put(s * 2, 6, LASH); put(s * 3, 7, LASH); put(s * 4, 7, LASH); iris(put, s, X, 5); brows(put, s, 'stern'); });
+      eyes('squeeze', (put, s) => { put(s, 6, LASH); put(s * 2, 6, LASH); put(s * 3, 7, LASH); put(s * 3, 5, LASH); put(s * 4, 7, LASH); put(s * 4, 5, LASH); brows(put, s, 'stern'); });
+      eyes('down', (put, s, X) => { lid(put, s, 5); brows(put, s, 'flat'); });
+    }
+    if (L.specs) for (const k in M.parts.eyes.variants) {    // round spectacles, low on the nose
+      const g = M.variant('eyes', k);
+      for (const s of [1, -1]) { for (let i = 2; i <= 4; i++) g.set(s * i, B + 3, FZ + 1, 0x6a5a3a); g.set(s * 5, B + 4, FZ + 1, 0x6a5a3a); g.set(s, B + 4, FZ + 1, 0x6a5a3a); }
+      g.set(0, B + 5, FZ + 1, 0x6a5a3a);
+    }
+    const mouth = (name, rows) => plate('mouth', name, 1, 3, put => { for (const [x, r, c] of rows) put(x, r, c || lipC); });
+    mouth('flat', [[-1, 2], [0, 2], [1, 2]]);
+    mouth('smile', [[-2, 3], [-1, 2], [0, 2], [1, 2], [2, 3]]);
+    mouth('smirk', [[-1, 2], [0, 2], [1, 2], [2, 3]]);
+    mouth('frown', [[-2, 1], [-1, 2], [0, 2], [1, 2], [2, 1]]);
+    mouth('wavy', [[-2, 2], [-1, 1], [0, 2], [1, 1], [2, 2]]);
+    mouth('small', [[0, 2], [-1, 2]]);
+    mouth('open', [[-1, 2, DARK], [0, 2, DARK], [1, 2, DARK], [-1, 1, DARK], [0, 1, TONGUE], [1, 1, DARK]]);
+    mouth('mid', [[-1, 2, DARK], [0, 2, DARK], [1, 2, DARK], [0, 1]]);
+    mouth('oh', [[0, 3, DARK], [-1, 2, DARK], [0, 2, DARK], [1, 2, DARK], [0, 1, DARK]]);
+    mouth('grin', [[-2, 3, DARK], [-1, 3, TEETH], [0, 3, TEETH], [1, 3, TEETH], [2, 3, DARK], [-1, 2, DARK], [0, 2, TONGUE], [1, 2, DARK]]);
+    mouth('shout', [[-2, 3, DARK], [-1, 3, TEETH], [0, 3, TEETH], [1, 3, TEETH], [2, 3, DARK], [-2, 2, DARK], [-1, 2, DARK], [0, 2, DARK], [1, 2, DARK], [2, 2, DARK], [-1, 1, DARK], [0, 1, TONGUE], [1, 1, DARK]]);
   }
 
   window.PEOPLE = { build };

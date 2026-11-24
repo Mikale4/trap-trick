@@ -16,3 +16,4 @@
 /tools/*
 !/tools/serve.py
 !/tools/bake_godot.js
+!/tools/make_audio.py

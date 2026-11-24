@@ -8,6 +8,41 @@ pleats, a band of playing cards, then blue, white, navy and lilac ruffles), a bi
 mismatched stockings (dark argyle on her right, white harlequin lattice on her left), blue ankle bows and black platform
 Mary Janes. She carries a **playing-card umbrella**.
 
+## The story (desktop version)
+
+The story is about **Reiner**, a farm boy accepted at the Mage Academy without a spark of talent. A classmate, **Maron**,
+ends up tutoring him. He doesn't know who she is after school.
+
+- **The Opening Act** (about 15 minutes, twelve parts): dawn at the farm, chores (played), the letter, leaving home,
+  Thistlewick (played), the Academy, Owl House (played), the candle lesson, a few bad weeks, the bargain, the first
+  lesson, the night. Hold `Tab` to skip a scene. Any part can be started from *Chapters*.
+- **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there.
+- **School Days:** the whole campus, free to roam: a school of three floors (stairs, doors that open and shut), the
+  glasshouse, the practice yard, the court, two boarding houses with a warden, common room and bedrooms each. Three years
+  of pupils and their masters keep a timetable by a clock and a bell whose ring can be seen. Go to class, talk, read,
+  sleep. `E` uses things, `T` shows the timetable, `Esc` pauses.
+
+| Keys (story) | |
+|---|---|
+| `W A S D`, `Shift`, `Space` | walk, run, hop |
+| `E` | talk, open, sit, read, go on |
+| `T` | the timetable (at the Academy) |
+| `Tab` (hold) | skip a scene |
+| `Esc` | pause |
+
+A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, `Y` the timetable, Start to pause.
+
+How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js` (the places,
+their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
+In Godot: `story.gd` (places, camera, speech, the hour, the player), `act1.gd` (the Opening Act, scene by scene),
+`actor.gd` (one of the cast: springs, IK, gestures, faces), `campus.gd` (the school's life), `stage.gd` (a place: floors,
+stairs, doors, paths), `ui.gd`, `sound.gd`. Sound and music are synthesised by `tools/make_audio.py`.
+
+Testing it: `--scene=0` to `--scene=11` starts at a part, `--scene=school16.4` the school at that hour, `--auto` plays on by
+itself and reports anyone standing closer than 40 cm to someone else, `--film=dir,every,count,from` saves stills,
+`--tour=x,y,z,tx,ty,tz;...` stills from given views, `--scene=simday` a whole school day, `--scene=test` the basics,
+`--free` starts roaming as Trap Trick.
+
 ## The town (desktop version)
 
 The world is an old, quiet fantasy one: villages and market towns, roads between them, understated magic. The desktop
@@ -166,6 +201,8 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/town.js` | the town (desktop version; buildings in 4.8 cm voxels): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
 | `js/things.js` | the town's small things at her own 2.4 cm voxel: food and goods, stalls, benches, barrels, the well, the fountain, the forge, signs, the cat and the hens |
 | `js/people.js` | the townsfolk's voxel rigs, built from a short description each, in her own voxel style and scale (2.4 cm voxels; women about her height, men a little taller) |
+| `js/cast.js`, `js/stage.js`, `js/farm.js`, `js/academy.js` | the story's cast and places (desktop version) |
+| `tools/make_audio.py` | makes the story's sound and music |
 | `godot/` | the Godot desktop version (`scripts/town.gd`: the town and its people) |
 
 Kept on the local machine only (not in the repository): `reference/` (the character sheets), `tools/viewer.html`

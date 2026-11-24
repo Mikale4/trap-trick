@@ -661,5 +661,6 @@
   }
 
   window.TOWN = Town;
+  window.TOWN_KIT = { houseGrid, houseShadowGrid, treeGrid, crownGrid, forestTreeGrid, windmillGrid, hillGrid, mountainGrid, cloudGrid, coarsen, stoneAt, brickAt, PAL };
   window.TOWN_WALK = WALK;
 })();
