@@ -53,6 +53,20 @@
     for (const [y, w] of [[18, 0], [36, 1]]) g.box(2, y, -1, 82, y + 3, 1, (x, yy, z) => (yy === y + 3 ? 0x9c8260 : H(x >> 4, yy, w) < 0.4 ? 0x7e6448 : 0x8c7254));
     return g;
   }
+  function henPanel(len) {                               // a run's picket fence, `len` voxels along x: pales a hand apart, two rails behind, a post at its start
+    const g = G();
+    for (const y of [9, 25]) g.box(0, y, -2, len, y + 2, -1, (x, yy) => yy === y + 2 ? 0x9c8260 : 0x7e6448);
+    for (let x = 3; x < len - 1; x += 5) { const h = 33 + R(H(x, len, 3) * 2), c = H(x, 5, len) < 0.3 ? 0x9a8262 : H(x, 6, len) < 0.5 ? 0x8c7254 : 0xa48c6a; g.box(x, 1, 0, x + 2, h, 0, (X, y) => y === h && X !== x + 1 ? -1 : y < 4 ? mul(c, 0.75) : c); }
+    g.box(-2, 0, -2, 1, 40, 1, (x, y) => y > 38 ? OAK_L : H(x, y >> 2, 1) < 0.3 ? 0x7a6248 : 0x8a7052);
+    return g;
+  }
+  function henGate() {                                   // its wicket: hung at the origin, 1.4 m along x, a brace across, a latch at the far end
+    const g = G(), L = 58;
+    for (const y of [9, 25]) g.box(0, y, -2, L, y + 2, -1, (x, yy) => yy === y + 2 ? 0x9c8260 : 0x7e6448);
+    for (let x = 1; x < L - 1; x += 5) { const h = 32; g.box(x, 2, 0, x + 2, h, 0, (X, y) => y === h && X !== x + 1 ? -1 : (x / 5 | 0) & 1 ? 0xa48c6a : 0x94795a); }
+    g.line(2, 11, -2, L - 3, 25, -2, 0x7e6448, 1.1); g.box(L - 4, 18, 1, L, 19, 1, 0x3a3a42); for (const y of [10, 26]) g.box(-1, y, 1, 7, y, 1, 0x3a3a42);
+    return g;
+  }
   function scarecrowGrid() {
     const g = G(); g.box(-1, 0, -1, 0, 60, 0, OAK_D); g.box(-30, 44, -1, 30, 46, 0, OAK_D);
     g.box(-8, 24, -4, 8, 47, 4, (x, y, z) => H(x >> 2, y >> 2, z) < 0.12 ? 0xb83a3a : y < 26 && H(x, 3, z) < 0.5 ? -1 : 0x5a6a8a); for (const s of [-1, 1]) { g.box(s * 9, 41, -3, s * 24, 49, 3, (x, y, z) => H(x >> 2, y >> 2, z) < 0.1 ? 0xc8a858 : 0x5a6a8a); for (let k = 0; k < 5; k++) g.line(s * 25, 43 + k, k - 2, s * 31, 41 + k * 1.5, k - 2, STRAW); }
@@ -77,7 +91,7 @@
   function tuftGrid() { const g = G(); for (const [x, z, h, c] of [[0, 0, 7, 0x6fb04a], [2, 1, 5, 0x5f9a42], [-2, 1, 6, 0x7abc54], [1, -2, 4, 0x5a9440], [-1, -1, 8, 0x68a848]]) g.box(x, 0, z, x, h, z, c); return g; }
   function flowerGrid(c) { const g = G(); g.box(0, 0, 0, 0, 5, 0, 0x4f8a3a); g.set(1, 2, 0, 0x5f9a42); g.set(0, 6, 0, 0xf0d04a); for (const [x, z] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x, 6, z, c); return g; }
   function cabbageGrid() { const g = G(); g.ell(0, 3, 0, 4, 3, 4, (x, y, z) => H(x, y, z) < 0.3 ? 0x9cc878 : 0x84b860); for (let k = 0; k < 7; k++) { const a = k / 7 * TAU; g.line(Math.cos(a) * 3, 1, Math.sin(a) * 3, Math.cos(a) * 6, 4, Math.sin(a) * 6, 0x5f9a48, 0.7); } return g; }
-  function troughGrid() { const g = G(); for (const s of [-1, 1]) g.box(s * 20 - 2, 0, -8, s * 20 + 2, 6, 8, OAK_D); g.box(-26, 7, -8, 26, 22, 8, (x, y, z) => Math.abs(x) > 24 || Math.abs(z) > 6 || y < 9 ? (y % 7 === 0 ? mul(OAK, 0.7) : OAK) : y === 18 ? 0x5a8ccc : -1); return g; }
+  function troughGrid() { const g = G(); for (const s of [-1, 1]) g.box(s * 20 - 2, 0, -8, s * 20 + 2, 6, 8, OAK_D); g.box(-26, 7, -8, 26, 22, 8, (x, y, z) => Math.abs(x) > 24 || Math.abs(z) > 6 || y < 9 ? (y % 7 === 0 ? mul(OAK, 0.7) : OAK) : y === 9 ? mul(OAK, 0.6) : -1); return g; }
   function gatePost() { const g = G(); g.box(-5, 0, -5, 5, 60, 5, (x, y, z) => K.stoneAt(x + z + 60, y, 3)); g.box(-6, 61, -6, 6, 64, 6, 0xbdb6ad); g.ell(0, 69, 0, 4, 4, 4, 0xa9a29a); return g; }
   function milestone() { const g = G(); g.box(-5, 0, -3, 5, 22, 3, (x, y, z) => y > 18 && Math.abs(x) > 3 ? -1 : H(x >> 1, y >> 1, z) < 0.3 ? 0x968f88 : 0xa9a29a); for (const [x, y] of [[-2, 14], [-1, 14], [0, 14], [1, 14], [2, 14], [0, 13], [0, 12], [0, 11], [0, 10]]) g.set(x, y, 4, 0x5a544e); return g; }
   function signGrid() { const g = G(); g.box(-1, 0, -1, 1, 70, 1, OAK_D); for (const [y, s, w] of [[56, 1, 24], [44, -1, 20]]) g.box(s > 0 ? 0 : -w, y, 2, s > 0 ? w : 0, y + 9, 3, (x, yy) => (Math.abs(x) > w - 4 && Math.abs(yy - y - 4.5) > (w - Math.abs(x)) + 1) ? -1 : yy === y || yy === y + 9 ? DARK : yy === y + 5 && Math.abs(x) % 4 !== 0 && Math.abs(x) > 3 && Math.abs(x) < w - 5 ? DARK : OAK_L); return g; }
@@ -124,6 +138,7 @@
         const n = H(px, py, 7), n2 = H(R(x * 1.6), R(z * 1.6), 3), rd = road(x, z);
         if (garden(x, z)) return ((Math.floor(z * 2.2)) & 1) ? (n < 0.3 ? 0x5a4030 : 0x664a38) : (n < 0.3 ? 0x6e523e : 0x7a5c46);
         if (z > 9 && rd < 1.5) { const rut = Math.abs(Math.abs(x - 0.5 - (z > 20 ? Math.sin((z - 20) * 0.05) * 3 * Math.min(1, (z - 20) / 20) : 0)) - 0.75) < 0.16; return rut ? (n < 0.4 ? 0x7c6348 : 0x856a4e) : rd < 0.35 ? (n < 0.3 ? 0x7a9a50 : 0x948050) : n < 0.35 ? 0x9c8260 : n < 0.7 ? 0xa48a68 : 0x927858; }
+        if (x > -16.5 && x < -8.7 && z > 10.5 && z < 13.9) { const m = H(R(x * 1.7), R(z * 1.7), 9); return m < 0.5 || (x > -14.5 && x < -9.5 && m < 0.8) ? (n < 0.2 ? 0xa08a62 : n < 0.6 ? 0x927c56 : 0x8a7450) : n < 0.5 ? 0x74a04c : 0x6a9646; }
         const y = yard(x, z);
         if (y < 0) return n < 0.12 ? 0xb8a280 : n < 0.5 ? 0xa48c68 : n < 0.9 ? 0x9c8460 : 0x8a7454;
         const f = field(x, z);
@@ -148,7 +163,7 @@
       this.block(-11.9, -11.8, -3.1, -4.7);
       P('barn', barnGrid, SB, 11.2, -8.5, 0, { ao: false }); this.block(7.4, -13.2, 15.0, -3.8);
       // the yard
-      P('well', T.well, S1, 4.2, 0.4, 0.4); this.col(4.2, 0.4, 0.8); this.marks.well = [4.2, 0.4];
+      P('well', () => T.well({ bare: true }), S1, 4.2, 0.4, 0.4); this.col(4.2, 0.4, 0.8); this.marks.well = [4.2, 0.4];
       P('trough', troughGrid, S1, 8.2, -2.6, 0); this.col(8.0, -2.6, 0.5); this.col(8.7, -2.6, 0.5); this.marks.trough = [8.2, -2.6];
       P('logs', T.woodpile, S1, -3.0, -3.9, 0); this.col(-2.4, -3.9, 0.6); this.col(-3.6, -3.9, 0.5); this.col(-1.8, -3.8, 0.4);
       P('barrel', T.barrel, S1, -11.2, -3.9, 0); this.col(-11.2, -3.9, 0.4); P('barrel', T.barrel, S1, 7.1, -3.3, 0.6); this.col(7.1, -3.3, 0.4);
@@ -168,7 +183,12 @@
       this.block(-15.0, 4.8, -9.8, 9.3);
       // fences: round the yard, the hen yard, along the road
       const fence = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), n = R(L / 2), ry = Math.atan2(-(z1 - z0), x1 - x0); for (let i = 0; i < n; i++) P('rail', railGrid, S1, x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n, ry); this.wall(x0, z0, x1, z1, 0.16); };
-      fence(-17, 14, -1.5, 14); fence(2.5, 14, 15, 14); fence(15, 14, 15, -2); fence(-17, 10.4, -8.6, 10.4); fence(-8.6, 10.4, -8.6, 11.4); fence(-8.6, 12.9, -8.6, 14);
+      fence(-8.6, 14, -1.5, 14); fence(2.5, 14, 15, 14); fence(15, 14, 15, -2);
+      // the hen run: pickets all round (8 by 3.6 m), a wicket in the yard side
+      const run = (x0, z0, x1, z1, n) => { const L = Math.hypot(x1 - x0, z1 - z0), vx = R(L / n / S1), ry = Math.atan2(-(z1 - z0), x1 - x0); for (let i = 0; i < n; i++) P('pale' + vx, () => henPanel(vx), S1, x0 + (x1 - x0) * i / n, z0 + (z1 - z0) * i / n, ry); this.wall(x0, z0, x1, z1, 0.14); };
+      run(-16.6, 14, -8.6, 14, 4); run(-8.6, 10.4, -16.6, 10.4, 4); run(-16.6, 10.4, -16.6, 14, 2); run(-8.6, 14, -8.6, 12.9, 1); run(-8.6, 11.42, -8.6, 10.4, 1);
+      P('paleend', () => { const g = G(); g.box(-2, 0, -2, 1, 42, 1, (x, y) => y > 40 ? OAK_L : 0x8a7052); return g; }, S1, -8.6, 12.9, 0); this.place('paleend', -8.6, 11.42, 0);
+      P('hengate', henGate, S1, -8.6, 12.86, HP, { name: 'hengate' });
       fence(-1.5, 15, -1.5, 21); fence(2.5, 15, 2.5, 21);
       for (const x of [-1.5, 2.5]) { P('gatepost', gatePost, S1, x, 14.2, 0); this.col(x, 14.2, 0.25); }
       P('sign', signGrid, S1, 3.4, 15.2, 0.2); this.col(3.4, 15.2, 0.2); this.marks.sign = [3.4, 15.2];

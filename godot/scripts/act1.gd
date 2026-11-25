@@ -22,6 +22,7 @@ const PARTS1 := ["Dawn", "Chores", "The letter", "Leaving home", "Thistlewick", 
 var PARTS: Array = []
 var ch1: Node
 var ch2: Node
+var ch3: Node
 var bond := {}                        # how well Reiner knows people: { who: points }
 var flag := {}                        # what has happened (sub-parts seen, things given)
 var snaps := {}                       # how things stood with everyone at the start of each part, for playing it again
@@ -37,7 +38,11 @@ func _ready() -> void:
 	ch2.s = s
 	ch2.a = self
 	add_child(ch2)
-	PARTS = PARTS1 + ch1.NAMES + ch2.NAMES2
+	ch3 = load("res://scripts/ch3.gd").new()
+	ch3.s = s
+	ch3.a = self
+	add_child(ch3)
+	PARTS = PARTS1 + ch1.NAMES + ch2.NAMES2 + ch3.NAMES3
 	_load_bonds()
 
 
@@ -96,7 +101,19 @@ func begin(scene: String) -> void:
 				a.mouth = ["flat", "smile", "open", "frown", "grin", "smirk"][i % 6]
 				i += 1
 			s.mode = "film"
-		"farm", "academy":
+		"cast3":
+			s.go_place("farm")
+			s.hour = 9.0
+			var j := 0
+			for n in ["penny", "erebus", "arnold", "dunstan", "hettie", "gus"]:
+				var a: Node3D = s.enter(n, Vector3(-3.0 + j * 1.2, 0, 5.0), 0.0)
+				a.eyes = "open"
+				a.mouth = ["smile", "flat"][j % 2]
+				j += 1
+			var c: Dictionary = _beast("cat", Vector3(4.6, 0, 5.2), 0.5)
+			c.sp = 0.0
+			s.mode = "film"
+		"farm", "academy", "snow":
 			s.go_place(scene)
 			s.hour = 10.0
 			s.mode = "film"
@@ -110,6 +127,7 @@ func begin(scene: String) -> void:
 			start(0)
 		"night": _night_test()
 		"owl": _owl_test()
+		"keys": _keys_test()
 		"swing": _swing_test()
 		"test": _test()
 		"simtown":
@@ -118,6 +136,229 @@ func begin(scene: String) -> void:
 			s.hour = 11.0
 			s.play()
 		_: school(float(scene.trim_prefix("school")))
+
+
+func _press(code: int, secs := 0.08) -> void:
+	for on in [true, false]:
+		var e := InputEventKey.new()
+		e.physical_keycode = code
+		e.pressed = on
+		Input.parse_input_event(e)
+		if on: await s.wait(secs)
+
+
+## Dev: on foot through these places, W held, the camera turned the way to go.
+func _walk(pts: Array, what: String) -> void:
+	var e := InputEventKey.new()
+	e.physical_keycode = KEY_W
+	e.pressed = true
+	Input.parse_input_event(e)
+	for q in pts:
+		var t0: float = s.time
+		while s.mode == "play" and s.time < t0 + 25.0 and Vector2(q.x - s.hero.position.x, q.z - s.hero.position.z).length() > 0.4:
+			s.cam_yaw = atan2(q.x - s.hero.position.x, q.z - s.hero.position.z) + PI
+			await s.beat()
+		if s.time >= t0 + 25.0: print("STUCK ", what, " at ", s.hero.position, " for ", q)
+	e = InputEventKey.new()
+	e.physical_keycode = KEY_W
+	e.pressed = false
+	Input.parse_input_event(e)
+	print("keys: ", what, "  hero ", s.hero.position, "  mode ", s.mode, "  prompt '", s.ui.prompt_l.text if s.ui.prompt_p.visible else "", "'")
+
+
+## Dev: the chores, the town and an afternoon for two, with the keys; and the camera in the great doorway.
+func _keys_test() -> void:
+	var what: String = s.main.dev_bond
+	s.main.dev_bond = ""
+	if what == "" or what.contains("farm"):
+		start(1)
+		await s.until(func(): return s.mode == "play" and s.hero != null, 30.0)
+		await s.wait(1.0)
+		await _walk([Vector3(-2, 0, 9), Vector3(-7.9, 0, 12.15)], "to the gate")
+		await _press(KEY_E)
+		await s.wait(0.9)
+		await _walk([Vector3(-9.6, 0, 12.2), Vector3(-10.6, 0, 12.2)], "into the run")
+		await _press(KEY_E)
+		await s.until(func(): return s.ui.obj_l.text.begins_with("Draw"), 14.0)
+		print("gate open ", s.stage.doors["hengate"].open, "  objective ", s.ui.obj_l.text)
+		await _walk([Vector3(-9.5, 0, 12.2)], "back to the gate")
+		if not s.stage.doors["hengate"].want: await _press(KEY_E)
+		await s.wait(0.9)
+		await _walk([Vector3(-7.0, 0, 12.2), Vector3(-2, 0, 8), Vector3(3.2, 0, 2.2)], "to the well")
+		await s.wait(0.8)
+		print("gate after ", s.stage.doors["hengate"].open)
+		await _press(KEY_E)
+		await s.until(func(): return s.ui.obj_l.text.begins_with("Fill") and s.mode == "play", 30.0)
+		print("objective ", s.ui.obj_l.text, "  holding ", s.hero.held.R)
+		await _walk([Vector3(6.4, 0, 1.6), Vector3(8.2, 0, -1.2)], "to the trough")
+		await _press(KEY_E)
+		await s.until(func(): return part == 2, 30.0)
+		print("chores done, part ", part, "  trough ", trough.position.y if is_instance_valid(trough) else 0.0)
+	if what == "" or what.contains("town"):
+		start(4)
+		await s.until(func(): return s.mode == "play" and s.hero != null and s.hero.visible, 90.0)
+		await s.wait(1.0)
+		await _walk([Vector3(1.6, 0, 12), Vector3(2.0, 0, 7.4), Vector3(8, 0, 2.2), Vector3(13, 0, 0), Vector3(26, 0, 0), Vector3(33, 0, 0), Vector3(37.6, 0, 0)], "out at the east gate")
+		await s.until(func(): return s.mode == "play", 60.0)
+		await s.wait(0.5)
+		await _walk([Vector3(48, 0, 0), Vector3(57.5, 0, 0)], "up the road")
+		await s.until(func(): return part == 5, 30.0)
+		print("town done, part ", part)
+	if what == "" or what.contains("free"):
+		bond = {}
+		flag = {}
+		start(28)
+		for who in ["dorn", "kas"]:
+			await s.until(func(): return s.mode == "play" and not s.locked and ch2.free_on.has(who), 60.0)
+			await s.wait(1.0)
+			var f: Dictionary = ch2.free_on[who]
+			s.hero.place(f.p + Vector3(0.9, 0, 0.9), 0.0)
+			await s.wait(0.5)
+			print("keys: by ", who, "  prompt '", s.ui.prompt_l.text, "'  objective '", s.ui.obj_l.text, "'")
+			await _press(KEY_E)
+			await s.wait(2.0)
+			var seen := 0
+			while ch2.spending:                                # press on through the talk, and choose the first
+				await _press(KEY_E)
+				await s.wait(0.5)
+				seen += 1
+				if part != 28:
+					print("BAD: the next part began while still with ", who)
+					break
+			print("after ", who, ": part ", part, "  slots ", ch2.slots, "  presses ", seen, "  flags ", flag.keys())
+		await s.until(func(): return part == 29, 20.0)
+		print("afternoon done, part ", part)
+	if what == "" or what.contains("cam"):
+		school(12.0)
+		await s.wait(2.0)
+		for q in [Vector3(0, 0, -2.6), Vector3(0, 0, -2.9), Vector3(0, 0, -3.1), Vector3(0.3, 0, -3.3), Vector3(0, 0, -4.6), Vector3(0, 0, -5.4), Vector3(0.3, 0.05, -6.2), Vector3(0, 0.05, -7.0), Vector3(-0.4, 0.05, -7.8), Vector3(0, 0.05, -8.8), Vector3(0.6, 0, -3.6)]:
+			for yaw in [0.0, 0.35, -0.5]:
+				s.hero.place(q, yaw)
+				s.cam_yaw = yaw + PI
+				await s.wait(1.6)
+				var lo := 99.0
+				var hi := 0.0
+				var flips := 0
+				var last := 0.0
+				var dir := 0.0
+				for k in 90:
+					var d: float = s.main.cam.global_position.distance_to(s.cam_tgt)
+					if last > 0.0 and absf(d - last) > 0.004:
+						if dir != 0.0 and signf(d - last) != dir: flips += 1
+						dir = signf(d - last)
+					last = d
+					lo = minf(lo, d)
+					hi = maxf(hi, d)
+					await s.beat()
+				print("cam %s yaw %.2f  from %.2f to %.2f m  turns %d" % [q, yaw, lo, hi, flips])
+	await _keys3(what)
+	print("keys done")
+
+
+## Dev: past what's only to be watched.
+func _to_play(limit := 60.0) -> void:
+	var t0: float = s.time
+	while s.mode != "play" or s.locked:
+		s.skipping = true
+		if s.time > t0 + limit * 20.0:
+			print("BAD never to play, part ", part)
+			return
+		await s.beat()
+	await s.wait(0.4)
+
+
+func _hold(code: int, on: bool) -> void:
+	var e := InputEventKey.new()
+	e.physical_keycode = code
+	e.pressed = on
+	Input.parse_input_event(e)
+
+
+## Dev: the third chapter's played parts, with the keys.
+func _keys3(what: String) -> void:
+	var path := [Vector3(0, 0, 46), Vector3(0, 0, 30), Vector3(0, 0, 16), Vector3(3, 0, 11), Vector3(6.5, 0, 6), Vector3(6.5, 0, -8), Vector3(3, 0, -13), Vector3(-3.5, 0, -17), Vector3(-3.5, 0, -36)]
+	if what.contains("pen"):
+		start(40)
+		while part < 43:
+			await _to_play()
+			if part >= 43: break
+			if s.goal == null:
+				await s.wait(0.5)
+				continue
+			var g: Vector3 = s.goal
+			var pts: Array = []
+			if part < 42:
+				for q in path: if q.z < s.hero.position.z - 1.0 and q.z > g.z + 1.0: pts.append(q)
+			pts.append(g + (s.hero.position - g).normalized() * 0.7)
+			var was: int = part
+			await _walk(pts, "part %d '%s'" % [part, s.ui.obj_l.text])
+			if s.mode == "play" and part == was and part != 41: await _press(KEY_E)
+			await s.wait(1.0)
+		print("pen done, part ", part)
+	if what.contains("lamp"):
+		start(47)
+		await _to_play()
+		_hold(KEY_F, true)
+		await s.wait(1.0)
+		print("keys: awake ", ch3.awake, " mana %.2f" % ch3.mana)
+		await s.wait(2.0)
+		print("keys: held too long: awake ", ch3.awake, " mana %.2f locked " % ch3.mana, s.locked)
+		_hold(KEY_F, false)
+		await s.wait(3.0)
+		print("keys: after: mana %.2f locked " % ch3.mana, s.locked)
+		for l in ch3.lamps.duplicate():
+			await _walk([l.p + (s.hero.position - l.p).normalized() * 1.2], "to a lamp")
+			_hold(KEY_F, true)
+			await s.wait(0.8)
+			_hold(KEY_F, false)
+			await s.wait(1.2)
+			print("keys: lit ", l.lit, " mana %.2f" % ch3.mana, "  '", s.ui.obj_l.text, "'")
+		await s.until(func(): return s.mode != "play", 5.0)
+		print("lamps done, mode ", s.mode)
+	if what.contains("bird"):
+		start(48)
+		await _to_play()
+		var t0: float = s.time
+		while s.mode == "play" and s.time < t0 + 120.0:
+			_hold(KEY_F, true)
+			await s.wait(0.9)
+			_hold(KEY_F, false)
+			await s.wait(1.3)
+			if int(s.time) % 10 == 0: print("keys: '", s.ui.obj_l.text, "' mana %.2f" % ch3.mana)
+		print("birds done, mode ", s.mode, " in %.0f s" % (s.time - t0))
+	if what.contains("dark"):
+		start(49)
+		await _to_play()
+		for l in ch3.lamps.duplicate():
+			await _walk([Vector3(l.p.x - 0.2, 0, -7.75)], "to a candle")
+			if l.get("wim", false): await s.wait(1.6)
+			else:
+				_hold(KEY_F, true)
+				await s.wait(1.0)
+				_hold(KEY_F, false)
+				await s.wait(1.2)
+			print("keys: lit ", l.lit, " mana %.2f" % ch3.mana, "  '", s.ui.obj_l.text, "'")
+		print("dark done, mode ", s.mode)
+	if what.contains("cat"):
+		start(51)
+		while part == 51:
+			await _to_play()
+			if s.goal == null:
+				await s.wait(0.5)
+				if s.mode != "play": break
+				continue
+			var g: Vector3 = s.goal
+			var lbl: String = s.ui.obj_l.text
+			_hold(KEY_F, true)
+			await s.wait(0.6)
+			_hold(KEY_F, false)
+			var pts: Array = ch3._trail(s.hero.position, g)
+			pts[-1] = g + ((pts[-2] if pts.size() > 1 else s.hero.position) - g).normalized() * 0.6
+			await _walk(pts, lbl)
+			await _press(KEY_E)
+			await s.wait(1.0)
+			if lbl.begins_with("One floor more"): break
+		print("cat done, mode ", s.mode)
 
 
 ## Dev: in at Owl House's door with the key, up to the bed, and the prompt in its place the while.
@@ -314,6 +555,7 @@ func title() -> void:
 	items.append(["new", "Opening Act"])
 	items.append(["ch1", "Chapter One"])
 	items.append(["ch2", "Chapter Two"])
+	items.append(["ch3", "Chapter Three"])
 	items.append(["chapters", "Chapters"])
 	items.append(["school", "School Days"])
 	items.append(["free", "Roam as Trap Trick"])
@@ -327,12 +569,13 @@ func menu(id: String) -> void:
 		"new": start(0)
 		"ch1": start(PARTS1.size())
 		"ch2": start(PARTS1.size() + ch1.NAMES.size())
+		"ch3": start(PARTS1.size() + ch1.NAMES.size() + ch2.NAMES2.size())
 		"chapters":
-			s.ui.show_menu([["list0", "The Opening Act"], ["list1", "Chapter One:  The Lantern Board"], ["list2", "Chapter Two:  What Chooses You"], ["title", "Back"]], 0.35)
+			s.ui.show_menu([["list0", "The Opening Act"], ["list1", "Chapter One:  The Lantern Board"], ["list2", "Chapter Two:  What Chooses You"], ["list3", "Chapter Three:  What Is Kept"], ["title", "Back"]], 0.35)
 			return
-		"list0", "list1", "list2":
+		"list0", "list1", "list2", "list3":
 			var items: Array = []
-			var edge: Array = [0, PARTS1.size(), PARTS1.size() + ch1.NAMES.size(), PARTS.size()]
+			var edge: Array = [0, PARTS1.size(), PARTS1.size() + ch1.NAMES.size(), PARTS1.size() + ch1.NAMES.size() + ch2.NAMES2.size(), PARTS.size()]
 			var from: int = edge[int(id.substr(4))]
 			var to: int = edge[int(id.substr(4)) + 1]
 			for i in range(from, to): items.append(["part%d" % i, "%d.  %s" % [i - from + 1, PARTS[i]]])
@@ -398,6 +641,7 @@ func start(i: int) -> void:
 	var list: Array = [p1_dawn, p2_chores, p3_letter, p4_leaving, p5_town, p6_academy, p7_owl, p8_lesson, p9_weeks, p10_bargain, p11_first, p12_night]
 	list.append_array(ch1.list())
 	list.append_array(ch2.list())
+	list.append_array(ch3.list())
 	if snaps.has(str(i)) and s.main.dev_bond == "":      # (a part played again starts from how things stood then)
 		bond = (snaps[str(i)].bond as Dictionary).duplicate(true)
 		flag = (snaps[str(i)].flag as Dictionary).duplicate(true)
@@ -426,7 +670,7 @@ func school(h: float) -> void:
 	clean()
 	s.campus.close()
 	s.go_place("academy")
-	s.campus.chapter = 2
+	s.campus.chapter = 3
 	s.hero = s.enter("reiner_uni", Vector3(0, 0, 22), PI)
 	s.campus.open(h)
 	ch1.board(24, true)
@@ -460,10 +704,11 @@ func clean() -> void:
 	s.goal = null
 	s.tt_mode = false
 	s.ui.watch(0.0)
-	s.campus.chapter = 0 if part < PARTS1.size() else (1 if part < PARTS1.size() + ch1.NAMES.size() else 2)
+	s.campus.chapter = 0 if part < PARTS1.size() else (1 if part < PARTS1.size() + ch1.NAMES.size() else 2 if part < PARTS1.size() + ch1.NAMES.size() + ch2.NAMES2.size() else 3)
 	ch1.reset()
 	ch2.reset()
-	if s.campus.chapter == 2: ch1.levelled = true
+	ch3.reset()
+	if s.campus.chapter >= 2: ch1.levelled = true
 
 
 ## Two people put their arms round each other (the only time anyone comes this close), and step apart again.
@@ -637,11 +882,13 @@ func update(dt: float) -> void:
 	for c in cows: if is_instance_valid(c.n): _beast_update(c, dt)
 	if not bird.is_empty() and is_instance_valid(bird.n): _bird_update(dt)
 	for f in fol: if is_instance_valid(f.n): f.f.call(f.n, dt)
+	_hen_gate_update(dt)
 	if tt_on:
 		s.main.tt.update(dt, tt_in)
 		s.main.fx.visible = true
 	ch1.update(dt)
 	ch2.update(dt)
+	ch3.update(dt)
 
 
 func _farm(h: float) -> void:
@@ -650,6 +897,254 @@ func _farm(h: float) -> void:
 	s.hour_run = 0.0
 	s.main.sound.air("farm")
 	cows = [_beast("cow", Vector3(-19.6, 0, 7.2), 2.2), _beast("cow", Vector3(-21.6, 0, 9.4), 0.6)]
+	_well_parts()
+	trough = keep(s.put("trough_water", Vector3(8.2, 0.42, -2.6)))
+	_hen_gate()
+
+
+# ------------------------------------------------- the well, the trough, the run
+const WELL := Vector3(4.2, 0, 0.4)
+const WELL_YAW := 0.4
+const DRUM_R := 0.077                 # the windlass's, so the rope pays out as much as it turns
+const DRUM_Y := 1.25
+const HANG := 1.08                    # the top of the bucket's bail, wound right up
+var well := {}
+var trough: Node3D
+var gate_t := 0.0
+
+
+## A point of the well's own, in the world.
+func _wl(x: float, y: float, z: float) -> Vector3: return WELL + Basis(Vector3.UP, WELL_YAW) * Vector3(x, y, z)
+
+
+func _well_parts() -> void:
+	var dr: Node3D = keep(s.put("well_drum", _wl(0, DRUM_Y, 0), WELL_YAW))
+	var bk: Node3D = keep(s.put("well_bucket", _wl(0, HANG, DRUM_R), WELL_YAW))
+	var wt: Node3D = s.prop("well_water")
+	bk.add_child(wt)
+	wt.position.y = -0.235
+	wt.visible = false
+	var rope := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(0.026, 1.0, 0.026)
+	rope.mesh = bm
+	var rm := StandardMaterial3D.new()
+	rm.albedo_color = Color("b89a62")
+	rope.material_override = rm
+	s.add_child(rope)
+	keep(rope)
+	var hd := Node3D.new()
+	dr.add_child(hd)
+	hd.position = Vector3(0.78, 0, 0.18)
+	well = { "drum": dr, "bucket": bk, "water": wt, "rope": rope, "hand": hd, "off": false }
+	_well_set(0.0)
+
+
+## The bucket let down so far: the drum turned by as much rope, the rope that long.
+func _well_set(drop: float, tip := 0.0) -> void:
+	(well.drum as Node3D).basis = Basis(Vector3.UP, WELL_YAW) * Basis(Vector3.RIGHT, drop / DRUM_R)
+	if not well.off:
+		(well.bucket as Node3D).position = _wl(0, HANG - drop, DRUM_R)
+		(well.bucket as Node3D).basis = Basis(Vector3.UP, WELL_YAW) * Basis(Vector3.RIGHT, tip)
+	var l: float = DRUM_Y - HANG + drop
+	(well.rope as Node3D).position = _wl(0, DRUM_Y - l * 0.5, DRUM_R)
+	(well.rope as Node3D).scale = Vector3(1, l, 1)
+
+
+## Walk round something in the way, not through it, to a place.
+func _round(R: Node3D, c: Vector3, r: float, to: Vector3, yaw: float, speed := 1.7) -> void:
+	var pts: Array = []
+	var a0 := atan2(R.position.x - c.x, R.position.z - c.z)
+	var a1 := atan2(to.x - c.x, to.z - c.z)
+	var d := wrapf(a1 - a0, -PI, PI)
+	var n := int(absf(d) / 0.5)
+	for i in range(1, n + 1):
+		var an := a0 + d * i / (n + 1)
+		pts.append(c + Vector3(sin(an), 0, cos(an)) * r)
+	pts.append(to)
+	R.face_yaw = null
+	R.go_free(pts, speed)
+	await s.until(func(): return R.path.is_empty(), 7.0)
+	R.path = []
+	R.place(to, R.yaw)
+	R.face_yaw = yaw
+	await s.wait(0.35)
+
+
+## Down with the bucket and up with the water: he turns the crank, the drum turns, the rope pays out.
+func _draw_water(R: Node3D) -> void:
+	s.film()
+	s.ui.prompt("")
+	s.cut(_wl(-1.9, 1.75, -2.3), _wl(0.2, 0.95, 0.1), 44)
+	await _round(R, WELL, 1.25, _wl(0.72, 0, 0.56), WELL_YAW + PI)
+	R.reach.R = well.hand
+	R.hand.R = "fist"
+	R.reach.L = _wl(0.6, 1.02, 0.08)
+	R.hand.L = "fist"
+	R.look = well.bucket
+	await s.wait(0.4)
+	s.main.sfx("well")
+	var drop := 0.0
+	var t0: float = s.time
+	while drop < 0.5:                                     # it goes down quicker than it comes up
+		drop = minf(0.5, drop + s.dt_last * 0.5 * minf(1.0, (s.time - t0) * 3.0))
+		_well_set(drop)
+		await s.beat()
+	s.cut(_wl(-0.62, 1.8, 0.5), _wl(0.02, 0.2, 0.06), 46)
+	while drop < 0.8:
+		drop = minf(0.8, drop + s.dt_last * 0.42)
+		_well_set(drop, smoothstep(0.52, 0.66, drop) * 0.5)
+		if drop > 0.55 and not well.has("wet"):
+			well.wet = true
+			s.main.sfx("splash")
+			s.burst(_wl(0, 0.16, DRUM_R), Color("8cc8f0"), Color("d0ecff"), 20, 1.5, -7.0, 0.028, 0.6, 60.0)
+		await s.beat()
+	for k in 3:                                           # it fills, and rights itself
+		s.burst(_wl(randf_range(-0.1, 0.1), 0.14, DRUM_R + randf_range(-0.1, 0.1)), Color("8cc8f0"), Color("d0ecff"), 6, 0.7, -5.0, 0.024, 0.4, 70.0)
+		await s.wait(0.22)
+	(well.water as Node3D).visible = true
+	t0 = s.time
+	while s.time < t0 + 0.4:
+		_well_set(drop, 0.5 * (1.0 - (s.time - t0) / 0.4))
+		await s.beat()
+	s.main.sfx("well")
+	s.cut(_wl(-1.5, 1.3, -1.9), _wl(0.25, 1.0, 0.15), 42)
+	R.feel("stern", "flat")
+	var drip := 0.0
+	t0 = s.time
+	while drop > 0.0:                                     # and up: heavier now
+		var pull: float = 0.36 + 0.1 * sin((s.time - t0) * 9.0)
+		drop = maxf(0.0, drop - s.dt_last * pull)
+		_well_set(drop, sin((s.time - t0) * 3.0) * 0.05)
+		drip += s.dt_last
+		if drip > 0.12:
+			drip = 0.0
+			s.burst(_wl(randf_range(-0.1, 0.1), HANG - drop - 0.44, DRUM_R), Color("8cc8f0"), Color("d0ecff"), 2, 0.2, -9.0, 0.022, 0.4, 30.0)
+		await s.beat()
+	R.feel("open", "flat")
+	# he lifts it off its hook
+	R.reach = { "L": null, "R": null }
+	R.hand = { "L": "", "R": "" }
+	await _round(R, WELL, 1.25, _wl(0.0, 0, 1.02), WELL_YAW + PI, 1.5)
+	s.cut(_wl(1.7, 1.4, 1.7), _wl(0.0, 0.95, 0.4), 42)
+	R.reach.R = _wl(0.05, HANG, DRUM_R)
+	R.reach.L = _wl(-0.1, HANG - 0.25, DRUM_R + 0.14)
+	R.hand.R = "open"
+	await s.wait(0.6)
+	R.hand.R = "fist"
+	s.main.sfx("clunk", null, -8.0)
+	well.off = true
+	var bk: Node3D = well.bucket
+	t0 = s.time
+	var p0: Vector3 = bk.position
+	var p1: Vector3 = _wl(0.05, 0.98, 0.62)
+	while s.time < t0 + 0.6:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 0.6)
+		bk.position = p0.lerp(p1, u) + Vector3(0, sin(u * PI) * 0.1, 0)
+		R.reach.R = bk.position
+		R.reach.L = bk.position + Vector3(0, -0.3, 0) + Basis(Vector3.UP, WELL_YAW) * Vector3(-0.17, 0, 0.0)
+		await s.beat()
+	R.reach = { "L": null, "R": null }
+	R.hand.L = ""
+	R.hold("R", bk, Transform3D(Basis(), Vector3(0, -0.05, 0.02)))
+	R.look = null
+	await s.wait(0.4)
+
+
+## The well's bucket, emptied into the trough: the water goes out over the lip, falls, and the trough comes up.
+func _pour(R: Node3D) -> void:
+	s.film()
+	s.ui.prompt("")
+	s.cut(Vector3(11.2, 1.85, -2.7), Vector3(8.2, 0.98, -2.1), 40)
+	R.face_yaw = null
+	var sp := Vector3(8.2, 0, -1.8)
+	if absf(R.position.x - 8.2) > 1.4 or R.position.z < -2.2: R.go_free([Vector3(clampf(R.position.x, 7.4, 9.6), 0, -1.3), sp], 1.6)
+	else: R.go_free([sp], 1.6)
+	await s.until(func(): return R.path.is_empty(), 6.0)
+	R.path = []
+	R.place(sp, R.yaw)
+	R.face_yaw = PI
+	await s.wait(0.5)
+	var gt: Transform3D = (well.bucket as Node3D).global_transform
+	var bk: Node3D = R.drop("R")
+	s.add_child(bk)
+	bk.global_transform = gt
+	R.look = Vector3(8.2, 0.5, -2.6)
+	var c0: Vector3 = gt.origin - Vector3(0, 0.3, 0)
+	var y0: float = gt.basis.get_euler().y
+	var set_ := func(c: Vector3, tip: float, yw: float) -> void:
+		var b := Basis(Vector3.UP, yw) * Basis(Vector3.RIGHT, -tip) if absf(yw) > 0.001 else Basis(Vector3.RIGHT, -tip)
+		bk.global_transform = Transform3D(b, c + b * Vector3(0, 0.3, 0))
+		R.reach.R = c + Vector3(0.165, -0.02, 0.06)
+		R.reach.L = c + Vector3(-0.165, -0.02, 0.06)
+	R.hand = { "L": "open", "R": "open" }
+	var c1 := Vector3(8.2, 0.84, -2.2)
+	var c2 := Vector3(8.2, 0.8, -2.36)
+	var t0: float = s.time
+	while s.time < t0 + 0.8:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 0.8)
+		set_.call(c0.lerp(c1, u), 0.0, lerp_angle(y0, 0.0, u))
+		await s.beat()
+	# over it goes
+	t0 = s.time
+	var last := 0.0
+	var wet := 0.0
+	s.main.sfx("splash")
+	while s.time < t0 + 2.5:
+		var q: float = s.time - t0
+		var tip: float = smoothstep(0.0, 1.1, q) * 1.95
+		set_.call(c1.lerp(c2, smoothstep(0.0, 0.8, q)), tip, 0.0)
+		if tip > 0.85 and q < 2.05:
+			(well.water as Node3D).scale = Vector3.ONE * maxf(0.05, 1.0 - smoothstep(0.6, 1.8, q))
+			if s.time > last + 0.035:
+				last = s.time
+				var lip: Vector3 = bk.global_transform * Vector3(0, -0.17, -0.12)
+				s.burst(lip, Color("7cb8ec"), Color("c4e6ff"), 5, 0.35, -9.8, 0.034, 0.3, 14.0)
+				s.burst(Vector3(lip.x + randf_range(-0.08, 0.08), trough.position.y + 0.02, lip.z - 0.06 + randf_range(-0.04, 0.04)), Color("8cc8f0"), Color("e0f4ff"), 3, 0.9, -8.0, 0.024, 0.28, 55.0)
+			wet += s.dt_last
+		trough.visible = q > 0.75
+		trough.position.y = lerpf(0.23, 0.42, smoothstep(0.7, 2.2, q)) + sin(q * 13.0) * 0.006 * smoothstep(0.6, 0.9, q) * (1.0 - smoothstep(2.0, 2.5, q))
+		await s.beat()
+	(well.water as Node3D).visible = false
+	t0 = s.time
+	while s.time < t0 + 0.6:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 0.6)
+		set_.call(c2.lerp(Vector3(8.4, 0.72, -2.12), u), 1.95 * (1.0 - u), 0.0)
+		await s.beat()
+	# down beside it
+	R.do("pickup", 1.3)
+	t0 = s.time
+	while s.time < t0 + 0.6:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 0.6)
+		set_.call(Vector3(8.4, 0.72, -2.12).lerp(Vector3(8.62, 0.14, -2.08), u), 0.0, 0.0)
+		await s.beat()
+	s.main.sfx("clunk", null, -8.0)
+	R.reach = { "L": null, "R": null }
+	R.hand = { "L": "", "R": "" }
+	R.look = null
+	await s.wait(0.7)
+
+
+## The hen run's wicket: E opens it, and it swings to behind you.
+func _hen_gate() -> void:
+	var n: Node3D = s.stage.by_name.get("hengate")
+	if n == null: return
+	if not s.stage.doors.has("hengate"): s.stage.doors["hengate"] = { "id": "hengate", "nodes": [n], "bases": [n.basis], "open": 0.0, "want": false, "stay": false, "hold": 0.0, "block": [-8.72, 11.42, -8.48, 12.9, 0.0, 0.9], "locked": "", "label": "", "room": "", "pos": Vector3(-8.6, 0, 12.15), "dir": "z", "sfx": "gate" }
+	var d: Dictionary = s.stage.doors["hengate"]
+	d.want = false
+	var u := { "pos": Vector3(-8.6, 0, 12.15), "r": 1.5, "label": "Open the gate" }
+	u.f = func() -> void: d.want = not d.want
+	s.uses.append(u)
+	d.use = u
+
+
+func _hen_gate_update(dt: float) -> void:
+	if s.place != "farm" or not s.stage.doors.has("hengate"): return
+	var d: Dictionary = s.stage.doors["hengate"]
+	if d.has("use"): d.use.label = "Shut the gate" if d.want else "Open the gate"
+	if d.want and s.hero:
+		gate_t = gate_t + dt if Vector2(s.hero.position.x + 8.6, s.hero.position.z - 12.15).length() > 1.7 else 0.0
+		if gate_t > 0.5: d.want = false
 
 
 ## Wait for the player to come to a place.
@@ -698,7 +1193,7 @@ func p1_dawn() -> void:
 	s.main.sfx("rooster")
 	await s.wait(0.8)
 	await s.title_card("TRAP TRICK", "The Opening Act", 4.4)
-	s.move(Vector3(-16.5, 1.3, 18.5), Vector3(-11, 0.7, 12), Vector3(-14.5, 0.9, 17.2), Vector3(-10.6, 0.5, 12.4), 4.2, 40)
+	s.move(Vector3(-15.5, 2.6, 18.0), Vector3(-11, 0.5, 12), Vector3(-13.4, 2.0, 16.4), Vector3(-10.8, 0.3, 12.2), 4.2, 40)
 	await s.wait(3.4)
 	# the candle on the fence post
 	R.look = C
@@ -778,10 +1273,11 @@ func p2_chores() -> void:
 	await s.fade(0.0, 0.8)
 	s.ui.place("The farm past the third milestone")
 	s.uses.append({ "pos": L, "r": 1.5, "label": "Talk to Lotte", "f": func(): _lotte_chat(L) })
-	s.ui.objective("Feed the hens, west of the yard")
+	trough.visible = false                                # (dry)
+	s.ui.objective("Feed the hens: in at the wicket gate, west of the yard")
 	s.ui.toast("W A S D walk   ·   Shift run   ·   drag to look   ·   E use")
 	var id := run_id
-	await use(Vector3(-10.6, 0, 12.3), "Scatter the grain", 1.9)
+	await use(Vector3(-11.0, 0, 12.2), "Scatter the grain", 1.45)
 	if not live(id): return
 	# grain
 	s.locked = true
@@ -799,30 +1295,19 @@ func p2_chores() -> void:
 	await s.say("reiner", "There. At least somebody wakes when I ask.", { "auto": true })
 	s.locked = false
 	s.ui.objective("Draw water at the well")
-	await use(Vector3(4.2, 0, 0.4), "Draw water", 1.7)
+	await use(WELL, "Draw water", 1.75)
 	if not live(id): return
-	s.locked = true
-	R.turn_to(Vector3(4.2, 0, 0.4))
-	s.main.sfx("well")
-	for k in 3:
-		R.do("pickup", 0.9)
-		await s.wait(0.85)
-	R.hold("R", s.prop("pail"), Transform3D(Basis(), Vector3(0, -0.46, 0.02)))
-	s.main.sfx("splash")
-	s.locked = false
+	await _draw_water(R)
+	if not live(id): return
+	s.play()
 	R.face_yaw = null
 	s.ui.objective("Fill the trough by the barn")
-	await use(Vector3(8.2, 0, -2.6), "Fill the trough", 1.6)
+	await use(Vector3(8.2, 0, -2.2), "Fill the trough", 1.7)
 	if not live(id): return
-	s.locked = true
-	R.turn_to(Vector3(8.2, 0, -2.6))
-	R.do("offer2", 1.5)
-	await s.wait(0.5)
-	s.main.sfx("splash")
-	s.burst(Vector3(8.2, 0.62, -2.6), Color("8cc8f0"), Color("d0ecff"), 22, 1.6, -6.0, 0.03, 0.7, 70.0)
-	await s.wait(0.8)
-	var pl: Node3D = R.drop("R")
-	if pl: pl.queue_free()
+	await _pour(R)
+	if not live(id): return
+	s.cut(Vector3(5.6, 1.6, 1.4), Vector3(8.0, 1.1, -1.8), 42)
+	R.face_yaw = 0.3
 	R.do("stretch", 1.6)
 	await s.wait(1.2)
 	await s.say("lotte", "REINER! There's a bird! It's made of PAPER!", { "as": "Lotte, from the gate", "auto": true })
@@ -834,7 +1319,7 @@ func _lotte_chat(L: Node3D) -> void:
 	var i: int = L.get_meta("li", 0)
 	L.set_meta("li", i + 1)
 	L.turn_to(s.hero)
-	L.say_bubble(["If you were a real mage, would you still feed the hens?", "Duchess laid two. One for you. Not the big one.", "Pa says the Academy has a bell you can see.", "Mam's got buns in. I'm not telling you. I'm just saying it near you."][i % 4], s.campus.font)
+	L.say_bubble(["If you were a real mage, would you still feed the hens?", "Duchess laid two. One for you. Not the big one.", "Pa says the Academy has a bell you can see.", "Mom's got buns in. I'm not telling you. I'm just saying it near you."][i % 4], s.campus.font)
 	L.feel("happy", "smile", 3.0)
 
 
@@ -851,7 +1336,7 @@ func p3_letter() -> void:
 	_bird(Vector3(0.5, 3.2, 40))
 	R.look = bird.n
 	L.look = bird.n
-	fly([Vector3(0.6, 3.0, 42), Vector3(1.4, 2.4, 30), Vector3(0.2, 2.8, 20), Vector3(-2.5, 3.4, 10), Vector3(-8, 4.6, 2), Vector3(-9, 6.5, -6), Vector3(-2, 6.4, -9), Vector3(5, 4.2, -2), Vector3(7, 3.0, 4), Vector3(5.2, 2.2, 8.4), Vector3(3.2, 1.75, 6.3)], 13.5)
+	fly([Vector3(0.6, 3.0, 42), Vector3(1.4, 2.4, 30), Vector3(0.2, 2.8, 20), Vector3(-2.5, 3.4, 10), Vector3(-8.2, 4.4, 1.6), Vector3(-13.9, 5.0, -2.6), Vector3(-15.2, 5.4, -9.4), Vector3(-12.6, 5.6, -14.8), Vector3(-7.6, 5.6, -16.0), Vector3(-2.6, 5.4, -15.0), Vector3(0.7, 5.0, -10.4), Vector3(1.4, 4.4, -4.2), Vector3(4.6, 3.6, -0.4), Vector3(6.6, 2.9, 4.6), Vector3(5.2, 2.2, 8.4), Vector3(3.2, 1.75, 6.3)], 16.0)
 	s.cut(Vector3(1.8, 1.6, 47), Vector3(0.5, 2.6, 30), 40)
 	s.shot.p1 = Vector3(1.4, 1.5, 30)
 	s.shot.l1 = Vector3(0.0, 2.4, 12)
@@ -862,13 +1347,14 @@ func p3_letter() -> void:
 	L.go_free([Vector3(0.6, 0, 10), Vector3(-2, 0, 6), Vector3(-3, 0, 1), Vector3(1, 0, 0), Vector3(5, 0, 2.2), Vector3(5.0, 0, 5.4)], 3.4)
 	L.feel("wide", "grin")
 	s.cut(Vector3(8, 1.4, 12), Vector3(-2, 2.6, 6), 46)
-	s.shot.l1 = Vector3(-7, 4.0, -4)
-	s.shot.d = 2.4
+	s.shot.l1 = Vector3(-10, 4.4, -2)
+	s.shot.d = 3.0
 	await s.say("lotte", "It's lost! It's going round the house!", { "after": 0.0 })
-	s.cut(Vector3(-1.5, 1.2, 9.5), Vector3(-6, 5.6, -7), 46)
-	s.shot.l1 = Vector3(4, 3.8, -2)
-	s.shot.d = 2.6
-	await s.until(func(): return bird.u > 0.8, 8.0)
+	s.cut(Vector3(-1.2, 1.3, 10.6), Vector3(-9, 4.6, -4), 50)
+	while bird.u < 0.82:                                  # (round behind the house, and out past the far end)
+		s.shot.l0 = (s.shot.l0 as Vector3).lerp(bird.n.position, 1.0 - exp(-4.0 * s.dt_last))
+		s.shot.l1 = s.shot.l0
+		await s.beat()
 	s.cut(Vector3(1.4, 1.35, 7.2), Vector3(3.4, 1.5, 4.8), 38)
 	await s.until(func(): return bird.u >= 1.0, 8.0)
 	R.feel("wide", "oh")
@@ -989,7 +1475,7 @@ func p4_leaving() -> void:
 	M.reach.L = R.head_pos() + Vector3(-0.1, -0.27, -0.06)
 	s.two(M, R, 1.0, 1.9, 36, 0.06)
 	await s.say("mother", "Eat. Write. Wear the scarf.", { "eyes": "worry", "mouth": "smile" })
-	await s.say("reiner", "It's spring, Mam.", { "eyes": "half", "mouth": "smile" })
+	await s.say("reiner", "It's spring, Mom.", { "eyes": "half", "mouth": "smile" })
 	await s.say("mother", "Wear it anyway.", { "eyes": "soft", "mouth": "smile" })
 	M.reach.R = null
 	M.reach.L = null
@@ -1132,6 +1618,11 @@ func p5_town() -> void:
 	_town_story(true)
 	_cart(Vector3(0.2, 0, 30.0), PI)
 	for n in s.main.town.npcs: if n.job == "patrol": n.wait = 45.0
+	var gone: Array = []                                  # (nobody else at the gate while they say goodbye)
+	for n in s.main.town.npcs:
+		if Vector2(n.root.position.x - 1.2, n.root.position.z - 25.0).length() < 7.5:
+			n.root.visible = false
+			gone.append(n.root)
 	var tk: Node3D = s.prop("trunk")
 	cart.add_child(tk)
 	tk.position = Vector3(0, 0.92, -0.35)
@@ -1152,7 +1643,7 @@ func p5_town() -> void:
 	R.look = F
 	s.two(F, R, -1.0, 2.1, 36, 0.06)
 	await s.say("father", "This is me, then. The road's no friend to a cart after dark.", { "eyes": "soft", "mouth": "flat" })
-	await s.say("father", "Through the square, east street, out to the lookout. You'll not miss it. It's the only thing up there that hums.", { "do": "point" })
+	await s.say("father", "Through the square, down the east street, out at the gate. You'll not miss it. It's the only thing up there that hums.", { "do": "point" })
 	s.over(F, R, 1.0, 34)
 	await s.say("reiner", "Pa. I'll go in at the door.", { "eyes": "stern", "mouth": "flat" })
 	s.over(R, F, -1.0, 34)
@@ -1165,27 +1656,50 @@ func p5_town() -> void:
 	await s.fade(1.0, 0.8)
 	F.visible = false
 	cart.visible = false
+	for q in gone: q.visible = true
 	R.place(Vector3(0.8, 0, 22.6), PI)
 	R.feel("open", "flat")
 	s.play()
 	await s.fade(0.0, 0.8)
-	s.ui.objective("Through the square to the lookout, at the end of the east street")
+	s.ui.objective("Find the road to the Academy: through the square, then out at the east gate")
 	var D: Dictionary = s.main.bake.town.door
 	s.uses.append({ "pos": Vector3(D.x, 0, D.z), "r": 1.5, "label": "Look at the hatch", "f": func(): s.ui.toast("A door, in the ground, locked. Pink light in the cracks. Probably nothing.") })
 	var id := run_id
-	await reach(Vector3(25.5, 0, 0), 2.2)
+	for q in [Vector3(1.6, 0, 8.4), Vector3(11.6, 0, 0), Vector3(26.0, 0, 0), Vector3(37.5, 0, 0)]:      # the way, a turning at a time
+		await reach(q, 2.6)
+		if not live(id): return
+	# out from under the walls
+	s.film()
+	s.main.sound.music("academy")
+	R.go_free([Vector3(40.0, 0, 0.0)], 1.3)
+	s.move(Vector3(35.4, 1.5, 1.7), Vector3(60, 5.0, 0), Vector3(36.6, 2.2, 1.5), Vector3(100, 22.0, 0), 4.6, 46)
+	await s.wait(2.4)
+	R.feel("wide", "oh")
+	await s.wait(2.4)
+	s.face(R, 0.45, 1.6, 36)
+	R.look = Vector3(130, 30, 0)
+	await s.wait(1.0)
+	s.move(Vector3(42, 5.0, 4.0), Vector3(138, 31, 0), Vector3(40, 9.0, 3.0), Vector3(138, 46, 0), 5.5, 40)
+	await s.wait(0.8)
+	s.main.sfx("bell", null, -3.0)
+	for k in 10:                                          # (a bell you can see)
+		s.burst(Vector3(140.0, 62.0, 0), Color("ffe9a8"), Color("fff6d8"), 26, 12.0 + k * 3.0, 0.0, 0.7, 2.6)
+		await s.wait(0.14)
+	await s.wait(1.6)
+	s.face(R, 0.35, 1.4, 34)
+	await s.say("reiner", "You can see it. Pa said. You can see it.", { "eyes": "wide", "mouth": "smile" })
+	await s.say("reiner", "There you are.", { "eyes": "soft", "mouth": "smile" })
+	s.play()
+	R.look = null
+	R.face_yaw = null
+	s.ui.objective("Take the road up to the Academy")
+	await reach(Vector3(57.0, 0, 0), 2.4)
 	if not live(id): return
 	s.film()
-	R.go_free([Vector3(27.0, 0, 0.0)], 1.4)
-	s.cut(Vector3(23.2, 1.9, 1.5), Vector3(28, 1.7, -0.4), 42)
-	await s.wait(1.4)
-	R.face_yaw = PI / 2
-	R.feel("wide", "oh")
-	s.face(R, 0.5, 1.6, 36)
-	await s.say("reiner", "There you are.", { "eyes": "wide", "mouth": "smile" })
-	s.main.sfx("bell", null, -8.0)
-	await s.wait(0.8)
-	await s.fade(1.0, 1.0)
+	R.go_free([Vector3(61.0, 0, 0)], 1.3)
+	s.move(Vector3(52.5, 2.4, 3.4), Vector3(70, 4.0, 0), Vector3(49.0, 5.5, 5.5), Vector3(110, 24.0, 0), 5.0, 48)
+	await s.wait(3.4)
+	await s.fade(1.0, 1.2)
 	_town_story(false)
 
 

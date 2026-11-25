@@ -42,7 +42,7 @@ globalThis.document = {
     getContext: () => ({ putCore() {}, createImageData: (w, h) => ({ width: w, height: h, data: new Uint8ClampedArray(w * h * 4) }), putImageData: img => { groundPixels = img; } }),
   }),
 };
-for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'things.js', 'town.js', 'stage.js', 'cast.js', 'farm.js', 'academy.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
+for (const f of ['voxel.js', 'trap-trick.js', 'props.js', 'world.js', 'people.js', 'things.js', 'town.js', 'stage.js', 'cast.js', 'farm.js', 'academy.js', 'snow.js']) vm.runInThisContext(fs.readFileSync(path.join(ROOT, 'js', f), 'utf8'), { filename: f });
 
 /* ------------------------------------------------------------- GLB writer -- */
 function GLB() {
@@ -270,7 +270,7 @@ if (!ONLY) {
 }
 
 /* ------------------------------------------------------ the story: places -- */
-for (const [name, Cls] of [['farm', FARM], ['academy', ACADEMY]]) {
+for (const [name, Cls] of [['farm', FARM], ['academy', ACADEMY], ['snow', SNOW]]) {
   const scene = new THREE.Scene(), S = new Cls(scene), glb = GLB(), top = new THREE.Group(); top.name = name;
   let k = 0;
   for (const o of [...scene.children]) {

@@ -400,17 +400,19 @@
     }
     return g;
   }
-  function wellGrid() {                                  // a round stone well under a shingled roof, a windlass and a bucket
-    const g = G();
+  function wellGrid(o) {                                 // a round stone well under a shingled roof, a windlass and a bucket (o.bare: without those, for one that's worked)
+    const g = G(), bare = o && o.bare;
     const stone = (x, y, z) => { const row = Math.floor(y / 6), a = (Math.atan2(z, x) + Math.PI) / TAU * 16 + (row & 1) * 0.5; if (y % 6 === 5 || a % 1 < 0.1) return 0x7d766e; const t = H(Math.floor(a) % 16, row, 4); return t < 0.3 ? C.STONE_D : t < 0.75 ? C.STONE : C.STONE_L; };
-    tube(g, 0, 0, 26, 7, 0, 29, stone); tube(g, 0, 0, 27, 8, 30, 33, (x, y, z) => ang(x, z, 12) & 1 ? C.STONE_L : 0xb4ada4); g.disc(0, 0, 20, 8, 8, 0x1e2c40);
+    tube(g, 0, 0, 26, 7, 0, 29, stone); tube(g, 0, 0, 27, 8, 30, 33, (x, y, z) => ang(x, z, 12) & 1 ? C.STONE_L : 0xb4ada4); g.disc(0, 0, 20, bare ? 4 : 8, bare ? 4 : 8, (x, y, z) => bare ? (Math.sin(Math.hypot(x, z) * 0.9) > 0.8 ? 0x2c4a6c : 0x203650) : 0x1e2c40);
     for (const s of [-1, 1]) { const x = s * 23; g.box(x - 2, 30, -2, x + 2, 96, 2, (X, Y) => Y % 22 === 0 ? C.DARK : C.OAK_D); for (let k = 0; k < 12; k++) g.box(x - s * k, 82 + k, -1, x - s * k, 84 + k, 1, C.OAK_D); }
     g.box(-30, 94, -2, 30, 97, 2, C.OAK_D);
-    for (let x = -22; x <= 22; x++) for (let y = -3; y <= 3; y++) for (let z = -3; z <= 3; z++) if (Math.hypot(y, z) <= 3.2) g.set(x, 72 + y, z, Math.abs(x) < 9 ? ((x & 1) ? C.ROPE : mul(C.ROPE, 0.8)) : C.OAK);
-    g.box(24, 71, -1, 29, 73, 1, C.IRON); g.box(29, 71, -1, 29, 73, 11, C.IRON); g.box(29, 71, 10, 36, 73, 12, C.OAK_L);       // the crank
-    for (let y = 46; y < 69; y++) g.set(0, y, 3, y & 1 ? C.ROPE : mul(C.ROPE, 0.8));
-    for (let k = 0; k <= 16; k++) { const a = k / 16 * Math.PI; g.set(R(Math.cos(a) * 6), R(39 + Math.sin(a) * 7), 3, C.IRON); }
-    bucketAt(g, 0, 29, 3, 6.4, 11, { fill: C.WATER });
+    if (!bare) {
+      for (let x = -22; x <= 22; x++) for (let y = -3; y <= 3; y++) for (let z = -3; z <= 3; z++) if (Math.hypot(y, z) <= 3.2) g.set(x, 72 + y, z, Math.abs(x) < 9 ? ((x & 1) ? C.ROPE : mul(C.ROPE, 0.8)) : C.OAK);
+      g.box(24, 71, -1, 29, 73, 1, C.IRON); g.box(29, 71, -1, 29, 73, 11, C.IRON); g.box(29, 71, 10, 36, 73, 12, C.OAK_L);       // the crank
+      for (let y = 46; y < 69; y++) g.set(0, y, 3, y & 1 ? C.ROPE : mul(C.ROPE, 0.8));
+      for (let k = 0; k <= 16; k++) { const a = k / 16 * Math.PI; g.set(R(Math.cos(a) * 6), R(39 + Math.sin(a) * 7), 3, C.IRON); }
+      bucketAt(g, 0, 29, 3, 6.4, 11, { fill: C.WATER });
+    } else for (const s of [-1, 1]) g.box(s * 23 - 3, 49, -4, s * 23 + 3, 55, 4, (x, y, z) => Math.hypot(y - 52, z) < 1.6 ? C.IRON : C.OAK_D);      // the blocks the windlass turns in
     const shingle = (x, k) => { const row = Math.floor(k / 4), i = Math.floor((x + 200 + (row & 1) * 3) / 6), t = H(i, row, 8); return k % 4 === 0 ? 0x7a3024 : t < 0.2 ? 0x9a3c2c : 0xa8432f; };
     for (let k = 0; k <= 24; k++) for (let x = -34; x <= 34; x++) for (const s of [-1, 1]) { const z = s * (26 - k), y = 92 + R(k * 0.85); g.set(x, y, z, shingle(x, k)); g.set(x, y - 1, z, k % 4 === 0 ? 0x7a3024 : C.OAK_D); if (k % 4 === 0) g.set(x, y, z + s, shingle(x, k + 1)); }
     g.box(-35, 113, -2, 35, 114, 2, 0x8f3626);

@@ -14,10 +14,12 @@ var glim: Array = []                  # Trap Trick's shapes of light, drifting
 var chase := {}                       # the black wand and its way with Reiner
 var free_on := {}                     # the people to be found this afternoon
 var slots := 0
+var spending := false                 # somebody's being seen just now (the afternoon doesn't end till that's done)
 var sprites: Array = []
 const TUB_R := 0.42
 var garden: Array = []                # the standing wands
 var staff := {}
+var fire := {}                           # his candle's, when it's awake
 var down := false                     # Reiner's on the ground, and stays there
 
 
@@ -34,10 +36,13 @@ func reset() -> void:
 	chase = {}
 	garden = []
 	staff = {}
+	fire = {}
+	s.lamps_out = 0.0
 	down = false
 	free_on = {}
 	ups = {}
 	slots = 0
+	spending = false
 	s.main.tt_pin = NAN
 	vane = {}
 
@@ -193,6 +198,7 @@ const FORMS := {
 	"odile": [17, "ffd0ea", "f28ab4", -0.4, 0.25, 0.022, 1.6, 6], "lucan": [12, "ffe2a0", "ffb040", 0.3, 0.2, 0.02, 1.4, 8],
 	"sibyl": [12, "ffe2a0", "d8b050", -0.7, 0.1, 0.018, 1.0, 10], "dorn": [17, "9ad86a", "e8e0d0", -0.2, 0.2, 0.022, 1.6, 5],
 	"thorne": [12, "e8d0a0", "d0a860", -0.8, 0.3, 0.024, 1.0, 5],
+	"penny": [16, "ffe9a8", "7ad8ff", 0.2, 0.3, 0.022, 1.2, 10],
 }
 var ups := {}                         # held up to be looked at: who -> how far it leans
 
@@ -238,7 +244,7 @@ func form(who: String) -> Node3D:
 	p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	p.position = Vector3(-0.144 if who == "lucan" else 0.0, 0, float(f[0]) * 0.024)
 	n.add_child(p)
-	if who in ["petra", "lucan", "nadi", "selma"]:
+	if who in ["petra", "lucan", "nadi", "selma", "penny"]:
 		var l := OmniLight3D.new()
 		l.light_color = Color(f[1])
 		l.light_energy = 0.35
@@ -372,6 +378,7 @@ func update(dt: float) -> void:
 	_garden_update(dt)
 	if not chase.is_empty(): _chase_update(dt)
 	if not staff.is_empty(): _staff_update(dt)
+	if not fire.is_empty(): _fire_update(dt)
 
 
 # ==================================================================== 1 == --
@@ -847,15 +854,15 @@ func _free(k: int, h: float, names: Array, n: int, place: String) -> void:
 		u.f = func() -> void: _spend(w)
 		f.u = u
 		s.uses.append(u)
-	s.uses.append({ "pos": Vector3(-28.2, 0, 21), "r": 1.6, "label": "Call it a day", "first": true, "f": func(): slots = 0 })
+	s.uses.append({ "pos": Vector3(-28.2, 0, 21), "r": 1.6, "label": "Call it a day", "first": true, "f": func(): if not spending: slots = 0 })
 	s.play()
 	await s.fade(0.0, 0.8)
 	s.ui.place(place)
 	s.ui.toast("The afternoon's yours. ◆ marks people to spend it with. J: who's where.")
 	var id: int = a.run_id
 	var auto_i := 0
-	while slots > 0 and a.run_id == id:
-		s.ui.objective("Free time.  Spend it with someone  (%d left)" % slots)
+	while (slots > 0 or spending) and a.run_id == id:
+		if not spending: s.ui.objective("Free time.  Spend it with someone  (%d left)" % slots)
 		if s.main.dev_auto and s.mode == "play" and not s.locked:
 			await s.wait(0.6)
 			if free_on.is_empty(): slots = 0
@@ -894,13 +901,13 @@ func _diamond(c: Color) -> Node3D:
 
 ## Spend a slot of the afternoon with someone: their scene, then back to the afternoon.
 func _spend(w: String) -> void:
-	if s.locked or not free_on.has(w): return
+	if spending or s.locked or not free_on.has(w): return
+	spending = true
 	var f: Dictionary = free_on[w]
 	s.locked = true
 	s.uses.erase(f.u)
 	if is_instance_valid(f.m): f.m.queue_free()
 	free_on.erase(w)
-	slots -= 1
 	var R: Node3D = s.hero
 	var back: Vector3 = R.position
 	var run: float = s.hour_run
@@ -949,11 +956,14 @@ func _spend(w: String) -> void:
 		R.place(P.position + fw * 1.6 if q[2] in ["stand", "read"] else back, R.yaw)
 		R.look = null
 		if q[2] == "read": P.pose = "stand"
-	music("school")
-	s.hour_run = run
-	s.play()
-	s.locked = false
-	await s.fade(0.0, 0.4)
+	slots -= 1
+	if slots > 0:                                         # (after the last of them the afternoon's over, and the screen stays dark)
+		music("school")
+		s.hour_run = run
+		s.play()
+		s.locked = false
+		await s.fade(0.0, 0.4)
+	spending = false
 
 
 func _pair(P: Node3D, R: Node3D, seated: bool) -> void:
@@ -1016,7 +1026,7 @@ var FIRSTS := {
 	"wim": [["P", "It won't come out of my sleeve. It's been up there since Tuesday. It purrs, so I know it's alive.", "worry", "wavy"], ["R", "Does it do magic?", "open", "flat"], ["P", "It did a lovely bit this morning. I had my eyes shut.", "soft", "smile"], ["P", "Do you think I ought to make it? People say you've got to show them who's in charge.", "worry", "flat"],
 		{ "ask": [["\"Let it hide. It'll come when it's bored.\"", 2, [["P", "That's... that's what nobody ever said to me.", "wide", "small"], { "form": true }, ["P", "It's put its nose out. Look. It heard you.", "happy", "grin"]]], ["\"You could be a bit firm with it.\"", 1, [["P", "I'll try. Excuse me, wand. Sorry. Never mind.", "worry", "wavy"], ["R", "Very firm.", "happy", "smile"]]]] },
 		["P", "You'll get one, you know. I've decided to be sure about something for once, and it's that.", "soft", "smile"]],
-	"bet": [["P", "Grab a cloth. If you stand still in here, Dorle thinks you're a plate.", "half", "grin"], ["R", "Is that your wand? In the washing up?", "wide", "flat"], { "form": true }, ["P", "It likes it. It did the whole of the stew pans last night, singing.", "happy", "smile"], ["P", "It's Mam's, you know. To the dent. It went down with the boat when I was six. I never told a soul I wanted it back.", "soft", "wavy"], { "form": false }, ["P", "You know what they call me in second year? Scullery. Like it's a name. I answer to it, too. Easier.", "half", "flat"],
+	"bet": [["P", "Grab a cloth. If you stand still in here, Dorle thinks you're a plate.", "half", "grin"], ["R", "Is that your wand? In the washing up?", "wide", "flat"], { "form": true }, ["P", "It likes it. It did the whole of the stew pans last night, singing.", "happy", "smile"], ["P", "It's Mom's, you know. To the dent. It went down with the boat when I was six. I never told a soul I wanted it back.", "soft", "wavy"], { "form": false }, ["P", "You know what they call me in second year? Scullery. Like it's a name. I answer to it, too. Easier.", "half", "flat"],
 		{ "ask": [["\"I'm not going to call you that.\"", 2, [["P", "No. You wouldn't, would you.", "soft", "smile"], ["P", "Here. Kitchen door key. The spare. It's the back way out and nobody ever asks. Don't say I never gave you anything.", "half", "smirk"], { "do": func(_p, _r): pass }]], ["\"They call me the Farm.\"", 2, [["P", "Scullery and the Farm. We sound like a pub.", "happy", "grin"], ["P", "Here. Spare key to the kitchen door. A pub ought to have a back way out.", "half", "smirk"]]]] },
 		["P", "Now dry. Properly. My wand's watching.", "half", "smile"]],
 	"kas": [["P", "Shh. It's deciding.", "soft", "small"], ["R", "Is that from the leaf?", "wide", "smile"], ["P", "It's a bellflower after all. It hasn't rung yet. They only ring for one thing, each of them. You don't know what till it does.", "soft", "flat"], ["P", "Wands are cuttings, you know. Every one's a bit of a tree that wanted to see what was round the corner.", "open", "smile"], ["R", "Then they all wanted to see what was round the corner from me.", "sad", "smile"],
@@ -1890,7 +1900,7 @@ func d11_trunk() -> void:
 	R.feel("sad", "flat")
 	R.do("pickup", 1.6)
 	await s.wait(1.6)
-	await s.say("reiner_uni", "\"Dear Mam and Pa. I think I'll come home. I'm sorry about the cow.\"", { "eyes": "sad", "mouth": "frown" })
+	await s.say("reiner_uni", "\"Dear Mom and Pa. I think I'll come home. I'm sorry about the cow.\"", { "eyes": "sad", "mouth": "frown" })
 	s.cut(Vector3(cx + 0.5, b.y + 1.1, b.z - 0.1), hen.position, 34)
 	await s.say("reiner_uni", "I went in at the door, Duchess. I've been in. I've seen it. I can say I've seen it.", { "eyes": "sad", "mouth": "wavy" })
 	await s.wait(0.8)
@@ -2375,23 +2385,104 @@ func _beat_vane(R: Node3D, n: Node3D) -> void:
 
 
 # =================================================================== 14 == --
+## What the baton becomes: a dark staff, a little taller than he is, with a small aura about it.
+const STAFF := 1.968                     # how long it is
+const S_END := 0.42
+const S_MID := 1.128
+
+
+func staff_make(p: Vector3) -> Dictionary:
+	var root := Node3D.new()
+	s.add_child(root)
+	a.keep(root)
+	root.position = p
+	var mid: Node3D = s.prop("staff_mid")
+	var top: Node3D = s.prop("staff_end")
+	var bot: Node3D = s.prop("staff_end")
+	for q in [mid, top, bot]: root.add_child(q)
+	bot.rotation.x = PI
+	var au := MeshInstance3D.new()
+	au.mesh = QuadMesh.new()
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled, depth_draw_never, blend_add, skip_vertex_transform, shadows_disabled;
+uniform vec4 c1 : source_color;
+uniform vec4 c2 : source_color;
+uniform float al = 0.5;
+uniform float len = 1.968;
+varying vec2 q;
+float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float nz(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f); return mix(mix(h(i), h(i + vec2(1.0, 0.0)), f.x), mix(h(i + vec2(0.0, 1.0)), h(i + vec2(1.0, 1.0)), f.x), f.y); }
+void vertex() {
+	// (turned about its own length to face whoever's looking)
+	vec3 o = MODEL_MATRIX[3].xyz;
+	vec3 ax = normalize(MODEL_MATRIX[1].xyz);
+	vec3 r = normalize(cross(ax, CAMERA_POSITION_WORLD - (o + ax * len * 0.5)) + vec3(0.00001, 0.0, 0.0));
+	q = VERTEX.xy + vec2(0.0, len * 0.5);
+	VERTEX = (VIEW_MATRIX * vec4(o + r * q.x + ax * q.y, 1.0)).xyz;
+	NORMAL = vec3(0.0, 0.0, 1.0);
+}
+void fragment() {
+	vec2 c = floor(q / 0.024 + 0.5) * 0.024;             // (in voxels, as everything is)
+	float y = c.y / len;
+	float ends = smoothstep(-0.06, 0.05, y) * smoothstep(1.1, 0.94, y);
+	float f = nz(vec2(c.x * 11.0, c.y * 5.0 - TIME * 1.2));
+	float a = clamp(1.0 - abs(c.x) / 0.14 - (f - 0.35) * 0.8, 0.0, 1.0);
+	a = floor(a * 6.0 + 0.5) / 6.0;
+	ALBEDO = mix(c2.rgb, c1.rgb, a);
+	ALPHA = a * al * ends;
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	m.set_shader_parameter("c1", Color("ffdf9a"))
+	m.set_shader_parameter("c2", Color("8a5ae0"))
+	m.set_shader_parameter("al", 0.5)
+	au.material_override = m
+	root.add_child(au)
+	for q in [mid, top, bot, au]:
+		for g in q.find_children("*", "GeometryInstance3D", true, false) + [q]: if g is GeometryInstance3D: g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var glow := OmniLight3D.new()
+	glow.light_color = Color("ffe2b0")
+	glow.light_energy = 0.8
+	glow.omni_range = 4.5
+	root.add_child(glow)
+	var d := { "root": root, "mid": mid, "top": top, "bot": bot, "aura": au, "glow": glow, "len": 0.42, "t": 0.0, "on": true, "sp": 0.0 }
+	staff_len(d, 0.42)
+	return d
+
+
+func staff_len(d: Dictionary, l: float) -> void:
+	d.len = l
+	var e: float = minf(S_END, l * 0.5)
+	var m: float = maxf(0.004, l - e * 2.0)
+	(d.bot as Node3D).position.y = e
+	(d.top as Node3D).position.y = l - e
+	(d.bot as Node3D).scale = Vector3(1, e / S_END, 1)
+	(d.top as Node3D).scale = Vector3(1, e / S_END, 1)
+	(d.mid as Node3D).scale = Vector3(1, m / S_MID, 1)
+	(d.mid as Node3D).position.y = l * 0.5
+	var au: MeshInstance3D = d.aura
+	(au.mesh as QuadMesh).size = Vector2(0.46, l * 1.24)
+	(au.material_override as ShaderMaterial).set_shader_parameter("len", l)
+	au.custom_aabb = AABB(Vector3(-0.5, -0.3, -0.5), Vector3(1, l + 0.8, 1))
+	(d.glow as Node3D).position = Vector3(0, l * 0.75, 0.2)
+
+
+## A mote or two, up off it.
+func staff_motes(d: Dictionary, dt: float) -> void:
+	d.t += dt
+	d.sp = float(d.get("sp", 0.0)) + dt
+	if d.sp < 0.14: return
+	d.sp = 0.0
+	var root: Node3D = d.root
+	var an := randf() * TAU
+	s.burst(root.global_transform * Vector3(sin(an) * 0.1, randf() * float(d.len), cos(an) * 0.1), Color("ffe29a") if randf() < 0.6 else Color("c8b4ff"), Color("fff6d8"), 1, 0.12, 0.35, 0.024, 1.1)
+
+
 func _staff_update(dt: float) -> void:
-	staff.t += dt
-	if staff.has("gem"): (staff.gem as Node3D).position = Vector3(0, 74 * 0.024 + sin(staff.t * 2.2) * 0.03, 0)
-	if staff.has("gem"): (staff.gem as Node3D).rotation.y = staff.t * 1.6
-	for i in staff.get("rings", []).size():
-		var r: Node3D = staff.rings[i]
-		r.position.y = 0.5 + i * 0.55 + sin(staff.t * 1.4 + i * 2.0) * 0.12
-		r.rotation = Vector3(sin(staff.t + i) * 0.16, staff.t * (1.6 if i % 2 else -1.3), cos(staff.t * 0.8 + i) * 0.16)
-	staff.sp = float(staff.get("sp", 0.0)) + dt
-	if staff.get("on", false) and staff.sp > 0.03:         # light winding up it
-		staff.sp = 0.0
-		var k: float = staff.t * 5.0
-		var root: Node3D = staff.root
-		for q in 2:
-			var an := k + q * PI
-			var h: float = fmod(staff.t * 0.8 + q * 0.5, 1.0) * 2.0
-			s.burst(root.global_position + Vector3(sin(an) * 0.5, h, cos(an) * 0.5), [Color("ffe29a"), Color("c8b4ff")][q], [Color("fff6d8"), Color("8ad8ff")][q], 2, 0.35, 0.4, 0.028, 0.9)
+	if staff.get("on", false): staff_motes(staff, dt)
 
 
 func d14_staff() -> void:
@@ -2455,6 +2546,10 @@ func d14_staff() -> void:
 	await s.say("reiner_uni", "Four hundred of them ran. This one ran after me.", { "eyes": "down", "mouth": "small", "as": "Reiner, thinking" })
 	await s.wait(0.6)
 	R.feel("worry", "flat")
+	await s.say("reiner_uni", "You're thick, for a wand. And there's no point on you. ...You're not a wand at all, are you? You're a baton.", { "eyes": "open", "mouth": "flat" })
+	s.cut(at0 + Vector3(-0.9, 0.85, -0.5), hang, 36)
+	await nod.call(1)
+	s.cut(hang + Vector3(0.7, 0.2, 0.9), at0 + Vector3(0, 0.62, 0.1), 38)
 	await s.say("reiner_uni", "Do you want me to... hold you?", { "eyes": "worry", "mouth": "flat" })
 	s.cut(at0 + Vector3(-0.8, 0.85, -0.4), hang, 34)
 	await nod.call(3)
@@ -2515,45 +2610,32 @@ func d14_staff() -> void:
 	n.visible = false
 	s.burst(hang, Color("fff6d8"), Color("ffe29a"), 90, 5.0, 0.0, 0.05, 1.2)
 	s.burst(hang, Color("c8b4ff"), Color("8ad8ff"), 60, 3.4, 0.0, 0.04, 1.6)
-	var root := Node3D.new()
-	s.add_child(root)
-	a.keep(root)
-	root.position = Vector3(hang.x - 0.1, 0.0, hang.z - 0.25)
-	var stf: Node3D = s.prop("staff")
-	root.add_child(stf)
-	var gem: Node3D = s.prop("staff_gem")
-	root.add_child(gem)
-	var rings: Array = []
-	for k in 3:
-		var rg: Node3D = s.prop("staff_ring")
-		root.add_child(rg)
-		rg.scale = Vector3.ONE * (1.7 - k * 0.22)
-		rings.append(rg)
-	for q in [stf, gem] + rings:
-		for g in q.find_children("*", "GeometryInstance3D", true, false) + [q]: if g is GeometryInstance3D: g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	var glow := OmniLight3D.new()
-	glow.light_color = Color("e8d4ff")
-	glow.light_energy = 1.3
-	glow.omni_range = 11.0
-	glow.position = Vector3(0, 1.9, 0.3)
-	root.add_child(glow)
-	staff = { "t": 0.0, "root": root, "gem": gem, "rings": rings, "on": true }
+	staff = staff_make(Vector3(hang.x - 0.1, hang.y - 0.21, hang.z - 0.25))
+	var root: Node3D = staff.root
 	var grip := Node3D.new()
 	root.add_child(grip)
-	grip.position = Vector3(-0.02, 1.08, 0)
+	grip.position = Vector3(0, 0.21, 0)
 	R.stand()
 	R.reach.R = grip
 	R.hand.R = "fist"
 	R.feel("wide", "oh")
-	R.place(at0 + Vector3(0.12, 0, 0.35), 0.15)
+	R.place(at0 + Vector3(0.14, 0, 0.35), 0.15)
 	R.reach.R = grip
-	R.look = gem
+	R.look = root.position + Vector3(0, 2.0, 0)
 	t0 = s.time
 	s.move(at0 + Vector3(2.8, 0.5, 3.4), at0 + Vector3(0, 1.2, 0.6), at0 + Vector3(-2.6, 1.4, 3.6), at0 + Vector3(0, 1.35, 0.6), 7.0, 46)
-	while s.time < t0 + 1.2:
-		root.scale = Vector3.ONE * lerpf(0.2, 1.0, smoothstep(0.0, 1.0, (s.time - t0) / 1.0))
+	var y0: float = root.position.y
+	while s.time < t0 + 0.4:                              # out at both ends: the foot of it to the ground, the head of it over his
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 0.4)
+		root.position.y = lerpf(y0, 0.0, u)
+		staff_len(staff, lerpf(0.42, STAFF, u))
+		grip.position.y = lerpf(0.21, 1.08, u)
 		await s.beat()
-	root.scale = Vector3.ONE
+	root.position.y = 0.0
+	staff_len(staff, STAFF)
+	grip.position.y = 1.08
+	s.main.sfx("thump")
+	s.shake = 0.8
 	for k in 24:
 		var an := k / 24.0 * TAU
 		s.burst(at0 + Vector3(sin(an) * 2.4, 0.1, 0.6 + cos(an) * 2.4), Color("ffd0ea"), Color("fff0f8"), 2, 1.4, 0.8, 0.035, 2.0, 25.0)
@@ -2587,28 +2669,43 @@ func d14_staff() -> void:
 		await s.beat()
 	W.get_up()
 	W.visible = false
+	ww.visible = false
 	s.indoor = 0.0
 	a.ch1.lean = Vector2.ZERO
-	s.move(at0 + Vector3(-3.4, 2.2, 4.6), at0 + Vector3(0, 1.4, 0.5), at0 + Vector3(2.4, 2.8, 5.2), at0 + Vector3(0, 1.5, 0.5), 6.0, 44)
+	# and what it weighs
+	s.cut(at0 + Vector3(2.0, 1.1, 2.6), at0 + Vector3(0, 1.1, 0.6), 44)
+	R.look = root.position + Vector3(0, 1.8, 0)
+	await s.wait(1.0)
+	s.main.sfx("whoosh", null, -8.0)
+	t0 = s.time
+	while s.time < t0 + 2.2:                              # nothing: it comes up off the grass in the one hand
+		var u: float = smoothstep(0.0, 0.7, s.time - t0)
+		root.position.y = 0.2 * u
+		root.rotation = Vector3(0, 0, sin((s.time - t0) * 2.6) * 0.1 * u)
+		await s.beat()
+	s.face(R, 0.35, 1.3, 36)
 	R.feel("happy", "grin")
-	await s.say("reiner_uni", "You're enormous!", { "eyes": "happy", "mouth": "grin" })
+	await s.say("reiner_uni", "You're taller than I am!", { "eyes": "happy", "mouth": "grin" })
 	R.do("laugh", 1.6)
-	await s.wait(2.2)
+	s.cut(at0 + Vector3(1.4, 1.5, 2.4), at0 + Vector3(0.1, 1.15, 0.5), 44)
+	await s.wait(1.8)
 	# and then it isn't
 	s.main.sfx("fizz")
 	staff.on = false
-	t0 = s.time
 	R.feel("worry", "flat")
+	t0 = s.time
 	s.cut(at0 + Vector3(1.6, 1.2, 2.4), at0 + Vector3(0, 1.2, 0.5), 40)
 	while s.time < t0 + 1.0:
-		glow.light_energy = 1.3 * (0.3 + 0.7 * randf()) * (1.0 - (s.time - t0))
-		root.scale = Vector3.ONE * (1.0 + sin(s.time * 50.0) * 0.02)
+		(staff.glow as OmniLight3D).light_energy = 0.8 * (0.3 + 0.7 * randf()) * (1.0 - (s.time - t0))
+		staff_len(staff, lerpf(STAFF, 0.5, smoothstep(0.3, 0.95, s.time - t0)) + sin(s.time * 50.0) * 0.02)
+		root.position.y = lerpf(0.2, 0.9, smoothstep(0.3, 0.95, s.time - t0))
+		grip.position.y = lerpf(1.08, 0.25, smoothstep(0.3, 0.95, s.time - t0))
 		await s.beat()
+	R.reach.L = null
 	s.main.sound.music("")
 	s.main.sfx("poof")
 	s.smoke(root.position + Vector3(0, 1.1, 0), 18, false)
 	root.visible = false
-	glow.visible = false
 	staff = {}
 	R.reach.R = null
 	var small: Node3D = s.prop("wand_black")
@@ -2656,4 +2753,219 @@ func d14_staff() -> void:
 	await s.fade(1.0, 0.9)
 	await s.title_card("TRAP TRICK", "End of Chapter Two", 5.0)
 	R.gest = ""
+	await _ember()
 	a._free_people()
+
+
+## After everything: his candle, with everyone asleep.
+func _ember() -> void:
+	open(3.1)
+	for p in s.campus.people:
+		p.busy = true
+		p.a.visible = false
+	s.film()
+	s.fader = 1.0
+	s.fader_to = 1.0
+	s.lamps_out = 1.0
+	music("")
+	s.main.sound.air("night")
+	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
+	var bw: Dictionary = s.stage.data.rooms.owl.beds[1]
+	s.stage.shut("owl_r0")
+	var cx: float = (b.x + bw.x) * 0.5
+	var R := reiner(cx, b.z, PI, b.y)
+	R.lie_at(Vector3(b.x, b.y, b.z), b.yaw)
+	var W: Node3D = act("wim")
+	W.visible = true
+	W.lie_at(Vector3(bw.x, bw.y, bw.z), bw.yaw)
+	var top: float = b.y + 0.744
+	var C: Node3D = a.keep(s.put("candle", Vector3(cx + 0.1, top, b.z - 0.9)))
+	a.keep(s.put("toyhen", Vector3(cx - 0.28, top, b.z - 0.98), 0.6))
+	a.keep(s.put("wand_black", Vector3(cx + 0.42, top + 0.06, b.z - 0.84), 1.1))
+	moon(Vector3(cx, b.y + 1.9, b.z - 0.7), 0.4, Color("9ab0f0"), 4.5)
+	var wick: Vector3 = C.position + Vector3(0, 0.285, 0)
+	var side: float = signf(b.x - wick.x)
+	# the school, asleep
+	s.move(Vector3(15, 5.4, 31), Vector3(0, 6.2, -4), Vector3(12, 6.6, 27), Vector3(0, 6.4, -4), 7.0, 46)
+	await s.fade(0.0, 1.6)
+	await s.wait(2.6)
+	await s.fade(1.0, 0.8)
+	s.move(Vector3(cx + 0.5, b.y + 1.75, b.z + 1.7), Vector3(cx, b.y + 0.85, b.z - 0.7), Vector3(cx + 0.2, b.y + 1.4, b.z + 0.7), Vector3(cx + 0.05, b.y + 0.9, b.z - 0.8), 5.0, 48)
+	await s.fade(0.0, 1.0)
+	await s.wait(3.4)
+	# its smoke comes back to it
+	s.cut(wick + Vector3(-0.3, 0.08, 0.6), wick + Vector3(0, 0.02, 0), 32)
+	await s.wait(1.6)
+	s.main.sfx("emberin", null, -4.0)
+	var t0: float = s.time
+	var sp := 0.0
+	while s.time < t0 + 1.5:
+		sp += s.dt_last
+		if sp > 0.05:
+			sp = 0.0
+			var u: float = (s.time - t0) / 1.5
+			s.burst(wick + Vector3(sin(s.time * 5.0) * 0.05, 0.34 - u * 0.2, cos(s.time * 5.0) * 0.04), Color(0.5, 0.48, 0.52), Color(0.3, 0.28, 0.34), 1, 0.02, -0.5, 0.014, 0.8)
+		await s.beat()
+	# and it lights, with nobody by
+	fire = _fire_make(wick)
+	s.main.sfx("ignite", null, -12.0)
+	fire.h_to = 0.1
+	await s.wait(2.0)
+	s.main.sfx("soula", null, -2.0)
+	_letters(5)
+	fire.lean_to = Vector2(-0.6, 0.1)                     # it looks about
+	await s.wait(1.5)
+	fire.lean_to = Vector2(0.7, 0.2)
+	await s.wait(1.7)
+	s.main.sfx("soulb", null, -1.0)
+	_letters(7)
+	fire.lean_to = Vector2(0.0, 0.0)
+	fire.h_to = 0.17
+	fire.soul_to = 0.6
+	await s.wait(1.4)
+	# whose candle it is
+	var hd: Vector3 = R.head_pos()
+	s.move(wick + Vector3(-side * 0.5, 0.16, 0.16), hd.lerp(wick, 0.35), wick + Vector3(-side * 0.42, 0.14, 0.12), hd.lerp(wick, 0.3), 4.0, 46)
+	fire.lean_to = Vector2(side * 0.85, (hd.z - wick.z) * 0.5)
+	await s.wait(3.2)
+	# somebody's in there
+	s.move(wick + Vector3(0.05, 0.12, 0.72), wick + Vector3(0, 0.09, 0), wick + Vector3(0.02, 0.13, 0.5), wick + Vector3(0, 0.115, 0), 6.0, 36)
+	fire.lean_to = Vector2(0.0, 0.1)
+	fire.h_to = 0.22
+	fire.soul_to = 1.0
+	s.main.sfx("soulc", null, 1.0)
+	_letters(10)
+	await s.wait(1.8)
+	fire.eyes_to = 1.0
+	await s.wait(1.3)
+	fire.eyes_to = 0.0                                    # (a blink)
+	await s.wait(0.28)
+	fire.eyes_to = 1.0
+	_letters(8)
+	await s.wait(0.5)
+	s.main.sfx("soulin", null, 2.0)
+	fire.pull = true
+	fire.h_to = 0.25
+	await s.wait(0.95)
+	# and that's all
+	s.fader = 1.0
+	s.fader_to = 1.0
+	s.main.sound.cut()
+	fire = {}
+	s.lamps_out = 0.0
+	R.get_up()
+	W.get_up()
+	R.visible = false
+	W.visible = false
+	await s.wait(1.5)
+
+
+# ---------------------------------------------------------------------- fire --
+const FC := 0.012                        # (its voxel: half of ours, it's a small fire)
+
+
+func _fire_make(p: Vector3) -> Dictionary:
+	var mi := MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var bx := BoxMesh.new()
+	bx.size = Vector3.ONE * FC
+	mm.mesh = bx
+	mm.instance_count = 1500
+	mm.visible_instance_count = 0
+	mi.multimesh = mm
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.vertex_color_use_as_albedo = true
+	m.vertex_color_is_srgb = true
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = p
+	mi.custom_aabb = AABB(Vector3(-0.3, -0.1, -0.3), Vector3(0.6, 0.6, 0.6))
+	s.add_child(mi)
+	a.keep(mi)
+	var l := OmniLight3D.new()
+	l.light_color = Color("ffb868")
+	l.light_energy = 0.0
+	l.omni_range = 3.4
+	l.shadow_enabled = true
+	mi.add_child(l)
+	return { "n": mi, "mm": mm, "l": l, "t": 0.0, "acc": 1.0, "h": 0.02, "h_to": 0.02, "lean": Vector2.ZERO, "lean_to": Vector2.ZERO, "soul": 0.0, "soul_to": 0.0, "eyes": 0.0, "eyes_to": 0.0, "pull": false, "let": [] }
+
+
+## A few voxels of fire, burning; and, with a soul to it, turning, and drawing itself up, and looking.
+func _fire_update(dt: float) -> void:
+	var f := fire
+	if not is_instance_valid(f.n): return
+	f.t += dt
+	f.lean = (f.lean as Vector2).lerp(f.lean_to, 1.0 - exp(-1.9 * dt))
+	f.h = lerpf(f.h, f.h_to, 1.0 - exp(-2.4 * dt))
+	f.soul = move_toward(f.soul, f.soul_to, dt * 0.45)
+	f.eyes = move_toward(f.eyes, f.eyes_to, dt * 5.0)
+	for q in f.let.duplicate():
+		if not is_instance_valid(q.n):
+			f.let.erase(q)
+			continue
+		q.t += dt
+		var L: Label3D = q.n
+		if f.pull:                                        # drawn back in
+			var to: Vector3 = (f.n as Node3D).position + Vector3(0, f.h * 0.5, 0)
+			L.position = L.position.lerp(to, 1.0 - exp(-5.0 * dt)) + Vector3(sin(q.t * 9.0 + q.ph), 0, cos(q.t * 9.0 + q.ph)) * 0.004
+		else: L.position += Vector3(sin(q.t * 2.0 + q.ph) * 0.03, 0.055, cos(q.t * 1.7 + q.ph) * 0.02) * dt
+		L.modulate.a = 0.75 * smoothstep(0.0, 0.5, q.t) * (1.0 - smoothstep(1.1, 2.4, q.t))
+		if q.t > 2.4:
+			L.queue_free()
+			f.let.erase(q)
+	var fl: float = 0.85 + sin(f.t * 8.0) * 0.07 + sin(f.t * 13.7) * 0.05
+	var l: OmniLight3D = f.l
+	l.light_energy = clampf(f.h / 0.12, 0.0, 1.5) * 0.75 * fl
+	l.light_color = Color("ffb868").lerp(Color("d8a0ff"), f.soul * 0.45)
+	l.position = Vector3(f.lean.x * f.h * 0.5, f.h * 0.6, f.lean.y * f.h * 0.5)
+	f.acc += dt
+	if f.acc < 0.045: return
+	f.acc = 0.0
+	var mm: MultiMesh = f.mm
+	var n := 0
+	var H: int = int(f.h / FC) + 1
+	var tick: int = int(f.t * 7.0)
+	var er: int = int(H * 0.4)
+	for iy in H:
+		var v: float = (iy + 0.5) / H
+		var rr: float = (0.042 + 0.012 * f.soul) / FC * lerpf(0.34, 1.0, smoothstep(0.0, 0.34, v)) * pow(1.0 - v, 0.62) * 1.12
+		var sx: float = (f.lean.x * v * v * f.h + sin(f.t * 1.5 - v * 4.2) * 0.009 * v) / FC + sin(f.t * 1.9 + v * 5.0) * f.soul * 0.7 * v
+		var sz: float = (f.lean.y * v * v * f.h + cos(f.t * 1.2 - v * 3.6) * 0.009 * v) / FC + cos(f.t * 1.9 + v * 5.0) * f.soul * 0.5 * v
+		for ix in range(int(floor(sx - rr)), int(ceil(sx + rr)) + 1):
+			for iz in range(int(floor(sz - rr)), int(ceil(sz + rr)) + 1):
+				var dx := ix - sx
+				var dz := iz - sz
+				var d: float = sqrt(dx * dx + dz * dz) / maxf(rr, 0.4)
+				if d > 1.0: continue
+				if d > 0.7 and v > 0.2 and (hash(Vector3i(ix * 7 + tick, iy * 13 - tick, iz * 5)) & 255) < 50: continue
+				if n >= mm.instance_count: break
+				var c: Color = Color("fff2b0") if d < 0.45 else Color("ffc04a") if d < 0.8 else Color("ff8a2a")
+				if v < 0.1 or v < 0.17 and d > 0.6: c = Color("8ab4ff")
+				c = c.lerp(Color("f0e2ff") if d < 0.45 else Color("a070ff"), f.soul * 0.55 * smoothstep(0.1, 0.7, v))
+				var front: bool = sqrt(dx * dx + (dz + 1.0) * (dz + 1.0)) / maxf(rr, 0.4) > 1.0
+				if front and absi(ix - int(round(sx))) == 2 and iy >= er and iy < er + int(round(f.eyes * 3.0)): c = Color("2a0c1c")
+				mm.set_instance_transform(n, Transform3D(Basis(), Vector3(ix, iy + 0.5, iz) * FC))
+				mm.set_instance_color(n, Color(c.r * 1.25, c.g * 1.2, c.b * 1.2))
+				n += 1
+	mm.visible_instance_count = n
+
+
+## Letters of something, up off it, and gone before they can be read.
+func _letters(n: int) -> void:
+	for k in n:
+		var L := Label3D.new()
+		L.text = "aehmnorsuwyl"[randi() % 12]
+		L.font = s.campus.font
+		L.font_size = 40
+		L.pixel_size = 0.00055
+		L.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		L.modulate = Color(1.0, 0.72, 0.42, 0.0)
+		L.outline_size = 0
+		L.position = (fire.n as Node3D).position + Vector3(randf_range(-0.09, 0.09), fire.h * randf_range(0.5, 1.2), randf_range(-0.03, 0.06))
+		s.add_child(L)
+		a.keep(L)
+		fire.let.append({ "n": L, "t": -k * 0.22, "ph": randf() * TAU })

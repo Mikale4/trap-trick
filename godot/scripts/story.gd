@@ -26,6 +26,7 @@ var hour_run := 0.0                   # hours per second, when the day runs on b
 var indoor := 0.0
 var indoor_to := 0.0
 var indoor_auto := true
+var lamps_out := 0.0                  # 1: every lamp in the place is out
 var skipping := false
 var skip_hold := 0.0
 var busy := false                     # a scene is under way (no other may start)
@@ -38,6 +39,8 @@ var cam_pitch := 0.16
 var cam_dist := 3.4
 var cam_tgt := Vector3.ZERO
 var cam_k := 1.0
+var eye_h := 1.15                     # how high the camera looks (lower for a cat)
+var cam_in := 0.0                     # under a roof: the camera keeps a little closer (by where he is, not where it is, or it'd chase itself through a doorway)
 var shot := {}                        # the film's shot: { p0, p1, l0, l1, f0, f1, t, d, follow }
 var shake := 0.0
 var sway := 1.0
@@ -103,9 +106,15 @@ func go_place(n: String) -> void:
 	main.garden.visible = n == "garden"
 	main.town.visible = n == "town"
 	main.level = "garden" if n == "garden" else "town"
-	if n in ["farm", "academy"]: stage = load_stage(n)
+	if n in ["farm", "academy", "snow"]: stage = load_stage(n)
 	else: stage = null
 	if stage: stage.visible = true
+	if n == "academy" and not stage.has_node("water"):
+		var w: Node3D = load("res://scripts/fountain.gd").new()
+		w.name = "water"
+		stage.add_child(w)
+		w.position = Vector3(0, 0, 14)
+		w.setup(main, true)
 	for k in actors: actors[k].visible = false
 	uses = []
 	goal = null
@@ -226,7 +235,8 @@ func set_hour(h: float) -> void:
 	var ik := smoothstep(0.0, 1.0, indoor)
 	e.ambient_light_color = (mixc.call(4) as Color).lerp(Color("e8c8a4"), ik * 0.55)
 	var night := 1.0 if hour > 20.5 or hour < 5.0 else 0.0
-	e.ambient_light_energy = lerpf(mixf.call(5), 0.52 - night * 0.2, ik)
+	e.ambient_light_energy = lerpf(mixf.call(5), 0.52 - night * 0.2, ik) * lerpf(1.0, 0.6, lamps_out * ik)
+	if lamps_out > 0.0: e.ambient_light_color = e.ambient_light_color.lerp(Color("8a9ac8"), lamps_out * 0.7)
 	e.ambient_light_sky_contribution = lerpf(0.22, 0.05, ik)
 	e.fog_light_color = mixc.call(6)
 	e.fog_density = mixf.call(7) * (1.0 - ik)
@@ -241,11 +251,12 @@ func set_hour(h: float) -> void:
 	sun.sky_mode = DirectionalLight3D.SKY_MODE_LIGHT_AND_SKY if hour > 5.6 and hour < 19.4 else DirectionalLight3D.SKY_MODE_LIGHT_ONLY
 	sun.transform = Transform3D(Basis.looking_at(-dir.normalized(), Vector3.UP), Vector3.ZERO)
 	sun.light_angular_distance = 0.0
-	if stage: stage.set_lamps(1.0 if hour > 17.8 or hour < 7.2 else (0.55 if ik > 0.5 else 0.12))
+	if place == "snow": act.ch3.weather_env()
+	if stage: stage.set_lamps((1.0 - lamps_out) * (1.0 if place == "snow" or hour > 17.8 or hour < 7.2 else (0.55 if ik > 0.5 else 0.12)), lamps_out)
 
 
 func is_indoors(p: Vector3) -> bool:
-	if place == "farm": return p.x > 150.0
+	if place in ["farm", "snow"]: return p.x > 150.0
 	if place == "academy": return p.x > 150.0 or (absf(p.x) < 20.2 and p.z < -6.1 and p.z > -20.4 and p.y < 10.8)
 	return false
 
@@ -409,8 +420,8 @@ func fade(to: float, secs := 0.6, c := Color.BLACK) -> void:
 
 
 const NAMES := { "reiner": "Reiner", "reiner_uni": "Reiner", "lotte": "Lotte", "mother": "Mother", "father": "Father", "maron": "Maron", "halden": "Professor Halden", "brandt": "Brandt", "wim": "Wim", "tobin": "Tobin", "isolde": "Isolde", "petra": "Petra", "nadi": "Nadi", "otto": "Otto", "selma": "Selma", "kas": "Kas", "wren": "Professor Wren", "marrow": "Professor Marrow", "corvin": "Master Corvin", "lys": "Professor Lys", "aurel": "Headmistress Aurel", "sabine": "Sabine", "dorle": "Dorle", "hob": "Hob", "agnes": "Agnes",
-	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane", "thorne": "Mistress Thorne", "cassian": "Cassian", "odile": "Odile" }
-const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman", "thorne": "woman", "odile": "girl" }
+	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane", "thorne": "Mistress Thorne", "cassian": "Cassian", "odile": "Odile", "penny": "Penny", "erebus": "Erebus", "arnold": "Arnold", "dunstan": "Dunstan", "hettie": "Hettie", "gus": "Gus", "cat": "The cat" }
+const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman", "thorne": "woman", "odile": "girl", "penny": "girl", "arnold": "man", "dunstan": "old", "hettie": "woman", "cat": "old" }
 
 
 ## Someone says a line. Waits until it's been read (or passed over).
@@ -985,8 +996,11 @@ func _find_use() -> void:
 		if not u.get("on", true): continue
 		var up: Vector3 = u.pos.position if u.pos is Node3D else u.pos
 		if absf(up.y - hp.y) > 1.2: continue
-		var d: float = Vector2(up.x - hp.x, up.z - hp.z).length() / u.r
-		if u.get("first", false): d *= 0.3
+		var l: float = Vector2(up.x - hp.x, up.z - hp.z).length()
+		var d: float = l / u.r
+		if u.get("first", false):                            # (it comes before other things, but not from across the yard)
+			if l > u.r + 0.8: continue
+			d *= 0.3
 		if d < best:
 			best = d
 			use_now = u
@@ -1038,17 +1052,18 @@ func _camera(dt: float) -> void:
 		cam.fov = n[2]
 		return
 	if hero == null and not tt_mode: return
-	var want: Vector3 = main.tt.position + Vector3(0, 1.2, 0) if tt_mode else hero.position + Vector3(0, 1.15 + hero.air * 0.5 - (0.35 if sitting != null else 0.0), 0)
+	var want: Vector3 = main.tt.position + Vector3(0, 1.2, 0) if tt_mode else hero.position + Vector3(0, eye_h + hero.air * 0.5 - (0.35 if sitting != null else 0.0), 0)
 	cam_tgt = cam_tgt.lerp(want, 1.0 - exp(-11.0 * dt))
 	if cam_tgt.distance_to(want) > 5.0: cam_tgt = want
 	var cp := cos(cam_pitch)
-	var dist := cam_dist * (0.8 if indoor > 0.5 else 1.0)
+	cam_in = move_toward(cam_in, 1.0 if is_indoors(want) else 0.0, dt * 1.6)
+	var dist: float = cam_dist * lerpf(1.0, 0.8, smoothstep(0.0, 1.0, cam_in))
 	var off := Vector3(sin(cam_yaw) * cp, sin(cam_pitch), cos(cam_yaw) * cp) * dist
 	var k := 1.0
 	if stage:
 		for i in range(1, 17):
 			var qv := cam_tgt + off * (i / 16.0)
-			if stage.solid(qv):
+			if stage.solid(qv) or stage.shut_to_cam(qv):
 				k = (i - 1) / 16.0
 				break
 	else:

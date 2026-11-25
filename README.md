@@ -23,13 +23,21 @@ ends up tutoring him. He doesn't know who she is after school.
 - **Chapter Two, "What Chooses You"** (about 25 minutes, fourteen parts): the wandwright tips out her tub, and a wand chooses
   its mage. One that has found its mage **turns into what they are**, underneath: Petra's is fire, Kas's a living branch,
   Wim's a cat, Bet's her mother's ladle. Every one of them rolls away from Reiner. Two second years, Cassian and Odile, run
-  a book on the day he'll go home. One night somebody crosses the roofs, and something falls. Played: sneaking up on a
-  garden of wands, and being chased by one.
+  a book on the day he'll go home. One night somebody crosses the roofs, and something falls: not a wand but a
+  baton, which when Reiner touches it becomes a dark staff a little taller than he is. Played: sneaking up on a garden of
+  wands, and being chased by one. After the end card, his candle.
+- **Chapter Three, "What Is Kept"** (about 25 minutes, twelve parts): a long way north, in the Drowse, mountains said to be a
+  dragon asleep, Penny leads four tourists up by the flags into a storm, a cave, and what's under it; somebody who can't
+  remember his name gets them out, and she gives him one. Then the Academy: Reiner's baton (some call it pity), and two weeks
+  of learning that a wand awake drains its mage, so it must be put away again. And a note where nobody could have left one;
+  Maron doesn't go and look. Her cat does. Played: Penny's walk, the gusts, making camp; lighting candles and paper birds,
+  the Long Dark; the cat, by scent, through the school at night.
 - **Free afternoons:** four of them in Chapter Two, two meetings each. Whoever you choose to see (friends, the old High
   Table, the Proctor, Maron) has a story of their own, with something for you to say. How well you know them changes who
   stands by Reiner later, who comes to his door, how he gets out, and what he sees. `J` shows everyone, and where they are.
 - **Wicks:** candle duels on the incantation ring. Blue shelters your flame from a breath, gold calls it higher, rose
   breathes on theirs.
+- **Mana (Chapter Three):** hold `F` to wake the staff, let go to put it away. Awake, it spends you; with none left, down you go.
 - **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there.
 - **School Days:** the whole campus, free to roam: a school of three floors (stairs, doors that open and shut), the
   glasshouse, the practice yard, the court, two boarding houses with a warden, common room and bedrooms each. Three years
@@ -40,23 +48,26 @@ ends up tutoring him. He doesn't know who she is after school.
 |---|---|
 | `W A S D`, `Shift`, `Space` | walk, run, hop |
 | `E` | talk, open, sit, read, go on |
+| `F` (hold) | wake the staff; as the cat, follow the scent (Chapter Three) |
 | `T` | the timetable (at the Academy) |
 | `Tab` (hold) | skip a scene |
 | `Esc` | pause |
 
-A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, `Y` the timetable, Start to pause.
+A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, right shoulder for `F`, `Y` the timetable, Start to pause.
 
-How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js` (the places,
-their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
+How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js`,
+`js/snow.js` (the places, their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
 In Godot: `story.gd` (places, camera, speech, the hour, the player), `act1.gd` (the Opening Act, scene by scene),
-`ch1.gd` (Chapter One), `ch2.gd` (Chapter Two: wands and their physics, the forms they take, the afternoons),
+`ch1.gd` (Chapter One), `ch2.gd` (Chapter Two: wands and their physics, the forms they take, the afternoons,
+the staff, the candle), `ch3.gd` (Chapter Three: weather, mana, the cat), `fountain.gd` (falling water),
 `actor.gd` (one of the cast: springs, IK, gestures, faces), `campus.gd` (the school's life), `stage.gd` (a place: floors,
 stairs, doors, paths), `ui.gd`, `sound.gd`. Sound and music are synthesised by `tools/make_audio.py`.
 
-Testing it: `--scene=0` to `--scene=39` starts at a part (Chapter One is 12 to 25, Chapter Two 26 to 39; `--pick=n` makes the
+Testing it: `--scene=0` to `--scene=51` starts at a part (Chapter One is 12 to 25, Chapter Two 26 to 39, Chapter Three 40 to 51; `--pick=n` makes the
 nth choice by itself, 9 sees everyone; `--bond=wim:3,wim1:0` sets how well someone's known and what's been seen), `--scene=school16.4` the school at that hour, `--auto` plays on by
 itself and reports anyone standing closer than 40 cm to someone else, `--film=dir,every,count,from` saves stills,
-`--tour=x,y,z,tx,ty,tz;...` stills from given views, `--scene=simday` a whole school day, `--scene=test` the basics,
+`--tour=x,y,z,tx,ty,tz;...` stills from given views, `--scene=simday` a whole school day, `--scene=keys` the played parts with real key presses (`--bond=farm:0`, `town`, `free`, `cam`,
+`pen`, `lamp`, `bird`, `dark`, `cat`; it writes the save), `--scene=test` the basics,
 `--free` starts roaming as Trap Trick.
 
 ## The town (desktop version)
@@ -65,7 +76,9 @@ The world is an old, quiet fantasy one: villages and market towns, roads between
 game starts in **Thistlewick**, a small half-timbered market town round a cobbled square: a fountain with a little
 statue, market stalls under striped awnings (fruit, fish, cloth, flowers, bread), an inn, a bakery, a blacksmith's open
 forge, a general store, a tailor's, bunting across the square, a street south to the town gate (a hay cart stands in
-it) and one east to a lookout over the fields, the windmill, the chapel's bell tower, hills and far mountains.
+it) and one east. A ring of **walls** eighteen metres high, with square towers, stands round it all; there's a gatehouse in the south
+of it and another in the east, where the road goes out and up to the Mage Academy on its hill. The windmill, the fields and
+far mountains are beyond.
 
 About twenty townsfolk go about their day:
 - **at work:** the baker kneads, the smith hammers (sparks fly), the woodcutter splits logs (chips fly), the bard
@@ -217,7 +230,7 @@ the bigger cards, the rank. The shapes stay voxel; only the paint is finer (`tex
 | `js/town.js` | the town (desktop version; buildings in 4.8 cm voxels): houses, the square, stalls, the alley and its door, the country round, and the townsfolk's jobs, ways and lines |
 | `js/things.js` | the town's small things at her own 2.4 cm voxel: food and goods, stalls, benches, barrels, the well, the fountain, the forge, signs, the cat and the hens |
 | `js/people.js` | the townsfolk's voxel rigs, built from a short description each, in her own voxel style and scale (2.4 cm voxels; women about her height, men a little taller) |
-| `js/cast.js`, `js/stage.js`, `js/farm.js`, `js/academy.js` | the story's cast and places (desktop version) |
+| `js/cast.js`, `js/stage.js`, `js/farm.js`, `js/academy.js`, `js/snow.js` | the story's cast and places (desktop version) |
 | `tools/make_audio.py` | makes the story's sound and music |
 | `godot/` | the Godot desktop version (`scripts/town.gd`: the town and its people) |
 

@@ -30,7 +30,7 @@
 
   /* --------------------------------------------------------- the ground -- */
   // where one can walk: the square, the south street, the east street, the alley (they overlap a metre at the joins)
-  const WALK = [[-12, -10, 12, 10], [-3, 9, 3, 30.5], [11, -3, 28, 3], [-20.6, -5.5, -11, -3.5]];
+  const WALK = [[-12, -10, 12, 10], [-3, 9, 3, 30.5], [11, -3, 28, 3], [27, -1.7, 62, 1.7], [-20.6, -5.5, -11, -3.5]];
   const GROUND = 140;
   function groundTexture() {                             // the country round: fields, meadows, the roads out (the streets have their own, finer one)
     const N = 1024, W = GROUND, cv = document.createElement('canvas'); cv.width = cv.height = N;
@@ -423,6 +423,101 @@
     for (let k = 0; k < 4; k++) { const a = k * HP, c = R(Math.cos(a)), s = R(Math.sin(a)); for (let r = 3; r <= 52; r++) { g.set(c * r, s * r, 1, PAL.WOOD2); if (r > 9) for (let w = 1; w <= 12; w++) { const lat = w === 12 || (r - 9) % 7 === 0 || w % 4 === 0; g.set(c * r - s * w, s * r + c * w, 0, lat ? PAL.WOOD : 0xe8e0d0); } } }
     return g;
   }
+  /* the Mage Academy as it's seen from the town: on its hill, its back to the mountains, its front this way (+z). Forty centimetre voxels */
+  function farAcademy() {
+    const g = grid(), ST = [0xc0ae94, 0xb4a288, 0xccba9e], SL = 0x6c6672, SL2 = 0x5c5664, W = 0x3a4258, WL = VX.glow(0xffdc9a), st = (x, y, z) => ST[H(x >> 1, y >> 1, z >> 1) < 0.25 ? 1 : H(x >> 2, y >> 1, z >> 2) < 0.4 ? 2 : 0];
+    g.inside = () => false;
+    const roof = (x0, x1, z0, z1, y, h, c, c2, alongX) => { for (let k = 0; k <= h; k++) { if (alongX) { const a = R((z1 - z0) / 2 * k / h); g.box(x0 - 1, y + k, z0 - 1 + a, x1 + 1, y + k, z1 + 1 - a, (x, yy, z) => (x + k * 3) % 5 === 0 ? c2 : c); } else { const a = R((x1 - x0) / 2 * k / h); g.box(x0 - 1 + a, y + k, z0 - 1, x1 + 1 - a, y + k, z1 + 1, (x, yy, z) => (z + k * 3) % 5 === 0 ? c2 : c); } } };
+    // a terrace of stone for the school, arches along it, a great stair down to the court
+    const TY = 30; g.box(-58, 0, -40, 58, TY, 8, (x, y, z) => { const e = z === 8 || z === -40 || Math.abs(x) === 58 || y === TY; if (!e) return -1; if (y === TY) return 0x9a948a; const u = ((x + 400) % 14) - 7; return z === 8 && y < 20 && Math.abs(u) < 4 && Math.hypot(u, Math.max(0, y - 15)) < 4.5 ? 0x4a4650 : y > TY - 3 ? ST[2] : st(x, y, z); });
+    for (let k = 0; k <= 15; k++) g.box(-10, k * 2, 8, 10, k * 2 + 1, 8 + (15 - k) * 2, (x, y, z) => Math.abs(x) > 8 ? ST[1] : y % 2 ? 0xc8c0b2 : 0xb0a89a);
+    const g0 = g, up = { box: (x0, y0, z0, x1, y1, z1, c) => g0.box(x0, y0 + TY, z0, x1, y1 + TY, z1, typeof c === 'function' ? (x, y, z) => c(x, y - TY, z) : c), ell: (x, y, z, a, b, c2, c) => g0.ell(x, y + TY, z, a, b, c2, c) };
+    // the school, its three rows of windows, its portal, the tower with the bell
+    const roofUp = (x0, x1, z0, z1, y, h, c, c2, al) => roof(x0, x1, z0, z1, y + TY, h, c, c2, al);
+    up.box(-50, 0, -34, 50, 27, 2, (x, y, z) => { const f = z === 2 || z === -34, e = Math.abs(x) === 50; if (!f && !e) return y > 25 ? ST[1] : -1; const a = f ? x : z, u = ((a + 400) % 8), r = y % 9; if (r === 8 || r === 0 && y > 0) return ST[1]; if (u > 2 && u < 6 && r > 2 && r < 7) return H(a >> 3, y >> 3, 7) < 0.22 ? WL : W; return st(x, y, z); });
+    roofUp(-50, 50, -34, 2, 28, 18, SL, SL2, true);
+    for (const x of [-36, -18, 18, 36]) { up.box(x - 2, 32, -6, x + 2, 38, 1, (X, y, z) => z === 1 && Math.abs(X - x) < 2 && y < 37 && y > 33 ? WL : ST[0]); roofUp(x - 2, x + 2, -8, 1, 39, 3, SL, SL2, false); }
+    up.box(-8, 0, 2, 8, 15, 8, (x, y, z) => Math.abs(x) < 4 && y < 11 ? (z > 4 ? -1 : 0x3a2a20) : st(x, y, z)); roofUp(-8, 8, 2, 8, 16, 8, SL, SL2, false); up.box(-1, 18, 9, 1, 21, 9, VX.glow(0xffd080));
+    for (const [x, c] of [[-30, 0x3a7a5a], [-14, 0xa83a48], [14, 0x3a5a9a], [30, 0x3a7a5a]]) up.box(x - 2, 10, 3, x + 2, 22, 3, (X, y) => y < 12 && Math.abs(X - x) > 1 ? -1 : c);
+    up.box(-8, 28, -26, 8, 66, -10, (x, y, z) => { const e = Math.abs(x) === 8 || z === -26 || z === -10; if (!e) return y === 66 ? ST[1] : -1; if (y > 54 && y < 64 && Math.abs(x) < 6 && (z === -10 || z === -26)) return -1; if (y > 54 && y < 64 && z < -12 && z > -24 && Math.abs(x) === 8) return -1; return y === 53 || y === 66 ? ST[2] : st(x, y, z); });
+    up.ell(0, 46, -9, 4, 4, 1, 0xf4e8c8); up.box(0, 46, -8, 0, 49, -8, 0x2a2430); up.ell(0, 58, -18, 3.6, 4, 3.6, 0xd8a838); up.box(-5, 53, -23, 5, 53, -13, 0x4a3a30);
+    for (let k = 0; k <= 18; k++) { const a = R(9 * (1 - k / 18)); up.box(-a, 67 + k, -18 - a, a, 67 + k, -18 + a, k % 3 === 0 ? SL2 : SL); } up.box(0, 85, -18, 0, 90, -18, 0xe0b84a); up.ell(0, 91, -18, 1, 1, 1, VX.glow(0xffe9a8));
+    // the two houses, the glasshouse, the trees, the fountain's astrolabe
+    for (const [s, rc, rc2] of [[-1, 0x5c6676, 0x4c5666], [1, 0xa8483a, 0x8f3a30]]) { const x0 = s < 0 ? -58 : 38; g.box(x0, 0, 14, x0 + 20, 22, 42, (x, y, z) => { const e = x === x0 || x === x0 + 20 || z === 14 || z === 42; if (!e) return y === 22 ? 0x6b4a32 : -1; if (y < 8) return st(x, y, z); const a = (x === x0 || x === x0 + 20) ? z : x, u = (a + 200) % 6; return u === 0 || y % 7 === 1 ? 0x4e3828 : u > 2 && u < 5 && y % 7 > 2 && y % 7 < 6 ? (H(a >> 2, y >> 2, 3) < 0.3 ? WL : W) : 0xe8dcc4; }); roof(x0, x0 + 20, 14, 42, 23, 14, rc, rc2, false); }
+    for (let k = 0; k <= 10; k++) g.box(-64, k, 46 - R(k * 0.3), -60, k, 54, (x, y, z) => (x + z + y) % 3 === 0 ? 0xf0ece0 : 0xbfe0d8);
+    const tree = (x, z, c, c2, r) => { g.box(x, 0, z, x + 1, 8, z + 1, 0x5c4432); g.ell(x, 11, z, r, r * 0.8, r, (X, y, Z) => H(X, y, Z) < 0.4 ? c : c2); };
+    tree(-30, 12, 0xf0c4de, 0xe2a8ca, 7); for (const [x, z] of [[-24, 48], [24, 48], [-30, 34], [30, 30], [28, 12], [-12, 46], [14, 44]]) tree(x, z, 0x4f8f3a, 0x62a248, 5);
+    g.disc(0, 26, 5, 0, 2, ST[2]); g.ell(0, 14, 26, 2, 2, 2, VX.glow(0xbff4ea)); for (let k = 0; k < 60; k++) { const a = k / 60 * TAU; g.set(R(Math.cos(a) * 6), R(14 + Math.sin(a) * 6), 26, 0xd8a838); g.set(R(Math.cos(a) * 5), R(14 + Math.sin(a) * 2), R(26 + Math.sin(a) * 4), 0xb8882a); }
+    // the wall about it all, its towers, the gatehouse
+    const wallc = (x, y, z) => H(x >> 1, y >> 1, z >> 1) < 0.35 ? 0x8d857b : 0x9c948a;
+    for (const s of [-1, 1]) { g.box(s * 66 - 1, 0, -46, s * 66 + 1, 8, 58, (x, y, z) => y > 6 && (z & 3) > 1 ? -1 : wallc(x, y, z)); for (const z of [-46, 58]) { g.disc(s * 66, z, 6, 0, 18, (x, y, zz) => Math.hypot(x - s * 66, zz - z) < 4.4 && y < 17 ? -1 : y > 16 && ((x + zz) & 3) > 1 ? -1 : wallc(x, y, zz)); for (let k = 0; k <= 10; k++) g.disc(s * 66, z, 6.6 * (1 - k / 11), 19 + k, 19 + k, SL2); } }
+    g.box(-66, 0, -47, 66, 8, -45, (x, y, z) => y > 6 && (x & 3) > 1 ? -1 : wallc(x, y, z)); g.box(-66, 0, 57, 66, 8, 59, (x, y, z) => Math.abs(x) < 6 ? -1 : y > 6 && (x & 3) > 1 ? -1 : wallc(x, y, z));
+    for (const s of [-1, 1]) { g.disc(s * 11, 58, 6, 0, 24, (x, y, z) => Math.hypot(x - s * 11, z - 58) < 4.4 && y < 23 ? -1 : wallc(x, y, z)); for (let k = 0; k <= 13; k++) g.disc(s * 11, 58, 6.8 * (1 - k / 14), 25 + k, 25 + k, SL2); }
+    g.box(-6, 10, 56, 6, 16, 60, (x, y, z) => y < 13 && Math.hypot(x, y - 8) < 6 ? -1 : y > 14 && (x & 3) > 1 ? -1 : wallc(x, y, z)); for (let x = -5; x <= 5; x += 2) g.box(x, 0, 58, x, 10, 58, 0x2a2a30);
+    g.ell(0, 9, 57, 2, 2.4, 2, 0xd8a838);
+    return g;
+  }
+  /* ... and the hill it stands on: a flat top 60 m across, 20 m up, a road winding to the gate from the town's side (-x) */
+  function academyHill() {
+    const g = grid(), Rr = 69, Hh = 18, FL = 47, path = [[-69, 0], [-64, -12], [-59, 10], [-54, -9], [-47, 0], [-34, 0]];
+    const near = (x, z) => { let b = 99; for (let i = 0; i + 1 < path.length; i++) { const [x0, z0] = path[i], [x1, z1] = path[i + 1], dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz))); b = Math.min(b, Math.hypot(x - x0 - dx * t, z - z0 - dz * t)); } return b; };
+    for (let x = -Rr; x <= Rr; x++) for (let z = -Rr; z <= Rr; z++) {
+      const d = Math.hypot(x, z); if (d > Rr) continue;
+      const top = R(d < FL ? Hh : Hh * (Math.cos((d - FL) / (Rr - FL) * Math.PI) * 0.5 + 0.5) * (0.92 + H(x >> 2, 3, z >> 2) * 0.16)), rd = near(x, z);
+      for (let y = Math.max(0, top - 3); y <= top; y++) g.set(x, y, z, y === top ? (rd < 1.6 ? (H(x, 1, z) < 0.4 ? 0xc8ac80 : 0xbc9e74) : d < FL ? (H(x >> 1, 2, z >> 1) < 0.5 ? 0x74ae54 : 0x6aa64e) : H(x >> 2, y >> 1, z >> 2) < 0.5 ? 0x6aa64e : 0x5f9a45) : top > 4 && H(x >> 1, y, z >> 1) < 0.12 ? 0x8d857b : 0x4f8a3a);
+    }
+    return g;
+  }
+  /* Thistlewick's walls: eighteen metres of pale stone, taller than every roof (9.6 cm voxels). A length of them, L voxels along x, the
+     outer face at -z: a battered foot, a buttress, two string courses, loops, corbels carrying a battlemented walk */
+  function greatWall(L, seed) {
+    const g = grid(), Hh = 188, D = 26, B = PAL.STONE, st = (u, y, s2) => stoneAt(u + 300, y, s2);
+    g.inside = (x, y, z) => y < 0 || (z > 0 && z < D && y < 166);
+    const mid = L >> 1;
+    for (let x = 0; x < L; x++) for (let y = 0; y < 167; y++) {
+      const foot = y < 36 ? Math.ceil((36 - y) / 8) : 0, bt = Math.abs(x - mid) <= 8 && y < 126 ? (y > 114 ? R((126 - y) / 3) : 6) : 0, cs = y === 70 || y === 71 || y === 140 || y === 141 ? 1 : 0;
+      const o = Math.max(foot, bt, cs), loop = y > 88 && y < 104 && [mid - 34, mid + 34].some(q => Math.abs(x - q) < (y > 94 && y < 98 ? 3 : 1));
+      for (let k = 0; k <= o; k++) if (k === o || x === mid - 8 || x === mid + 8 || k === foot) g.set(x, y, -k, loop && !bt ? 0x1a1820 : cs && o === 1 ? PAL.STONE3 : st(bt && bt === o ? x + 37 : x, y, seed));
+      if (o && (y === 114 || y === 125 || foot)) for (let k = 0; k < o; k++) g.set(x, y, -k, PAL.STONE2);
+      const ib = Math.abs(x - mid) <= 7 && y < 120 ? 4 : 0, ivy = H(x >> 4, seed, 5) < 0.3 && y < 30 + H(x, seed, 6) * 46 && H(x >> 1, y >> 1, seed) < 0.72;
+      for (let k = 0; k <= ib + (ivy ? 1 : 0); k++) if (k === ib + (ivy ? 1 : 0) || Math.abs(x - mid) === 7) g.set(x, y, D + k, ivy ? (H(x, y, 8) < 0.5 ? 0x4f7f3a : 0x5f9246) : cs ? PAL.STONE3 : st(x + 111, y, seed + 9));
+      if (ib) for (let k = 0; k < ib; k++) if (y === 119) g.set(x, y, D + k, PAL.STONE3);
+    }
+    for (let x = 0; x < L; x++) {
+      for (let z = -4; z <= D + 1; z++) g.set(x, 166, z, z > 0 && z < D ? (x % 9 === 0 ? PAL.MORTAR : PAL.STONE5) : PAL.STONE3);
+      if (x % 8 < 4) for (let k = 0; k < 4; k++) g.box(x, 158 + k * 2, -1 - k, x, 159 + k * 2, -1, PAL.STONE2);
+      for (let y = 167; y <= 188; y++) { const gap = y > 176 && x % 22 > 13; if (gap) continue; for (const z of [-4, -2]) g.set(x, y, z, y === 188 || y === 176 && x % 22 > 13 ? PAL.STONE3 : st(x, y, seed + 4)); g.set(x, y, -3, PAL.STONE3); }
+      for (let y = 167; y <= 173; y++) for (const z of [D, D + 1]) g.set(x, y, z, y === 173 ? PAL.STONE3 : st(x, y, seed + 5));
+    }
+    return g;
+  }
+  function wallTower() {                                 // a square tower of them: 7 m across, 23 m to its battlements, a steep slate cap and a weathervane
+    const g = grid(), W = 36, Hh = 236;
+    g.inside = (x, y, z) => y < 0 || Math.abs(x) < W && Math.abs(z) < W && y < Hh;
+    const side = (a, y, k) => { const q = Math.abs(a), w = (y > 92 && y < 112 || y > 156 && y < 176) && q < 3, wf = (y > 90 && y < 114 || y > 154 && y < 178) && q < 5; return w ? (y > 160 ? VX.glow(0xffd890) : 0x1a1820) : wf ? PAL.STONE3 : y === 70 || y === 71 || y === 140 || y === 141 || y === 196 ? PAL.STONE3 : q > W - 9 && Math.floor(y / 8) % 2 ? PAL.STONE3 : stoneAt(a + 300, y, 5 + k); };
+    for (let y = 0; y <= Hh; y++) for (let a = -W; a <= W; a++) { g.set(a, y, -W, side(a, y, 0)); g.set(a, y, W, side(a, y, 1)); g.set(-W, y, a, side(a, y, 2)); g.set(W, y, a, side(a, y, 3)); }
+    for (let k = 1; k <= 4; k++) for (const s2 of [-1, 1]) { const h = 42 - k * 9; g.box(-W - k, 0, s2 * (W + k), W + k, h, s2 * (W + k), (x, y) => y === h ? PAL.STONE3 : stoneAt(x + 300, y, 5)); g.box(s2 * (W + k), 0, -W - k, s2 * (W + k), h, W + k, (x, y, z) => y === h ? PAL.STONE3 : stoneAt(z + 300, y, 6)); }
+    for (let i = -W; i <= W; i += 8) for (let k = 0; k < 4; k++) for (const s2 of [-1, 1]) { g.box(i, 212 + k * 2, s2 * (W + k), i + 3, 213 + k * 2, s2 * (W + 1 + k), PAL.STONE2); g.box(s2 * (W + k), 212 + k * 2, i, s2 * (W + 1 + k), 213 + k * 2, i + 3, PAL.STONE2); }
+    const C = W + 4; g.box(-C, 220, -C, C, 221, C, (x, y, z) => Math.abs(x) < C - 8 && Math.abs(z) < C - 8 ? -1 : PAL.STONE5);
+    for (let a2 = -C; a2 <= C; a2++) for (let y = 222; y <= 242; y++) { if (y > 232 && (a2 + 220) % 20 > 12) continue; const c = y === 242 ? PAL.STONE3 : stoneAt(a2 + 300, y, 7); for (const s2 of [-1, 1]) { g.set(a2, y, s2 * C, c); g.set(s2 * C, y, a2, c); g.set(a2, y, s2 * (C - 1), c); g.set(s2 * (C - 1), y, a2, c); } }
+    for (let k = 0; k <= 74; k += 2) { const r = R((W - 1) * (1 - k / 76)), c = k % 6 === 0 ? 0x3e475c : k % 4 === 0 ? 0x566180 : 0x4c5670; g.box(-r, 224 + k, -r, r, 225 + k, r, (x, y, z) => Math.abs(x) > r - 3 || Math.abs(z) > r - 3 ? c : -1); }
+    g.box(0, 298, 0, 0, 316, 0, PAL.IRON); g.box(1, 308, 0, 10, 314, 0, (x, y) => Math.abs(y - 311) > (10 - x) * 0.4 + 1 ? -1 : 0x2f5fbf);
+    return g;
+  }
+  function gateHigh() {                                  // the block over a gatehouse's arch (its own foot at 9.1 m): three lit windows, a thistle banner, corbels and battlements
+    const g = grid(), X = 54, Z = 18, Hh = 92;
+    g.inside = (x, y, z) => Math.abs(x) < X && Math.abs(z) < Z && y < Hh;
+    for (let x = -X; x <= X; x++) for (let y = 0; y <= Hh; y++) for (const z of [-Z, Z]) {
+      const w = [-32, 0, 32].some(q => { const dx = Math.abs(x - q); return dx < 6 && y > 40 && (y < 62 || Math.hypot(dx, y - 62) < 6) && (dx > 4 || y < 43 ? 1 : 1); }), wi = [-32, 0, 32].some(q => Math.abs(x - q) < 4 && y > 42 && y < 62);
+      g.set(x, y, z, wi && Math.abs(x) > 20 ? (x % 4 === 0 || y % 7 === 0 ? PAL.LEAD : VX.glow(0xffdc9a)) : w && Math.abs(x) > 20 ? PAL.STONE3 : y === 20 || y === 21 || y === 80 ? PAL.STONE3 : stoneAt(x + 300, y, 8));
+    }
+    for (let y = 0; y <= Hh; y++) for (let z = -Z; z <= Z; z++) for (const x of [-X, X]) g.set(x, y, z, stoneAt(z + 200, y, 9));
+    for (const s of [-1, 1]) { g.box(-12, 24, s * (Z + 1), 12, 74, s * (Z + 1), (x, y) => y < 32 && Math.abs(x) > (y - 24) * 1.5 ? -1 : Math.abs(x) > 10 || y > 72 ? 0xe0b84a : Math.abs(x) < 5 && y > 56 && y < 68 && Math.hypot(x / 5, (y - 60) / 8) < 1 ? 0xb06ab8 : Math.abs(x) < 6 && y > 48 && y <= 56 && Math.abs(x) < 7 - Math.abs(y - 52) ? 0x4f8f4a : x === 0 && y > 36 && y < 50 || Math.abs(Math.abs(x) - (y - 38)) < 1.2 && y > 38 && y < 46 ? 0x4f8f4a : 0x2a4a9a); for (let x = -X; x <= X; x += 8) for (let k = 0; k < 4; k++) g.box(x, Hh - 8 + k * 2, s * (Z + k), x + 3, Hh - 7 + k * 2, s * (Z + 1 + k), PAL.STONE2); }
+    g.box(-X - 1, Hh, -Z - 4, X + 1, Hh + 1, Z + 4, PAL.STONE3);
+    for (let x = -X - 1; x <= X + 1; x++) for (const s of [-1, 1]) for (let y = Hh + 2; y <= Hh + 20; y++) { if (y > Hh + 11 && (x + 220) % 20 > 12) continue; for (const k of [3, 4]) g.set(x, y, s * (Z + k), y === Hh + 20 ? PAL.STONE3 : stoneAt(x + 300, y, 6)); }
+    return g;
+  }
+  function roadSign() { const g = new VX.Grid(); g.jit = 0; g.box(-1, 0, -1, 1, 86, 1, PAL.WOOD2); g.box(0, 64, 2, 40, 76, 3, (x, y) => x > 34 && Math.abs(y - 70) > (40 - x) ? -1 : y === 64 || y === 76 ? PAL.WOOD2 : x > 5 && x < 34 && (y === 72 || y === 68) && x % 5 !== 0 ? 0x2a1c14 : PAL.WOOD3); g.ell(0, 88, 0, 2, 2, 2, PAL.WOOD2); g.box(2, 78, 2, 4, 82, 3, VX.glow(0xffd080)); g.box(3, 83, 2, 3, 84, 3, VX.glow(0xfff0c0)); return g; }
   function hillGrid(r, h, seed) {
     const g = grid();
     for (let x = -r; x <= r; x++) for (let z = -r; z <= r; z++) {
@@ -526,8 +621,18 @@
       kind('chapel', chapelGrid, CB); place('chapel', 1, -30, Math.PI, 1, { noCast: true });
       kind('wall', wallGrid, SB); kind('gatehouse', gatehouseGrid, SB);
       place('gatehouse', 0, 32.2, 0);
-      for (const s of [-1, 1]) place('wall', s > 0 ? 5 : -25, 31.5, 0);
-      kind('parapet', parapetGrid, SB); place('parapet', 28.3, 0, 0);
+      // the walls, all round: a gatehouse to the south and one to the east, towers at their sides and at the corners
+      kind('wtower', wallTower, CB); kind('gatehigh', gateHigh, CB);
+      place('gatehouse', 32.24, 0, HP); place('gatehigh', 0, 32.2, 0, 1, { y: 8.7, noCast: true }); place('gatehigh', 32.24, 0, HP, 1, { y: 8.7, noCast: true });
+      const E0 = 32.24, N0 = -41.36, PL = 95, P = PL * CB;
+      for (const [x, z] of [[-8.6, 32.24], [8.6, 32.24], [E0, -8.6], [E0, 8.6], [E0, 32.24], [-E0, 32.24], [-E0, N0], [E0, N0], [-E0, -4.5], [0, N0]]) place('wtower', x, z, 0, 1, { noCast: true });
+      for (const k of [0, 1]) kind('gw' + k, () => greatWall(PL, 3 + k * 4), CB);
+      const span = (x0, z0, x1, z1) => {                    // from one tower to the next (the outer face to the left of the way one goes); what's over runs into them
+        const dx = x1 - x0, dz = z1 - z0, D = Math.hypot(dx, dz), ux = dx / D, uz = dz / D, n = Math.ceil((D - 5.4) / P - 0.02), ry = Math.atan2(-uz, ux);
+        for (let i = 0; i < n; i++) { const t = (D - n * P) / 2 + P * i; place('gw' + (i % 2), x0 + ux * t - Math.sin(ry) * 1.25, z0 + uz * t - Math.cos(ry) * 1.25, ry, 1, { noCast: true }); }
+      };
+      span(-E0, N0, 0, N0); span(0, N0, E0, N0); span(E0, N0, E0, -8.6); span(E0, 8.6, E0, 32.24); span(E0, 32.24, 8.6, 32.24); span(-8.6, 32.24, -E0, 32.24); span(-E0, 32.24, -E0, -4.5); span(-E0, -4.5, -E0, N0);
+      kind('roadsign', roadSign, S1); place('roadsign', 38.4, -2.7, 0.25);
       kind('haycart', T.cart, S1); place('haycart', 0.3, 32.4, 0.08); kind('hayload', () => T.hay(15, 17, 28, 3), SB); place('hayload', 0.3, 32.4, 0.08, 1, { y: 0.64 });
 
       /* the square: the fountain, stalls, benches, the well, trees, the forge's things, barrels and crates, bunting overhead */
@@ -591,15 +696,18 @@
       for (let i = 0; i < 3; i++) kind('ftree' + i, () => forestTreeGrid(i * 5), 0.24);
       for (let i = 0; i < 66; i++) {
         const a = rnd() * TAU, r = 44 + rnd() * 30, x = Math.sin(a) * r, z = Math.cos(a) * r;
-        if (x > 28 && Math.abs(z) < 5 || Math.hypot(x - 48, z + 9) < 9) continue;
+        if (x > 28 && Math.abs(z) < 5 || Math.hypot(x - 48, z + 9) < 9 || (x > 28 && Math.abs(z) < (x - 20) * 0.42) || (x > -38 && x < 37 && z > -47 && z < 37)) continue;      // (and clear of the view of the Academy)
         if (Math.abs(x) < 5 && z > 30) continue;
         place('ftree' + (i % 3), x, z, Math.floor(rnd() * 4) * HP, 0.8 + rnd() * 0.6, { noCast: true });
       }
       for (let i = 0; i < 10; i++) {
         const a = i / 10 * TAU + 0.3, r = 95 + (i % 3) * 18;
+        if (i === 2) continue;                              // (the Academy's hill, due east, has its place)
         kind('hill' + (i % 4), () => hillGrid(27 + (i % 4) * 6, R((7 + (i % 3) * 3) * 1.5), i % 4), 1.3);
         place('hill' + (i % 4), Math.sin(a) * r, Math.cos(a) * r, a, 1, { noCast: true });
       }
+      kind('achill', academyHill, 1.0); place('achill', 142, 0, 0, 1, { noCast: true });
+      kind('acfar', farAcademy, 0.5); place('acfar', 138, 0, -HP, 1, { noCast: true, y: 18.4 });
       for (let i = 0; i < 12; i++) {
         const a = i / 12 * TAU + 0.15, r = 230 + (i % 3) * 30;
         kind('mtn' + (i % 4), () => mountainGrid(i % 4), 4.0);

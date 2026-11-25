@@ -54,6 +54,7 @@ func clear(x: float, z: float, r: float) -> void:
 
 func at(n: String, x: float, z: float, yaw: float, f := 0.0) -> Node3D:
 	var p: Node3D = act(n)
+	if p.pose == "lie": p.get_up()
 	p.visible = true
 	p.stand()
 	p.place(Vector3(x, f, z), yaw)
@@ -1185,7 +1186,7 @@ func c8_well() -> void:
 	s.move(Vector3(c0x + 1.1, b.y + 1.5, b.z + 1.6), Vector3(c0x, b.y + 0.95, b.z - 0.6), Vector3(c0x + 0.8, b.y + 1.35, b.z + 1.0), Vector3(c0x, b.y + 0.95, b.z - 0.6), 6.0, 46)
 	await s.fade(0.0, 1.0)
 	R.feel("down", "flat")
-	await s.say("reiner_uni", "\"Dear Mam, Pa and Lotte. All is well. The food is good, and the stairs are very big.\"")
+	await s.say("reiner_uni", "\"Dear Mom, Pa and Lotte. All is well. The food is good, and the stairs are very big.\"")
 	R.look = null
 	s.cut(Vector3(c0x - 0.7, b.y + 1.15, b.z - 1.0), R.head_pos(), 40)
 	await s.say("reiner_uni", "\"I have made friends. I was in a contest on Tuesday. I came second.\"", { "eyes": "sad", "mouth": "wavy" })
@@ -1226,7 +1227,7 @@ func c8_well() -> void:
 	s.cut(Vector3(c0x - 0.75, b.y + 1.2, b.z - 1.1), R.head_pos() - Vector3(0, 0.08, 0), 40)
 	R.feel("down", "flat")
 	await s.say("lotte", "\"Dear Reiner. I ask the candle every day. It hasn't moved. I think it likes you best.\"", { "as": "Lotte's letter" })
-	await s.say("lotte", "\"Is Duchess brave? Pa says go in at the door. Which door? Mam says eat. Penny the cow lives at Hollin's now. I saw her. She looked at me kindly. Love, Lotte.\"", { "as": "Lotte's letter" })
+	await s.say("lotte", "\"Is Duchess brave? Pa says go in at the door. Which door? Mom says eat. Penny the cow lives at Hollin's now. I saw her. She looked at me kindly. Love, Lotte.\"", { "as": "Lotte's letter" })
 	R.feel("sad", "smile")
 	R.do("laugh", 1.4)
 	await s.wait(1.6)

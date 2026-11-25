@@ -35,7 +35,8 @@
     for (let x = 0; x < len; x++) for (let y = 0; y < h; y++) {
       if (inH(x, y)) continue;
       g.set(x, y, 5, front(x, y)); g.set(x, y, 0, back(x, y));
-      if (x === 0 || x === len - 1 || y === h - 1 || (y === 0 && o.foot) || inH(x + 1, y) || inH(x - 1, y) || inH(x, y + 1) || inH(x, y - 1)) for (let z = 1; z < 5; z++) g.set(x, y, z, o.edge || 0xb0a692);
+      if (x === 0 || x === len - 1 || y === h - 1 || (y === 0 && o.foot) || inH(x + 1, y) || inH(x - 1, y) || inH(x, y + 1) || inH(x, y - 1)) for (let z = 1; z < 5; z++) g.set(x, y, z, o.ends && (x === 0 || x === len - 1) ? front(z, y) : o.edge || 0xb0a692);
+      if (o.ends && (x === 0 || x === len - 1)) g.set(x, y, 0, front(0, y));
     }
     for (const q of holes) {
       const near = (x, y) => !inH(x, y) && (inH(x - 1, y) || inH(x + 1, y) || inH(x, y - 1) || inH(x, y + 1) || inH(x - 1, y - 1) || inH(x + 1, y - 1));
@@ -286,9 +287,9 @@
         // the corridor's inner wall, the stair hall's sides
         const cz = -9.456, dA = (x, w) => ({ a0: R(x / SB) - w, a1: R(x / SB) + w - 1, y0: 0, y1: 45, t: 'door' });
         const X = x => x + 19.872;
-        this.wallAt(-19.872, cz, 'x', 289, y, FH, f === 0 ? [dA(X(-8.5), 23)] : [dA(X(-15.5), 23), dA(X(-8.5), 23)], hallIn, inW);
-        this.wallAt(6.0, cz, 'x', 289, y, FH, [dA(2.5, 23)], hallIn, inE);
-        this.wallAt(-6.0, zN + 0.288, 'z', 228, y, FH, [], inW, hallIn); this.wallAt(6.288, zN + 0.288, 'z', 228, y, FH, [], hallIn, inE);
+        this.wallAt(-19.872, cz, 'x', 289, y, FH, f === 0 ? [dA(X(-8.5), 23)] : [dA(X(-15.5), 23), dA(X(-8.5), 23)], hallIn, inW, { ends: true });
+        this.wallAt(6.0, cz, 'x', 289, y, FH, [dA(2.5, 23)], hallIn, inE, { ends: true });
+        this.wallAt(-6.0, zN + 0.288, 'z', 222, y, FH, [], inW, hallIn); this.wallAt(6.288, zN + 0.288, 'z', 222, y, FH, [], hallIn, inE);      // (to the corridor's wall, not through it)
         if (f > 0) this.wallAt(-12.94, zN + 0.288, 'z', 222, y, FH, [], inW, f === 1 ? SAGE : CREAM);
       }
       // floors: ground tiles, then boards; a runner down the corridor; the stairwell open
@@ -384,7 +385,8 @@
       // the halls: the emblem in the carpet, settles, cabinets of prizes, plants, the masters' portraits
       P('hallrug', () => { const g = G(); for (let x = -46; x <= 46; x++) for (let z = -36; z <= 36; z++) { const d = Math.hypot(x / 46, z / 36); if (d > 1) continue; const fl = (() => { const v = (20 - z) / 40; if (v < 0 || v > 1) return false; if (v < 0.5) return Math.abs(x) < 5; const t = (v - 0.5) * 2; return Math.abs(x) < 9 * Math.sin(Math.min(1, t * 1.6 + 0.25) * HP) * (1 - t) * 1.6; })(); g.set(x, 0, z, d > 0.95 ? GOLD : d > 0.9 ? 0x1b433e : fl ? (z > 0 ? 0xf6eeda : GOLD) : d > 0.62 && d < 0.66 ? GOLD : GREEN); } return g; }, SB, 0.6, -13.6, 0, { y: FY[0] - 0.036, near: true, ao: false });
       const cabinet = () => { const g = G(); g.box(-34, 0, -9, 34, 16, 9, (x, y, z) => z === 9 && x % 17 === 0 ? DARK : OAK); g.box(-34, 17, -9, 34, 84, -8, OAK_D); for (const x of [-34, 33]) g.box(x, 17, -8, x + 1, 84, 8, OAK); g.box(-34, 84, -9, 34, 86, 10, OAK_L); for (const y of [38, 60]) g.box(-32, y, -8, 32, y, 7, OAK); for (let k = 0; k < 12; k++) { const x = -27 + (k % 4) * 18, y = [17, 39, 61][Math.floor(k / 4)], q = H(k, 4, 9); if (q < 0.4) { g.disc(x, 0, 3, y, y + 1, BRASS); g.box(x, y + 2, 0, x, y + 6, 0, BRASS); g.disc(x, 0, 4, y + 7, y + 12, (X, Y, Z) => Math.hypot(X - x, Z) > 2.8 || Y === y + 7 ? GOLD : -1); } else if (q < 0.7) { g.box(x - 4, y, -1, x + 4, y + 10, 0, (X, Y) => Math.abs(X - x) === 4 || Y === y || Y === y + 10 ? BRASS : Y > y + 3 && Math.abs(X - x) < 2 ? 0xf1c9ab : 0x4a5a6a); } else { g.ell(x, y + 5, 0, 4, 4, 4, VX.glow(H(k, 1, 1) < 0.5 ? 0x8ad8e8 : 0xe8a0d0)); g.disc(x, 0, 3, y, y + 1, OAK_D); } } return g; };
-      for (const [x, z, ry, f] of [[-5.8, -8.2, HP, 1], [5.8, -15.2, -HP, 1], [-5.8, -12.4, HP, 2], [-5.8, -16.4, HP, 2], [5.8, -8.0, -HP, 2]]) { if (f === 0 && x < 0) continue; wallP('cabinet', cabinet, x + (x < 0 ? 0.02 : -0.02), z, ry, f); this.blocks.push([x < 0 ? -6 : 5.5, z - 0.9, x < 0 ? -5.5 : 6, z + 0.9, FY[f], FY[f] + 2]); }
+      for (const [x, f] of [[-13.2, 1], [10.6, 2]]) { wallP('cabinet', cabinet, x, -8.93, 0, f); this.blocks.push([x - 0.85, -9.2, x + 0.85, -8.68, FY[f], FY[f] + 2]); }      // (against the corridors' walls)
+      for (const [x, z, ry, f] of [[5.8, -15.2, -HP, 1], [-5.8, -12.4, HP, 2], [-5.8, -16.4, HP, 2]]) { if (f === 0 && x < 0) continue; wallP('cabinet', cabinet, x + (x < 0 ? 0.02 : -0.02), z, ry, f); this.blocks.push([x < 0 ? -6 : 5.5, z - 0.9, x < 0 ? -5.5 : 6, z + 0.9, FY[f], FY[f] + 2]); }
       /* the Lantern Board, on the hall's east wall: every pupil's lantern, from the one at the top down to the last */
       P('board_l', () => { const g = G(); g.box(-82, 0, 0, 82, 62, 1, (x, y) => Math.abs(x) > 79 || y < 3 || y > 59 ? (H(x >> 1, y >> 1, 2) < 0.2 ? 0xe0c070 : BRASS) : Math.abs(x) > 76 || y < 6 || y > 56 ? OAK_D : H(x >> 4, y >> 3, 3) < 0.25 ? 0x2a2030 : 0x30263a); for (const [y, n] of [[51, 1], [41, 3], [31, 5], [21, 8], [11, 9]]) { for (let i = 0; i < n; i++) { const x = R((i - (n - 1) / 2) * 16.8); g.box(x - 4, y - 6, 2, x + 4, y - 5, 2, (X) => X % 2 ? BRASS : 0xe8d8a0); g.box(x, y + 5, 1, x, y + 5, 3, 0x3a3a42); } g.box(-74, y - 8, 2, 74, y - 8, 2, 0x4a3a52); } for (let k = -22; k <= 22; k++) g.box(k, 62, 0, k, 62 + R(7 * (1 - (k / 22) ** 2)), 1, BRASS); for (let y = 63; y < 68; y++) g.box(-1, y, 2, 1, y, 2, 0xf6eeda); g.box(0, 68, 2, 0, 70, 2, VX.glow(0xffd88a)); return g; }, SB, 5.96, -14.4, -HP, { y: FY[0] + 0.45, ao: false });
       this.blocks.push([5.66, -18.4, 6.0, -10.4, FY[0], FY[0] + 3]);

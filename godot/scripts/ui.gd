@@ -39,6 +39,9 @@ var obj_p: PanelContainer
 var obj_l: Label
 var obj_t := 99.0
 var prompt_p: PanelContainer
+var mana_b: ColorRect
+var mana_f: ColorRect
+var mana_l: Label
 var prompt_l: Label
 var clock_p: PanelContainer
 var clock_l: Label
@@ -177,6 +180,9 @@ func setup(m: Node3D, s: Node3D) -> void:
 	toast_l.anchor_top = 1.0
 	toast_l.anchor_bottom = 1.0
 	toast_l.offset_top = -146
+	toast_l.offset_left = 120
+	toast_l.offset_right = -120
+	toast_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	toast_l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_outline(toast_l)
 	add_child(toast_l)
@@ -331,6 +337,30 @@ func objective(text: String) -> void:
 	obj_p.visible = text != ""
 	obj_p.size = Vector2.ZERO
 	obj_t = 0.0
+
+
+## Mana: how much of it's left, in a bar at the foot of the screen (less than nothing: not shown).
+func mana(k: float) -> void:
+	if mana_b == null:
+		mana_b = _rect(Color(0.03, 0.06, 0.08, 0.85))
+		mana_f = _rect(Color("8ac8ff"))
+		mana_l = _label("Mana", 15, CREAM)
+		add_child(mana_l)
+		for q in [mana_b, mana_f, mana_l]:
+			q.anchor_top = 0.0
+			q.anchor_bottom = 0.0
+		mana_b.offset_left = 22
+		mana_b.offset_right = 266
+		mana_b.offset_top = 94
+		mana_b.offset_bottom = 112
+		mana_f.offset_left = 24
+		mana_f.offset_top = 96
+		mana_f.offset_bottom = 110
+		mana_l.offset_left = 24
+		mana_l.offset_top = 70
+	for q in [mana_b, mana_f, mana_l]: q.visible = k >= 0.0
+	mana_f.offset_right = 24 + 240.0 * clampf(k, 0.0, 1.0)
+	mana_f.color = Color("8ac8ff").lerp(Color("ff6a5a"), smoothstep(0.35, 0.08, k))
 
 
 func prompt(text: String) -> void:

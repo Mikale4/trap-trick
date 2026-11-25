@@ -6,6 +6,8 @@ var main: Node3D
 var id := ""
 var data: Dictionary
 var by_name := {}
+var glow: BaseMaterial3D                # what shines of its own accord here (put out with the lamps)
+var glow_out := 0.0
 var floors: Array = []
 var ramps: Array = []
 var blocks: Array = []
@@ -50,7 +52,8 @@ func setup(main_node: Node3D, bake: Dictionary, place: String) -> void:
 	_ground()
 	var w: Node3D = load("res://assets/%s.glb" % place).instantiate()
 	add_child(w)
-	main.voxelize(w, main.grain_mat)
+	glow = main.glow_mat.duplicate()
+	main.voxelize(w, main.grain_mat, glow)
 	for n in w.find_children("*", "Node3D", true, false): by_name[String(n.name)] = n
 	for n in w.find_children("*_nc*", "Node3D", true, false): _each(n, func(g): g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF)
 	for n in w.find_children("*_near", "Node3D", true, false): _each(n, func(g):
@@ -195,8 +198,8 @@ func _door_update(d: Dictionary, dt: float) -> void:
 	if absf(d.open - goal) < 0.001 and d.get("set", false): return
 	var was: float = d.open
 	d.open = move_toward(d.open, goal, dt * 2.2)
-	if was == 0.0 and d.open > 0.0: main.sfx("door", d.pos)
-	if was > 0.0 and d.open == 0.0: main.sfx("door_shut", d.pos)
+	if was == 0.0 and d.open > 0.0: main.sfx(d.get("sfx", "door"), d.pos)
+	if was > 0.0 and d.open == 0.0: main.sfx(d.get("sfx", "door_shut"), d.pos)
 	var a: float = smoothstep(0.0, 1.0, d.open) * 1.8
 	for i in d.nodes.size(): (d.nodes[i] as Node3D).basis = Basis(Vector3.UP, a * (1.0 if i == 0 else -1.0)) * d.bases[i]
 	d.set = true
@@ -353,6 +356,21 @@ func solid(q: Vector3) -> bool:
 	return false
 
 
+## Where the camera that follows you about may not go, besides: off the trail into the cliffs, or into a standing stone.
+func shut_to_cam(q: Vector3) -> bool:
+	if id != "snow" or q.y > 5.5: return false
+	var on_ := false
+	for w in walk:
+		if q.x > w[0] - 0.3 and q.x < w[2] + 0.3 and q.z > w[1] - 0.3 and q.z < w[3] + 0.3:
+			on_ = true
+			break
+	if not on_: return true
+	if q.x < 100.0 and q.y < 2.9:
+		for c in data.marks.stones:
+			if Vector2(q.x - c[0], q.z - c[1]).length() < 0.8: return true
+	return false
+
+
 # ------------------------------------------------------------------ paths --
 func _np(i: int) -> Vector3:
 	var n: Array = nodes[i]
@@ -411,8 +429,11 @@ func ring_bell() -> void:
 	bell_t = 0.0
 
 
-func set_lamps(k: float) -> void:
+func set_lamps(k: float, out := 0.0) -> void:
 	lamp_k = k
+	if glow and out != glow_out:
+		glow_out = out
+		glow.albedo_color = Color.WHITE.lerp(Color(0.16, 0.15, 0.17), out)
 
 
 func update(dt: float, hero: Vector3) -> void:

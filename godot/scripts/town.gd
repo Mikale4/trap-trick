@@ -39,6 +39,9 @@ func setup(main_node: Node3D, bake: Dictionary) -> void:
 	colliders = data.colliders
 	rng.seed = 11
 	bubble_font = main.title_font if main.title_font else SystemFont.new()
+	var fw: Node3D = load("res://scripts/fountain.gd").new()      # (the traveller stands on its bowl: no jet)
+	add_child(fw)
+	fw.setup(main, false)
 	# the ground: the town's cobbles, fields beyond, a green plane to the horizon
 	var gs: float = data.groundSize
 	var plane := PlaneMesh.new()

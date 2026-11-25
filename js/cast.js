@@ -84,8 +84,54 @@
     odile: girl({ hair: 0xe0b878, style: 'curls', skin: 0, eye: 0x6aa0c0, tie: T2, h: 1, blush: true, lips: true }),
   });
 
+  /* Chapter Three: Penny, who guides people up the Drowse, and the people she guides; and the one who was under the snow
+     (from the author's own drawings and story: the long black hair, the crimson eyes, the worn robe and its zigzag hems) */
+  Object.assign(people, {
+    penny: { story: true, fem: true, dress: 0x7a3e30, bodice: 0x4e3426, shirt: 0xefe4cc, sleeve: 0xefe4cc, apron: null, belt: 0xc8a24a, trim: 0xe8e0d0, legs: 0x3e4250, shoes: 0x5a3a26, cape: 0x2e5a48, band: 0xd0a850, hair: 0x3a9450, style: 'curls', eye: 0xa07c34, skin: 1, satchel: true, gloves: 0x6a4630, lips: true, freckles: true },
+    erebus: { story: true, teen: true, boy: true, dress: 0x847464, long: true, sleeve: 0x847464, shirt: 0x7a6a5c, band: 0x5a4c42, hair: 0x15131c, style: 'long', eye: 0xc22850, skin: 0, h: 3 },
+    arnold: { story: true, fem: false, tunic: false, shirt: 0xd8ccb0, sleeve: 0xd8ccb0, vest: 0x4a6a52, legs: 0x5a4e40, boots: 0x44301f, cape: 0x6a5a44, band: 0x8a7a50, hair: 0xb06a34, style: 'messy', ears: 'fox', eye: 0xc89a30, skin: 1, mail: false },
+    dunstan: { story: true, big: true, tunic: false, shirt: 0x8a7a9a, sleeve: 0x8a7a9a, vest: 0x5a4668, legs: 0x3e3a48, boots: 0x3a2a1e, apron: 0x8a6a42, hair: 'brown', style: 'short', beard: 'long', specs: true, eye: 0x50607a, skin: 2, rolled: true, gloves: 0x6a4a30 },
+    hettie: { story: true, fem: true, dress: 0x5a4a78, long: true, bodice: 0x4a3c66, shirt: 0xe8dcc8, sleeve: 0x5a4a78, cape: 0x7a3a4a, band: 0xd8b060, hair: 'white', style: 'bun', hat: 'kerchief', hatColor: 0xc8a0a8, eye: 0x50607a, skin: 0, specs: true, h: -4 },
+    gus: { story: true, teen: true, boy: true, tunic: false, shirt: 0x3a6a8a, sleeve: 0x3a6a8a, vest: 0xe0d4b8, legs: 0x4a4238, boots: 0x4a3222, cape: 0x8a5a3a, band: 0xc8a24a, hair: 'blond', style: 'curls', eye: 0x4568b4, skin: 0, blush: true, h: 2, tie: 0xc8503c },
+  });
+
   function build(name) {
     const L = people[name], M = PEOPLE.build(L);
+    if (name === 'penny') {                                 // the hair: half as much again, all ways at once; a pair of goggles pushed up into it
+      const hd = M.parts.head.grid, GR = [0x3a9450, 0x2f7e44, 0x4cae62, 0x62c476]; let x0 = 99, x1 = -99, y1 = -99, z0 = 99, z1 = -99, yb = 99;
+      hd.each((x, y, z) => { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z); yb = Math.min(yb, y); });
+      const cy = y1 - 6, curl = (x, y, z, r) => hd.ell(x, y, z, r, r, r, (X, Y, Z) => { const q = (Y - y) + (Z - z) * 0.5; return q < -r * 0.45 ? GR[1] : q > r * 0.5 ? (H(X, Y, Z) < 0.4 ? GR[3] : GR[2]) : GR[0]; });
+      for (let k = 0; k < 74; k++) { const a = k * 2.39996, p = 0.35 + 0.65 * H(k, 1, 4), x = Math.sin(a) * (x1 + 0.8) * p, z = -1.5 + Math.cos(a) * 6.8 * p, y = cy + 1 + Math.sqrt(Math.max(0, 1 - p * p)) * 8 - (p > 0.75 ? H(k, 2, 4) * 7 : 0) + (H(k, 5, 4) - 0.5) * 2; if (z > 3.2 && y < cy + 3) continue; curl(x, y, z, 1.5 + H(k, 3, 4) * 1.0); }
+      for (const s of [1, -1]) { curl(s * (x1 + 1.2), cy - 4, 1, 1.9); curl(s * (x1 + 1), cy - 6, -2, 1.8); curl(s * 3.2, y1 - 1, z1 - 1, 1.7); } curl(0.5, y1 + 1, z1 - 2, 2);
+      for (const s of [1, -1]) hd.ell(s * 3.4, y1 - 0.5, z1 + 0.6, 2.2, 1.9, 0.9, (X, Y, Z) => Math.hypot(X - s * 3.4, Y - y1 + 0.5) < 1.3 ? VX.glow(0xbfe8f4) : 0xc8983a); for (let x = x0 - 1; x <= x1 + 1; x++) hd.set(x, y1 - 1, Math.abs(x) > 5 ? z1 - 3 : z1 + 0, 0x4e3426);
+    }
+    if (name === 'erebus') {
+      const hd = M.parts.head.grid, BK = [0x15131c, 0x221e2c, 0x0d0b12, 0x322c40]; let x1 = -99, y1 = -99, z0 = 99, z1 = -99, yb = 99;
+      hd.each((x, y, z) => { x1 = Math.max(x1, x); y1 = Math.max(y1, y); z0 = Math.min(z0, z); z1 = Math.max(z1, z); yb = Math.min(yb, y); });
+      const tone = (x, y, z) => { const n = H(x, y >> 1, z); return n < 0.16 ? BK[3] : n < 0.45 ? BK[1] : n < 0.6 ? BK[2] : BK[0]; };
+      // the fringe: long points over the brow and between the eyes, uneven; wisps at the temples
+      for (const [x, l] of [[-6, 9], [-5, 6], [-4, 4], [-3, 5], [-2, 7], [-1, 5], [0, 3], [1, 5], [2, 4], [3, 6], [4, 5], [5, 7], [6, 10]]) for (let k = 0; k < l; k++) hd.set(x + (k > l - 3 ? (x > 0 ? 0 : 0) : 0), y1 - 3 - k, z1 + (k > 1 ? 0 : 0), tone(x, k, 1));
+      for (const s of [1, -1]) for (let k = 0; k < 12; k++) { hd.set(s * x1, y1 - 5 - k, 3, tone(s, k, 3)); hd.set(s * x1, y1 - 5 - k, 4, tone(s, k, 4)); if (k < 9) hd.set(s * (x1 - 1), y1 - 6 - k, z1 - 1, tone(s, k, 5)); }
+      for (let k = 0; k < 9; k++) hd.line(-6 + k * 1.5, y1 - 1, 1, -5.4 + k * 1.5, y1, -5, tone, 0.6);
+      // the mane: down his back to the waist and past it, blown to one side, in three lengths that sway
+      const tor = M.parts.torso.grid, nk = yb + 2, segs = [['mane', 'torso', nk + 4, nk - 10], ['mane2', 'mane', nk - 10, nk - 22], ['mane3', 'mane2', nk - 22, nk - 36]];
+      for (const [pn, par, top, bot] of segs) {
+        const pt = M.part(pn, par, [0, top, z0 + 1]);
+        for (let k = 0; k < 15; k++) {
+          const u = (k / 14 - 0.5) * 2, end = nk - 20 - H(k, 7, 2) * 18, x00 = u * (x1 - 0.5), zz0 = z0 - 0.2 + Math.abs(u) * 2.4;
+          for (let y = top; y >= Math.max(bot - 1, end); y -= 0.5) { const t = (nk + 4 - y) / 40, x = x00 * (1 - t * 0.12) + Math.sin(t * 2.2 + k) * 0.9 + t * t * 7, z = zz0 - 1.2 - Math.sin(t * 2.6) * 2.2 - t * 1.6; pt.ell(x, y, z, t > 0.7 ? 0.6 : 1.2, 0.6, t > 0.7 ? 0.6 : 1.1, tone); }
+        }
+      }
+      // two locks over the front of the shoulders
+      for (const [s, l] of [[1, 17], [-1, 12]]) for (let k = 0; k < l; k++) { const x = s * (5.4 - Math.sin(k * 0.3) * 0.6), y = nk + 3 - k; tor.ell(x, y, 3.4 - Math.max(0, k - 8) * 0.05, k > l - 4 ? 0.5 : 1.0, 0.6, 0.8, tone); }
+      // the pendant, dark as a seed, on its cord
+      for (let k = 0; k < 8; k++) for (const s of [1, -1]) tor.set(s * R(3 - k * 0.38), nk - 2 - k, 4, 0x1c1620); tor.ell(0, nk - 12, 4.6, 1.2, 2, 0.9, (X, Y, Z) => Y > nk - 12 && X < 0 ? 0x7a2a4a : 0x1a1018);
+      // the robe: worn, its hems in zigzags, all its ends in rags
+      const old = (g, hem, dir) => { const del = []; g.each((x, y, z, v) => { const c = v & 0xffffff; if (c === undefined) return; if (y <= hem + 3 && H(x, 3, z) * 4 > (y - hem) + 0.4) del.push([x, y, z]); else if (y >= hem + 4 && y <= hem + 8 && (Math.abs(((x + z * 2 + 60) % 6) - 3) + (y - hem - 4)) % 5 < 1.2) g.set(x, y, z, 0x4e4238); else if (H(x, y >> 1, z) < 0.12) g.set(x, y, z, 0x74665a); }); for (const [x, y, z] of del) g.del(x, y, z); };
+      const low = g => { let m = 99; g.each((x, y) => { m = Math.min(m, y); }); return m; };
+      if (M.parts.skirt) old(M.parts.skirt.grid, low(M.parts.skirt.grid));
+      for (const n of ['L', 'R']) { const ua = M.parts['uArm' + n].grid, fa = M.parts['fArm' + n].grid, m = low(ua), s = n === 'L' ? 1 : -1; let cx = 0, c = 0; ua.each(x => { cx += x; c++; }); cx = R(cx / Math.max(1, c)); for (let y = m + 8; y >= m - 3; y--) { const q = 3.0 + (m + 8 - y) * 0.16; for (let k = 0; k < 30; k++) { const a = k / 30 * TAU, x = R(cx + Math.cos(a) * q), z = R(Math.sin(a) * q); if (y < m && H(k, 4, s) < 0.55) continue; ua.set(x, y, z, (y === m + 1 || y === m + 4) ? 0x4e4238 : (y === m + 2 || y === m + 3) && (k & 3) < 2 ? 0x5a4c42 : H(x, y, z) < 0.15 ? 0x74665a : 0x847464); } } }
+    }
     if (name === 'maron') {
       /* Trap Trick's head: every hair voxel of hers (bangs, the dome of curls, its crown), over the same skull; no ringlets */
       const TT = TRAPTRICK.build().model, C = TRAPTRICK.C, HAIRS = new Set([C.HAIR, C.HAIR_L, C.HAIR_D, C.HAIR_DD]), hd = M.parts.head.grid;
@@ -147,6 +193,21 @@
     for (let y = 55; y >= 22; y--) tl.disc(0, -25 - Math.min(4, (55 - y) * 0.4), y > 50 ? 1.2 : y < 27 ? 1.3 : 2.2, y, y, (x, yy, z) => H(x, yy, z) < 0.3 ? mul(mane, 0.8) : mane);
     return M;
   }
+  /* the black cat of the alley by the door: a bib, four white feet, a white tip to its tail, a wine collar and a bell. It's the size it was sitting */
+  function cat() {
+    const M = new VX.Model(0.024), B = 0x25222c, B2 = 0x37333f, W = 0xf1ece2, tone = (x, y, z) => H(x, y, z) < 0.18 ? B2 : B;
+    const b = M.part('body', null, [0, 8, 0]);
+    b.ell(0, 8.4, -3.4, 3, 3.1, 4.4, tone); b.ell(0, 8.6, 2.4, 2.8, 3, 4, tone); b.ell(0, 9.6, 5.4, 2.2, 2.4, 2, tone); for (let k = 0; k < 5; k++) b.set(0, 6 + k, 6.6 + (k > 2 ? 0.6 : 0), W); b.set(1, 6, 6, W); b.set(-1, 6, 6, W);
+    const h = M.part('head', 'body', [0, 11, 6]);
+    h.ell(0, 12.6, 8, 3.4, 2.8, 2.8, tone); h.box(-1, 11, 10, 1, 11, 11, B2); h.set(0, 12, 11, 0x6a4a56);
+    for (const s of [1, -1]) { h.box(s * 2, 15, 7, s * 3, 15, 8, B); h.box(s * 3, 16, 7, s * 3, 16, 8, B); h.set(s * 3, 17, 8, B); h.set(s * 2, 15, 9, 0x6a4a56); h.box(s * 2 - (s > 0 ? 1 : 0), 13, 10, s * 2 + (s > 0 ? 0 : 1), 14, 10, VX.glow(0xc8e84a)); h.set(s, 13, 10, 0x14181a); h.set(s, 14, 10, 0x14181a); h.set(s * 2, 11, 10, B2); }
+    for (let x = -2; x <= 2; x++) { h.set(x, 10, 8, 0x8a2a4a); if (Math.abs(x) === 2) for (let z = 5; z < 8; z++) h.set(x, 10, z, 0x8a2a4a); } h.ell(0, 9, 8.6, 0.9, 0.9, 0.8, 0xd0a850);
+    const j = M.part('jaw', 'head', [0, 11, 8]); j.box(-1, 10, 9, 1, 10, 10, B2); j.set(0, 10, 10, 0x8a4a5a);
+    for (const [n, x, z] of [['FL', 1.8, 4], ['FR', -1.8, 4], ['BL', 1.9, -5], ['BR', -1.9, -5]]) { const up = M.part('up' + n, 'body', [x, 8, z]), lo = M.part('lo' + n, 'up' + n, [x, 4, z]), bk = n[0] === 'B'; for (let y = 4; y <= 8; y++) up.ell(x, y, z + (bk ? (y - 4) * 0.2 : 0), bk ? 1.2 : 0.9, 0.6, bk ? 1.5 : 0.9, B); for (let y = 0; y <= 4; y++) lo.ell(x, y, z + (bk && y > 1 ? -0.6 : 0) + (y === 0 ? 0.6 : 0), 0.9, 0.6, y === 0 ? 1.3 : 0.9, y < 1 ? W : B); }
+    const t1 = M.part('tail1', 'body', [0, 9.5, -7]), t2 = M.part('tail2', 'tail1', [0, 10.5, -10.5]), t3 = M.part('tail3', 'tail2', [0, 11.5, -14]);
+    for (let k = 0; k <= 8; k++) { t1.ell(0, 9.5 + k * 0.13, -7 - k * 0.45, 0.8, 0.8, 0.6, B); t2.ell(0, 10.5 + k * 0.13, -10.5 - k * 0.45, 0.7, 0.7, 0.6, B); t3.ell(0, 11.5 + k * 0.13, -14 - k * 0.42, 0.6, 0.6, 0.6, k > 4 ? W : B); }
+    return M;
+  }
   function cow() {
     const M = new VX.Model(0.024), W = 0xf1ebe0, K = 0x5a3a2a, P = 0xe8a8a0;
     const tone = (x, y, z) => H((x + 60) >> 3, (y + 2) >> 3, (z + 60) >> 3) < 0.42 ? (H(x, y, z) < 0.1 ? mul(K, 0.9) : K) : (H(x, y, z) < 0.08 ? mul(W, 0.95) : W);
@@ -200,6 +261,11 @@
       return g;
     },
     cart_rim() { const g = G(); for (let y = -30; y <= 30; y++) for (let z = -30; z <= 30; z++) { const d = Math.hypot(y, z), a = (Math.atan2(y, z) + Math.PI) / TAU * 10, f = Math.abs(a - R(a)) * d * TAU / 10; for (let x = -1; x <= 1; x++) { if (d > 29.4 && d < 30.6) g.set(x, y, z, 0x4a4a52); else if (d > 25.6 && d <= 29.4) g.set(x, y, z, H(R(a * 2) >> 1, 1, 2) < 0.5 ? OAK : OAK_L); else if (d < 5.2) g.set(x, y, z, d < 2 ? 0x3a3a42 : OAK_D); else if (x === 0 && f < 1.2 && d < 26) g.set(x, y, z, OAK_L); } } g.box(-3, -2, -2, 3, 2, 2, (x, y, z) => Math.abs(y) === 2 && Math.abs(z) === 2 ? -1 : 0x3a3a42); return g; },
+    /* the farm's well: the windlass and its crank (turning about x, its axle the origin), the bucket (the top of its bail the origin), the water */
+    well_drum() { const g = G(), RP = 0xb89a62; for (let x = -22; x <= 22; x++) for (let y = -3; y <= 3; y++) for (let z = -3; z <= 3; z++) if (Math.hypot(y, z) <= 3.2) g.set(x, y, z, Math.abs(x) < 8 ? ((x & 1) ? RP : mul(RP, 0.8)) : Math.abs(x) === 8 || Math.abs(x) === 20 ? 0x3a3a42 : (Math.abs(y) === 3 || Math.abs(z) === 3) && ((x >> 2) & 1) ? OAK_D : OAK); g.box(22, -1, -1, 28, 1, 1, 0x3a3a42); g.box(27, -1, -1, 28, 1, 8, 0x3a3a42); g.box(28, -1, 7, 36, 1, 8, (x) => x > 35 ? 0x3a3a42 : OAK_L); return g; },
+    well_bucket() { const g = G(); for (let y = -18; y <= -7; y++) { const r = 5.4 + (y + 18) * 0.1; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) > r - 1.2 || yy === -18 ? (yy === -16 || yy === -9 ? 0x585c66 : (R((Math.atan2(z, x) + Math.PI) / TAU * 14) & 1) ? OAK : OAK_D) : -1); } for (let k = 0; k <= 18; k++) { const a = k / 18 * Math.PI; g.set(R(Math.cos(a) * 6), R(-7 + Math.sin(a) * 7), 0, 0x3a3a42); } for (const s of [-1, 1]) g.box(s * 6, -10, -1, s * 6, -7, 1, 0x3a3a42); return g; },
+    well_water() { const g = G(); g.disc(0, 0, 5, 0, 0, (x, y, z) => (x + z * 2 + 40) % 7 === 0 ? 0x9cd0f4 : 0x5a9cd8); return g; },
+    trough_water() { const g = G(); g.box(-23, 0, -5, 23, 0, 5, (x, y, z) => { const n = H(x >> 2, 3, z >> 1); return n < 0.1 ? 0x8cc4ee : n < 0.3 ? 0x66a4dc : 0x5490ce; }); return g; },
     /* Chapter One */
     tophat() { const g = G(), K = 0x1e1a26; g.disc(0, 0, 10, 0, 0, (x, y, z) => Math.hypot(x, z) > 9 ? 0x342c40 : K); for (let y = 1; y <= 12; y++) g.disc(0, 0, 6.4 + (y > 9 ? 0.5 : 0), y, y, (x, yy, z) => yy < 4 ? 0x3a5fe0 : Math.hypot(x, z) < 5 && yy < 12 ? -1 : K); g.box(-3, 4, 7, 2, 11, 7, (x, y) => (x === -3 || x === 2) && (y === 4 || y === 11) ? -1 : Math.abs(x + 0.5) + Math.abs(y - 7.5) < 2 ? 0xdc2741 : 0xf7f4fd); return g; },
     turnip() { const g = G(), L2 = VX.glow(0xffc04a); g.ell(0, 5, 0, 6, 5.4, 6, (x, y, z) => { if (z > 4 && ((Math.abs(Math.abs(x) - 2.5) < 1.1 && Math.abs(y - 7) < 1.1) || (y >= 3 && y <= 4 && Math.abs(x) < 4) || (y === 5 && Math.abs(x) > 2.4 && Math.abs(x) < 4.6))) return L2; return y > 7 ? 0xb06aa0 : H(x, y, z) < 0.2 ? 0xe4dcc8 : 0xf0e8d6; }); for (const [x, z] of [[0, 0], [1, 1], [-1, 0], [0, -1]]) g.box(x, 10, z, x + (x ? x : 0), 15, z, 0x5a9a44); g.box(0, -1, 0, 0, -1, 0, 0xd8ccb4); return g; },
@@ -209,6 +275,7 @@
     glove() { const g = G(), W2 = 0xf4f0ea; g.box(-2, 0, -1, 2, 5, 1, W2); for (const [x, h] of [[-2, 9], [-1, 10], [0, 10], [1, 9]]) g.box(x, 6, 0, x, h, 0, W2); g.box(3, 3, 0, 4, 5, 0, W2); g.box(-2, -2, -1, 2, -1, 1, 0xe8e2cc); return g; },
     hood() { const g = G(), T0 = 0xa4aab4; for (let y = 0; y <= 12; y++) g.disc(0, 0, 4.4, y, y, (x, yy, z) => Math.hypot(x, z) < 3.4 ? -1 : z > 2 && yy > 2 && yy < 10 ? -1 : H(x, yy, z) < 0.2 ? 0x8a9098 : T0); for (let k = 0; k < 4; k++) g.disc(0, 0, 4.4 - k, 13 + k, 13 + k, T0); g.line(0, 16, 0, 0, 19, 0, 0x585c66); g.line(-4, 2, 0, 4, 2, 0, 0x585c66); return g; },
     stand() { const g = G(), st = (x, y, z) => H(x >> 2, y >> 2, z >> 2) < 0.4 ? 0xb0a692 : 0xbfb5a4; g.box(-9, 0, -9, 9, 3, 9, st); g.box(-7, 4, -7, 7, 6, 7, st); for (let y = 7; y < 38; y++) g.disc(0, 0, 4.6, y, y, (x, yy, z) => Math.cos(Math.atan2(z, x) * 8) < -0.4 ? 0x9a907e : 0xbfb5a4); g.box(-7, 38, -7, 7, 40, 7, st); g.box(-9, 41, -9, 9, 43, 9, (x, y, z) => y === 43 && Math.abs(x) < 8 && Math.abs(z) < 8 ? 0xcabfae : 0xd8cebc); return g; },
+    chalk_black() { const g = G(); for (let k = 0; k < 60; k++) { const a = H(k, 1, 7) * 6.283, r = Math.sqrt(H(k, 2, 7)) * 9; g.set(Math.round(Math.cos(a) * r), 0, Math.round(Math.sin(a) * r * 0.6), H(k, 3, 7) < 0.3 ? 0x3a3448 : 0x14111a); } g.box(-3, 0, 1, 2, 1, 2, 0x1a1622); g.set(3, 0, 2, 0x3a3448); g.box(5, 0, -3, 6, 0, -3, 0x1a1622); return g; },
     blackcard() { const g = G(); g.box(-5, 0, 0, 5, 14, 0, (x, y) => (Math.abs(x) === 5 && (y === 0 || y === 14)) ? -1 : Math.abs(x) === 5 || y === 0 || y === 14 ? 0x3a3448 : 0x14111a); for (const [y, w] of [[13, 0], [12, 1], [11, 1], [10, 2], [9, 3], [8, 3], [7, 3], [6, 0], [5, 0], [4, 1]]) for (let x = -w; x <= w; x++) if (!(y === 7 && Math.abs(x) === 1)) g.set(x, y, 1, 0xe8e4f0); return g; },
     net() { const g = G(); g.line(0, 0, 0, 0, 46, 0, OAK_L, 0.5); for (let k = 0; k < 60; k++) { const a = k / 60 * TAU; g.set(R(Math.cos(a) * 10), R(57 + Math.sin(a) * 10), 0, 0x585c66); } for (let y = 47; y < 67; y++) for (let x = -9; x <= 9; x++) { const d = Math.hypot(x, y - 57); if (d < 9.6 && ((x + y) % 3 === 0 || (x - y + 90) % 3 === 0)) g.set(x, y, -R((9.6 - d) * 0.9), 0xe8e4da); } return g; },
     bullseye() { const g = G(); g.box(-4, 0, -4, 4, 10, 4, (x, y, z) => Math.abs(x) === 4 || Math.abs(z) === 4 || y === 0 || y === 10 ? 0x3a3a42 : -1); g.disc(0, 0, 3, 11, 12, 0x585c66); g.box(-2, 3, 5, 2, 7, 5, VX.glow(0xffe9a8)); g.box(0, 13, 0, 0, 16, 0, 0x585c66); g.box(-2, 17, 0, 2, 17, 0, 0x585c66); return g; },
@@ -322,19 +389,22 @@
       const g = G(); for (let z = -6; z <= 3; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z === 3 ? 0xc8783a : z & 1 ? 0x8a5a32 : 0x6b4426);
       for (let z = 4; z <= 14; z++) { const w = z < 11 ? 1 : 0; for (let x = -w; x <= 1; x++) g.set(x, 0, z, x === -w ? 0xf4f8fc : 0xb8c0cc); } for (let k = 0; k < 12; k++) g.set(2 + R(Math.cos(k * 0.6) * 1.6), R(Math.sin(k * 0.6) * 1.6), 9 + (k >> 1), k & 1 ? 0xe8d0a0 : 0xd0a860); return g;
     },
+    form_penny() {                                       // the way: a compass, its needle, all the points of it
+      const g = G(), AU = 0xd0a040, AU2 = 0xf0d070, IV = 0xf4ecd8, NR = VX.glow(0xff6a4a), NB = VX.glow(0x7ad8ff);
+      for (let z = -8; z <= 8; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z % 4 === 0 ? AU : (z & 1) ? 0x6b4426 : 0x8a5a32);
+      for (let x = -7; x <= 7; x++) for (let z = -7; z <= 7; z++) { const d = Math.hypot(x, z); if (d > 7.3) continue; for (let y = -1; y <= 1; y++) g.set(x, y, z + 16, d > 6 ? ((x * 2 + z + 40) % 4 === 0 ? AU2 : AU) : y === -1 ? ((Math.abs(x) < 1 || Math.abs(z) < 1) && d > 4.4 ? 0x3a3040 : IV) : AU); }
+      for (let k = 0; k <= 5; k++) { g.set(R(k * 0.5), -2, 16 + k, NR); g.set(R(-k * 0.5), -2, 16 - k, NB); if (k < 3) { g.set(R(k * 0.5) + 1, -2, 16 + k, NR); g.set(R(-k * 0.5) - 1, -2, 16 - k, NB); } }
+      for (const [x, z] of [[0, 25], [9, 16], [-9, 16]]) { g.set(x, 0, z, AU2); g.ell(x, 0, z, 1, 1, 1.6, AU2); } g.set(0, -1, 25, NB); return g;
+    },
+    flask() { const g = G(); g.ell(0, 4, 0, 3.6, 4, 3.6, (x, y, z) => y < 4 ? VX.glow(0x9ae8ff) : 0xcfe8f0); g.disc(0, 0, 1.2, 8, 11, 0xcfe8f0); g.disc(0, 0, 1.5, 12, 13, 0x8a5a32); return g; },
+    stick() { const g = G(); for (let y = 0; y <= 62; y++) g.disc(0, 0, y > 57 ? 1.4 : 0.8, y, y, y > 57 ? 0x4a2c1c : y % 14 < 2 ? 0xd84a3a : 0x8a6a44); g.box(0, -2, 0, 0, -1, 0, 0x8a8a94); return g; },
+    chalkdoor() { const g = G(), C = 0xeceaf2; for (let y = 0; y <= 84; y++) for (const s of [-1, 1]) if (H(s, y, 3) < 0.86) g.set(s * 22, y, 0, C); for (let k = 0; k <= 40; k++) { const a = k / 40 * Math.PI; if (H(k, 5, 2) < 0.9) g.set(R(Math.cos(a) * 22), R(84 + Math.sin(a) * 14), 0, C); } for (let x = -22; x <= 22; x++) if (H(x, 2, 2) < 0.8) g.set(x, 0, 0, C); g.ell(16, 42, 0, 2, 2, 0.4, C); for (let x = -8; x <= 8; x++) if (H(x, 9, 1) < 0.5) g.set(x, 60, 0, C); return g; },
     /* the one that fell: a black baton with gold coverings */
     wand_black() { const g = G(), K = 0x16131c, K2 = 0x241f2e, AU = 0xe0b84a, AU2 = 0xf6dc8a; for (let z = -6; z <= 10; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) { const c = Math.abs(x) + Math.abs(y); if (z <= -4 || z >= 8 ? c > 2 : c > 1) continue; g.set(x, y, z, z <= -4 || z >= 8 ? (c === 2 ? AU : AU2) : z === -1 || z === 4 ? AU : H(x, y, z) < 0.3 ? K2 : K); } g.set(0, 0, -7, AU2); g.set(0, 0, 11, AU2); for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.set(x * 2, y * 2, -5, AU); g.set(x * 2, y * 2, 9, AU); } return g; },
-    /* and what it becomes: a great staff, standing on its foot (the grip 1.05 m up) */
-    staff() {
-      const g = G(), K = 0x16131c, K2 = 0x2a2436, AU = 0xe0b84a, AU2 = 0xf6dc8a;
-      for (let y = 0; y <= 66; y++) g.disc(0, 0, y < 3 ? 1.6 : 1.2, y, y, (x, yy, z) => yy < 3 || (yy % 11 === 0) ? AU : H(x, yy, z) < 0.25 ? K2 : K);
-      for (let y = 4; y < 64; y++) { const t = y * 0.42; g.set(R(Math.cos(t) * 2), y, R(Math.sin(t) * 2), y % 3 ? AU : AU2); }      // a gold vine up it
-      for (const s2 of [1, -1]) { for (let t = 0; t <= 1; t += 0.02) { const a = -0.5 + t * 2.9, r = 8; g.ell(s2 * (Math.sin(a) * r + (t < 0.2 ? 0 : 0)), 72 - Math.cos(a) * r + 2, 0, 1.2 - t * 0.5, 1.2 - t * 0.5, 1.2 - t * 0.4, t > 0.85 ? AU2 : (R(t * 30) % 5 === 0 ? AU2 : AU)); } for (const [t, l] of [[0.35, 3], [0.62, 4]]) { const a = -0.5 + t * 2.9; g.line(s2 * Math.sin(a) * 8, 74 - Math.cos(a) * 8, 0, s2 * (Math.sin(a) * 8 + l), 75 - Math.cos(a) * 8 + 1, 0, AU2, 0.4); } }
-      for (let y = 66; y < 70; y++) g.disc(0, 0, 2.2 - (y - 66) * 0.3, y, y, AU); g.disc(0, 0, 2.6, 64, 65, AU2);
-      return g;
-    },
-    staff_gem() { const g = G(), A = VX.glow(0xfff4d0), B = VX.glow(0xc8b4ff), C2 = VX.glow(0x8ad8ff); for (let y = -5; y <= 5; y++) { const w = 3.4 - Math.abs(y) * 0.62; for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) if (Math.abs(x) + Math.abs(z) <= w) g.set(x, y, z, y > 1 ? A : x + z > 0 ? B : C2); } return g; },
-    staff_ring() { const g = G(), AU2 = VX.glow(0xffe29a); for (let k = 0; k < 150; k++) { const a = k / 150 * TAU; if (R(a / TAU * 10) % 2) g.set(R(Math.cos(a) * 14), 0, R(Math.sin(a) * 14), AU2); } for (let k = 0; k < 10; k++) { const a = (k + 0.5) / 10 * TAU; g.box(R(Math.cos(a) * 14) - 1, 0, R(Math.sin(a) * 14) - 1, R(Math.cos(a) * 14) + 1, 0, R(Math.sin(a) * 14) + 1, VX.glow(k % 2 ? 0xc8b4ff : 0x8ad8ff)); } return g; },
+    /* and what it becomes: a pole, as long as it likes. A metre of its middle (black, gold let into its edges), and the gold cap at either end */
+    /* what his baton becomes: a dark staff a little taller than he is, its gold only in thin bands and at the rims */
+    staff_mid() { const g = G(), K = 0x16131c, K2 = 0x241f2e, AU = 0xe0b84a, AU2 = 0xf6dc8a; for (let y = -23; y <= 23; y++) { const a = Math.abs(y), band = a === 9; for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) { const c = Math.abs(x) + Math.abs(z); if (c > (band ? 2 : 1)) continue; g.set(x, y, z, band ? (c === 2 ? AU : AU2) : a === 17 && c === 1 ? AU : a < 9 ? (y & 1 ? 0x2c2538 : K2) : H(x, y, z) < 0.3 ? K2 : K); } } return g; },
+    staff_end() { const g = G(), K = 0x16131c, K2 = 0x241f2e, AU = 0xe0b84a, AU2 = 0xf6dc8a; for (let y = 0; y <= 17; y++) { const head = y >= 4 && y <= 13, r = y === 0 || head ? 2 : y === 17 ? 0 : 1; for (let x = -2; x <= 2; x++) for (let z = -2; z <= 2; z++) { const c = Math.abs(x) + Math.abs(z); if (c > r) continue; const d = H(x, y, z) < 0.3 ? K2 : K; g.set(x, y, z, y === 0 ? (c === 2 ? AU : AU2) : y === 4 || y === 13 ? (c === 2 ? AU : d) : y === 15 || y === 17 ? AU2 : d); } } return g; },
     tub() {                                              // the wandwright's tub: a great banded bucket, 1.15 m tall, its foot at the origin
       const g = G();
       for (let y = 0; y <= 47; y++) { const r = 17 + y * 0.13; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) > r - 2 || yy < 2 ? (yy === 8 || yy === 9 || yy === 34 || yy === 35 ? 0x585c66 : (R((Math.atan2(z, x) + Math.PI) / TAU * 26) & 1) ? OAK : OAK_D) : -1); }
@@ -354,5 +424,5 @@
   };
   delete props.rune;
 
-  window.CAST = { people, build, beasts: { horse: () => horse(0x8a5a34, 0x3a2418), horse2: () => horse(0xa8a298, 0x5a544e), cow }, props };
+  window.CAST = { people, build, beasts: { horse: () => horse(0x8a5a34, 0x3a2418), horse2: () => horse(0xa8a298, 0x5a544e), cow, cat }, props };
 })();

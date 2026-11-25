@@ -91,3 +91,14 @@ func update(dt: float, skipping: bool) -> void:
 			if m.k <= 0.0 and m.to == 0.0:
 				m.p.queue_free()
 				set_[0].erase(m)
+
+
+## Silence, at once.
+func cut() -> void:
+	for p in voices: p.stop()
+	for p in v3: p.stop()
+	for set_ in [mus, amb]:
+		for m in set_: m.p.queue_free()
+		set_.clear()
+	mus_name = ""
+	amb_name = ""
