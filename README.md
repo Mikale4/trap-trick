@@ -20,13 +20,21 @@ ends up tutoring him. He doesn't know who she is after school.
   Reiner's is last and unlit. The High Table (Lucan, Dorn and Sibyl) set errands on those below them; Bet, Wim, Kas and
   others stand by him; Proctor Vane has come to catch whoever is putting hats on things at night. Played: a day of fetches,
   candle duels ("wicks"), and one night's mischief as Trap Trick, keeping out of the Proctor's lantern.
+- **Chapter Two, "What Chooses You"** (about 25 minutes, fourteen parts): the wandwright tips out her tub, and a wand chooses
+  its mage. One that has found its mage **turns into what they are**, underneath: Petra's is fire, Kas's a living branch,
+  Wim's a cat, Bet's her mother's ladle. Every one of them rolls away from Reiner. Two second years, Cassian and Odile, run
+  a book on the day he'll go home. One night somebody crosses the roofs, and something falls. Played: sneaking up on a
+  garden of wands, and being chased by one.
+- **Free afternoons:** four of them in Chapter Two, two meetings each. Whoever you choose to see (friends, the old High
+  Table, the Proctor, Maron) has a story of their own, with something for you to say. How well you know them changes who
+  stands by Reiner later, who comes to his door, how he gets out, and what he sees. `J` shows everyone, and where they are.
 - **Wicks:** candle duels on the incantation ring. Blue shelters your flame from a breath, gold calls it higher, rose
   breathes on theirs.
 - **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there.
 - **School Days:** the whole campus, free to roam: a school of three floors (stairs, doors that open and shut), the
   glasshouse, the practice yard, the court, two boarding houses with a warden, common room and bedrooms each. Three years
   of pupils and their masters keep a timetable by a clock and a bell whose ring can be seen. Go to class, talk, read,
-  sleep. `E` uses things, `T` shows the timetable, `Esc` pauses.
+  sleep. `E` uses things, `T` shows the timetable, `J` the people you know, `Esc` pauses.
 
 | Keys (story) | |
 |---|---|
@@ -41,11 +49,12 @@ A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, `Y
 How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js` (the places,
 their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
 In Godot: `story.gd` (places, camera, speech, the hour, the player), `act1.gd` (the Opening Act, scene by scene),
-`ch1.gd` (Chapter One),
+`ch1.gd` (Chapter One), `ch2.gd` (Chapter Two: wands and their physics, the forms they take, the afternoons),
 `actor.gd` (one of the cast: springs, IK, gestures, faces), `campus.gd` (the school's life), `stage.gd` (a place: floors,
 stairs, doors, paths), `ui.gd`, `sound.gd`. Sound and music are synthesised by `tools/make_audio.py`.
 
-Testing it: `--scene=0` to `--scene=25` starts at a part (Chapter One is 12 to 25), `--scene=school16.4` the school at that hour, `--auto` plays on by
+Testing it: `--scene=0` to `--scene=39` starts at a part (Chapter One is 12 to 25, Chapter Two 26 to 39; `--pick=n` makes the
+nth choice by itself, 9 sees everyone; `--bond=wim:3,wim1:0` sets how well someone's known and what's been seen), `--scene=school16.4` the school at that hour, `--auto` plays on by
 itself and reports anyone standing closer than 40 cm to someone else, `--film=dir,every,count,from` saves stills,
 `--tour=x,y,z,tx,ty,tz;...` stills from given views, `--scene=simday` a whole school day, `--scene=test` the basics,
 `--free` starts roaming as Trap Trick.

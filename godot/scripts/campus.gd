@@ -48,7 +48,7 @@ const TABLE := {
 const SUBJECT := { "1A": "Incantation, Lecture Hall 1A", "2A": "History, Room 2A", "2B": "Potions, Room 2B", "3A": "Astronomy, Room 3A", "glass": "Herblore, the Glasshouse", "yard": "Practice, the Yard", "library": "Study, the Library" }
 const STAFF := {
 	"halden": { "p1": "1A", "p2": "1A", "day": "hallL" }, "marrow": { "p1": "2A", "p2": "2A", "day": "corr2" }, "wren": { "p2": "2B", "p3": "glass", "p4": "2B", "day": "glassA" },
-	"vane": { "day": "hall2" },
+	"vane": { "day": "hall2" }, "thorne": { "day": "yardA" },
 	"lys": { "p1": "3A", "p3": "3A", "day": "corr3" }, "corvin": { "p3": "yard", "p4": "yard", "day": "yardA" }, "sabine": { "all": "library", "day": "library" },
 	"dorle": { "all": "refectory", "day": "refectory" }, "hob": { "all": "owl", "day": "owl" }, "agnes": { "all": "hare", "day": "hare" }, "brandt": { "day": "gateA" }, "aurel": { "day": "portalB" },
 }
@@ -75,6 +75,8 @@ const PUPILS := {
 	"liss": { "y": 3, "house": "hare", "late": 0.0, "pace": 1.7, "free": ["library", "hallR", "eastA", "library"], "acts": ["read", "look"], "lines": ["I'm a prefect. That means I have seen you running and I'm deciding.", "No magic in the library. Sabine can smell it. So can I, but she minds."] },
 	"orin": { "y": 3, "house": "owl", "late": 6.0, "pace": 1.3, "free": ["benchB", "pondA", "treeA", "owl"], "acts": ["talk", "nod"], "lines": ["I was in your year once, when your year was someone else.", "Orlind took nine years over his candle. I think about that on bad days."] },
 	"bet": { "y": 1, "ch": 1, "house": "hare", "late": 7.0, "pace": 1.9, "free": ["refectory", "hallR", "refectory", "gateA"], "acts": ["dust", "look", "stretch"], "lines": ["Scholarship. It means I scrub what you eat off, and then I sit next to you.", "Never carry anything up the front stairs. The back ones creak, but nobody important uses them.", "In Sarrow you learn knots before letters. I'll show you one that only unties if you're lying.", "If the High Table wants a thing fetched, fetch it wrong. Slowly and wrong."] },
+	"cassian": { "y": 2, "ch": 2, "house": "owl", "late": 4.0, "pace": 1.4, "free": ["rimB", "benchA", "portalA", "owl"], "acts": ["giggle", "nod", "hips"], "lines": ["Don't mind me. I'm only watching. It's practically a compliment.", "Do you know, I can do everyone in this school but the Headmistress. She's in there too, but she looks back."] },
+	"odile": { "y": 2, "ch": 2, "house": "hare", "late": 3.0, "pace": 1.35, "free": ["benchA", "rimB", "pondA", "portalA"], "acts": ["giggle", "talk"], "lines": ["You look tired, Reiner. Doesn't he look tired?", "Nobody would think less of you. I've asked them all."] },
 	"lucan": { "y": 3, "ch": 1, "house": "owl", "late": 1.0, "pace": 1.35, "free": ["founderA", "library", "benchC", "library"], "acts": ["nod", "read"], "lines": ["Good day, Reiner. You see, it costs nothing.", "Order is only kindness with the sentiment taken out.", "Do ask Dorn to move, if he's in your way. He will enjoy it."] },
 	"dorn": { "y": 3, "ch": 1, "house": "owl", "late": 2.0, "pace": 1.4, "free": ["yard", "founderA", "yardA", "library"], "acts": ["cross", "stretch"], "lines": ["Mind yourself.", "I don't dislike you. I don't anything you.", "Lucan says be civil. This is civil."] },
 	"sibyl": { "y": 3, "ch": 1, "house": "hare", "late": 1.0, "pace": 1.45, "free": ["library", "benchC", "corr3", "library"], "acts": ["read", "nod"], "lines": ["Everything is written down, you know. I should know. I write it.", "You have ink on your cuff. I'd say so to anyone. I'd note it, too.", "Wards are easy. You decide what isn't coming in. Then it doesn't."] },
@@ -91,6 +93,7 @@ const STAFF_LINES := {
 	"hob": ["Boots on the mat. Lights out at nine. Trouble on somebody else's night.", "Your bed's upstairs, first door past the landing. Wim's made it for you. I couldn't stop him."],
 	"agnes": ["Boys may stand on the rug, and the rug ends there.", "Not one stair, young man."],
 	"brandt": ["Through the gate, up the path, in at the big door. If you end up in the pond you've gone wrong.", "Porter here thirty years. Never let in a thing I'd have to chase out. Twice, then."],
+	"thorne": ["Mind the shavings. Half of them are somebody's cousin.", "A wand's a tree's second opinion."],
 	"vane": ["I am not here to be liked. It saves a great deal of time.", "Turn out your pockets. ...A wooden hen. I see. Carry on."],
 	"aurel": ["Reiner. Yes. I signed your letter myself. I'm told that surprises you.", "I ask one thing of a pupil. That they come back in the morning."],
 }
@@ -154,7 +157,7 @@ func open(hour: float) -> void:
 		var beds := { "owl": 2, "hare": 0 }               # (the first owl bed is Reiner's, the next Wim's)
 		for p in people:
 			if p.role != "pupil": continue
-			if p.who in ["lucan", "dorn", "sibyl"]: p.bed = 0                  # (they keep late hours, in the library)
+			if p.who in ["lucan", "dorn", "sibyl", "odile"]: p.bed = 0                  # (they keep late hours, in the library)
 			elif p.who == "wim": p.bed = 1
 			else:
 				p.bed = beds[p.house]
@@ -166,7 +169,7 @@ func open(hour: float) -> void:
 	s.hour_run = 1.0 / HOUR_SECS
 	pi = _period_at(hour)
 	for p in people:
-		p.away = int(PUPILS.get(p.who, {}).get("ch", 1 if p.who == "vane" else 0)) > chapter
+		p.away = int(PUPILS.get(p.who, {}).get("ch", { "vane": 1, "thorne": 2 }.get(p.who, 0))) > chapter
 		if p.away:
 			p.a.visible = false
 			continue
@@ -242,6 +245,7 @@ func _want(p: Dictionary) -> Dictionary:
 			var yy: float = 0.0 if R.f < 0 else (0.048 if rm in ["owl", "hare"] else [0.048, 3.648, 7.248][int(R.f)])
 			return { "key": rm + "T", "p": Vector3(R.teacher.x, yy, R.teacher.z), "yaw": R.teacher.yaw, "pose": "stand", "node": R.node, "via": R.teacher.get("via", []) }
 		return _spot(f.day)
+	if id == "night" and p.who == "odile": return _seat("hare", p.year, p.n, "sit")
 	if id == "night" and p.who in ["lucan", "dorn", "sibyl"]: return _seat("library", p.year, p.n, "sitread")      # (the High Table keeps no curfew)
 	if id == "night":
 		var b: Dictionary = D.rooms[p.house].beds[p.bed % D.rooms[p.house].beds.size()]
@@ -429,7 +433,7 @@ func update(dt: float) -> void:
 func _clock() -> String:
 	var h := int(s.hour)
 	var m := int(fmod(s.hour, 1.0) * 12.0) * 5
-	return "%d:%02d" % [h, m]
+	return "%d:%02d %s" % [(h + 11) % 12 + 1, m, "AM" if h % 24 < 12 else "PM"]
 
 
 func _label_now() -> String:
@@ -607,6 +611,7 @@ func _doors() -> void:
 	var id: String = period().id
 	for k in st().doors:
 		var d: Dictionary = st().doors[k]
+		if d.has("by_hand"): continue
 		if d.stay: d.want = id != "night" or k == "main"
 		elif d.room != "":
 			var lesson := false
@@ -665,7 +670,7 @@ func find_use(hp: Vector3):
 	if best != null: return best
 	# a lesson, if it's now
 	var id: String = period().id
-	if TABLE[1].has(id) and not held and not lesson_done.has("%d%s" % [day, id]):
+	if TABLE[1].has(id) and not held and not s.busy and not lesson_done.has("%d%s" % [day, id]):
 		var rm: String = TABLE[1][id]
 		var q: Dictionary = seat_of(rm, 1, 0)
 		var R: Dictionary = S.data.rooms[rm]
@@ -673,7 +678,7 @@ func find_use(hp: Vector3):
 		if Vector3(q.x, yy, q.z).distance_to(hp) < 1.7:
 			return { "label": "Take your place  (%s)" % SUBJECT[rm], "f": func(): attend(rm, id) }
 	for sg in S.data.signs:
-		if absf(sg.y - hp.y) > 1.2: continue
+		if absf(sg.y - hp.y) > 1.2 or (s.busy and String(sg.get("id", "")) == "sleep"): continue      # (nothing's offered that can't be done now)
 		if Vector2(sg.x - hp.x, sg.z - hp.z).length() < float(sg.r): return { "label": sg.label, "f": func(): sign_use(sg) }
 	var d = S.near_door(hp)
 	if d != null:
@@ -701,13 +706,17 @@ func talk(p: Dictionary) -> void:
 	a.say_bubble(lines[p.line % lines.size()], font)
 	s.main.sfx("voice_" + String(s.VOICE.get(p.who, "girl" if p.house == "hare" else "boy")))
 	p.line += 1
+	if chapter >= 2 and p.who in s.act.BONDS and not p.has("met%d" % day):      # (a word a day: it adds up, slowly)
+		p["met%d" % day] = true
+		p.words = p.get("words", 0) + 1
+		if p.words % 3 == 0: s.act.gain(p.who, 1)
 	s.hero.look = a
 	s.get_tree().create_timer(4.0).timeout.connect(func(): if s.hero and s.hero.look == a: s.hero.look = null)
 
 
 func show_timetable() -> void:
 	if s.place != "academy" or not on: return
-	s.read("First Year Timetable", "7:00    Rising bell. Breakfast\n8:30    Incantation, Lecture Hall 1A  (ground floor, west)\n10:00  Break\n10:45  History, Room 2A  (first floor, west)\n12:00  Dinner, the Refectory  (ground floor, east)\n13:00  Herblore, the Glasshouse  (east lawn)\n14:15  Break\n15:00  Practice, the Yard  (west lawn)\n16:15  Free time\n18:30  Supper\n21:00  Lights out\n\nBoys board at Owl House, girls at Hare House. Anyone found in the pond after dark will be asked why.")
+	s.read("First Year Timetable", "7:00 AM    Rising bell. Breakfast\n8:30 AM    Incantation, Lecture Hall 1A  (ground floor, west)\n10:00 AM    Break\n10:45 AM    History, Room 2A  (first floor, west)\n12:00 PM    Dinner, the Refectory  (ground floor, east)\n1:00 PM    Herblore, the Glasshouse  (east lawn)\n2:15 PM    Break\n3:00 PM    Practice, the Yard  (west lawn)\n4:15 PM    Free time\n6:30 PM    Supper\n9:00 PM    Lights out\n\nBoys board at Owl House, girls at Hare House. Anyone found in the pond after dark will be asked why.")
 
 
 func sign_use(sg: Dictionary) -> void:
@@ -727,7 +736,7 @@ func sign_use(sg: Dictionary) -> void:
 
 
 func _through(node: String, yaw: float) -> void:
-	if s.busy: return
+	if s.mode != "play" or s.locked or s.act.ch2.chase.get("go", false): return
 	s.locked = true
 	s.main.sfx("door")
 	await s.fade(1.0, 0.35)

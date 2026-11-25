@@ -76,6 +76,14 @@
     vane: { story: true, fem: false, dress: 0x3b3e48, long: true, sleeve: 0x3b3e48, shirt: 0x3b3e48, band: 0x8a8a94, hair: 0x22222a, style: 'short', eye: 0x8a96a4, skin: 0, specs: true, gloves: 0x2a2a30, h: 3 },
   });
 
+  /* Chapter Two. Mistress Thorne, the wandwright, with her tub of wands; Cassian Roe and Odile Fray, second years, who
+     think other people are very funny */
+  Object.assign(people, {
+    thorne: { story: true, big: true, fem: true, dress: 0x6a5038, bodice: 0x55402c, shirt: 0xd8c8a0, sleeve: 0xd8c8a0, apron: 0x8a6a42, long: true, hair: 0xb8bcc4, style: 'bun', eye: 0x4f7a50, skin: 2, rolled: true, gloves: 0x6a4a30, ribbon: 0xc8a24a },
+    cassian: boy({ hair: 0x6e2434, style: 'bob', skin: 0, eye: 0x9a8a3c, tie: T2, h: 4, lips: true }),
+    odile: girl({ hair: 0xe0b878, style: 'curls', skin: 0, eye: 0x6aa0c0, tie: T2, h: 1, blush: true, lips: true }),
+  });
+
   function build(name) {
     const L = people[name], M = PEOPLE.build(L);
     if (name === 'maron') {
@@ -98,6 +106,20 @@
       }
     }
     return M;
+  }
+
+  /* a wand, 33 cm: a turned grip, the shaft thinning to its tip; three ways of turning it */
+  function wandGrid(c, d, kind) {
+    const g = G();
+    for (let z = -4; z <= 9; z++) { if (z <= 0) { for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= (kind === 2 && (z === -2) ? 2 : 1)) g.set(x, y, z, z === 0 || z === -4 ? d : (z & 1) && kind ? mul(c, 0.8) : c); } else g.set(0, 0, z, kind === 1 && z % 3 === 0 ? d : z === 9 ? mul(c, 1.2) : c); }
+    if (kind === 0) { g.set(0, 1, 1, c); g.set(0, -1, 1, c); }
+    return g;
+  }
+  /* a card's suit, drawn in light (9 x 9 voxels, two thick) */
+  function suitGrid(suit, c) {
+    const g = G(), P = { heart: ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'], diamond: ['...#...', '..###..', '.#####.', '.#####.', '..###..', '...#...'], spade: ['...#...', '..###..', '.#####.', '#######', '##.#.##', '..###..'], club: ['..###..', '..###..', '###.###', '#######', '...#...', '..###..'] }[suit];
+    P.forEach((row, r) => [...row].forEach((ch, i) => { if (ch === '#') { g.set(i - 3, 3 - r, 0, VX.glow(c)); } }));
+    return g;
   }
 
   /* ------------------------------------------------------------- beasts -- */
@@ -169,8 +191,11 @@
     cart_body() {                                        // a two-wheeled farm cart: its axle at the origin, the shafts to +z
       const g = G(), pl = (a, w, c) => ((a + 300) % w === 0 ? mul(c, 0.66) : H(Math.floor((a + 300) / w), 3, 5) < 0.4 ? mul(c, 0.9) : c);
       g.box(-19, 6, -34, 19, 7, 30, (x) => pl(x, 6, OAK)); g.box(-2, -1, -1, 2, 5, 1, OAK_D); g.box(-24, -1, -1, 24, 1, 1, OAK_D);
-      for (const s of [-1, 1]) { g.box(s * 14, 3, -34, s * 12, 5, 30, OAK_D); for (let z = -34; z <= 30; z += 16) g.box(s * 20, 6, z, s * 21, 24, z + 1, OAK_D); for (const y of [11, 12, 13, 17, 18, 19]) g.box(s * 19, y, -34, s * 19, y, 30, (x, yy) => pl(yy * 7, 5, OAK_L)); g.box(s * 19, 23, -34, s * 21, 24, 30, OAK_D); g.box(s * 13, 4, 30, s * 12, 6, 96, (x, y, z) => z > 92 ? 0x3a3a42 : OAK_D); }
+      for (const s of [-1, 1]) { g.box(s * 14, 3, -34, s * 12, 5, 30, OAK_D); for (let z = -34; z <= 30; z += 16) g.box(s * 20, 6, z, s * 21, 24, z + 1, OAK_D); for (const y of [11, 12, 13, 17, 18, 19]) g.box(s * 19, y, -34, s * 19, y, 30, (x, yy) => pl(yy * 7, 5, OAK_L)); g.box(s * 19, 23, -34, s * 21, 24, 30, OAK_D); }
       for (const z of [-34]) for (const y of [11, 12, 13, 17, 18, 19]) g.box(-19, y, z, 19, y, z, OAK_L);
+      // the pole between the pair, the bars they pull on, the traces, and the yoke at their collars
+      g.line(0, 4, 18, 0, 12, 116, (x, y, z) => z > 112 ? 0x3a3a42 : OAK_D, 1.2); g.box(-19, 5, 34, 19, 6, 35, OAK_D); g.box(-24, 12, 112, 24, 13, 113, (x) => Math.abs(x) > 22 ? 0x3a3a42 : OAK_D);
+      for (const s of [-1, 1]) { g.box(s * 17 - 9, 6, 38, s * 17 + 9, 7, 39, OAK_D); g.line(s * 17, 5, 35, s * 17, 6, 38, 0x3a3a42, 0.4); for (const t of [-1, 1]) { g.line(s * 17 + t * 9, 6, 39, s * 17 + t * 10, 13, 76, 0x4a2c1c, 0.4); g.line(s * 17 + t * 10, 13, 76, s * 17 + t * 8, 17, 110, 0x4a2c1c, 0.4); } g.line(s * 17, 13, 113, s * 17, 18, 112, 0x4a2c1c, 0.4); }
       g.box(-20, 20, 14, 20, 22, 27, (x, y, z) => y === 22 ? pl(z, 5, OAK_L) : OAK_D); g.box(-20, 24, 11, 20, 33, 12, (x, y) => pl(y, 5, OAK)); g.box(-19, 8, 28, 19, 14, 30, OAK_D);
       return g;
     },
@@ -190,9 +215,144 @@
     sprout() { const g = G(); for (let y = 0; y < 7; y++) g.disc(0, 0, 3.4 + y * 0.2, y, y, (x, yy, z) => Math.hypot(x, z) > 2.4 + yy * 0.2 || yy === 5 ? (yy === 5 && Math.hypot(x, z) < 3 ? 0x4a3424 : 0xb0603c) : -1); g.box(0, 6, 0, 0, 13, 0, 0x5a9a44); for (const [x, y, z] of [[1, 10, 0], [2, 11, 0], [-1, 12, 0], [-2, 13, 0], [0, 14, 1], [0, 14, -1], [0, 15, 0]]) g.set(x, y, z, 0x74b04c); g.set(0, 16, 0, VX.glow(0x9af0c0)); return g; },
     sprout_flat() { const g = G(); for (const [x, z, h] of [[0, 0, 2], [4, 1, 1], [-4, -2, 2], [2, -4, 1], [-2, 4, 1], [5, -3, 1]]) g.box(x - 1, 0, z - 1, x + 1, h, z + 1, 0xb0603c); g.ell(0, 1, 0, 3, 1, 3, 0x4a3424); g.line(0, 2, 0, 6, 1, 3, 0x5a9a44); g.set(6, 2, 3, 0x74b04c); g.set(7, 1, 3, 0x9ac0a0); return g; },
     bell_bow() { const g = G(), P2 = 0xf2659f; for (const s of [-1, 1]) { g.ell(s * 6, 0, 0, 5, 3.4, 1.4, P2); g.line(s, -1, 0, s * 5, -11, 0, mul(P2, 0.85), 1); } g.ell(0, 0, 0, 2, 2, 2, mul(P2, 0.8)); return g; },
+    /* Chapter Two: the wands. Each lies along z, its grip at the origin, its tip at +z */
+    wand_oak() { return wandGrid(0xa8743e, 0x6b4426, 0); }, wand_ash() { return wandGrid(0xd8c49a, 0xa8925e, 1); }, wand_cherry() { return wandGrid(0x9a4a34, 0x5e2a20, 2); }, wand_holly() { return wandGrid(0x4a5a48, 0x2c3a2c, 1); }, wand_birch() { return wandGrid(0xeee6d6, 0x8a8478, 0); }, wand_plum() { return wandGrid(0x6a4668, 0x40283e, 2); },
+    wand_leaf() { const g = wandGrid(0x8a6a3a, 0x5a4020, 1); g.set(0, 1, 11, 0x74b04c); g.set(1, 2, 11, 0x5f9a42); g.set(0, 2, 12, 0x8ac85a); return g; },
+    wand_stub() { const g = G(); g.box(-1, -1, -3, 1, 1, 4, (x, y, z) => Math.abs(x) + Math.abs(y) === 2 ? -1 : (z & 1) ? 0x6b4426 : 0x7a5030); g.disc(0, 0, 0, 0, 0, 0x6b4426); g.box(0, 0, 5, 0, 0, 9, 0x8a5a32); return g; },
+    /* ... and what they turn into, once they've found who they were after: each the nature of the one who holds it. Held
+       upright they're seen from -y; the grip's at the origin, the working end at +z. */
+    wand_lucan() { const g = wandGrid(0xe8e0d0, 0xb8bcc8, 1); g.set(0, 0, 10, 0xd8dce4); g.set(0, 0, -5, 0xd8dce4); return g; },
+    form_isolde() {                                      // a frost-white quill: to know, and to have it written down
+      const g = G(), E = VX.glow(0x3f7cae), A = 0xf2f8fe, A2 = VX.glow(0x587690), S2 = VX.glow(0xd8f2ff);
+      g.box(0, 0, -6, 0, 0, 25, (x, y, z) => z < -3 ? 0x3a4a68 : 0xdfeaf4); for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.box(x, y, -3, x, y, 1, 0xc8a850); g.set(0, 0, -7, S2);
+      for (let z = 3; z <= 26; z++) { const u = (z - 3) / 23, w = Math.round(4.6 * Math.sin(Math.PI * Math.min(1, 0.12 + u * 0.88)) ** 0.75), bend = Math.round(u * u * 3), cut = z === 9 || z === 15 || z === 20 ? 2 : 0; for (let x = -w + cut; x <= w - (z === 12 || z === 18 ? 2 : 0); x++) g.set(x + bend, 0, z, x === 0 ? 0xf6fbff : Math.abs(x) === w ? E : (x + z * 2 + 90) % 4 < 2 ? A : A2); }
+      for (const [x, z] of [[3, 11], [-2, 16], [4, 21], [1, 26]]) g.set(x, -1, z, S2); return g;
+    },
+    form_petra() {                                       // fire, through and through
+      const g = G(), A = VX.glow(0xfff6c8), B = VX.glow(0xffc04a), C = VX.glow(0xff7a1e), D = VX.glow(0xe83a14), K = 0x2c1a16;
+      for (let z = -6; z <= 9; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= (z > 6 ? 2 : 1)) g.set(x, y, z, H(x, y, z) < 0.34 ? (H(z, x, 2) < 0.5 ? C : B) : K);
+      for (const s2 of [1, -1]) { g.line(s2, 0, 5, s2 * 4, 0, 10, K, 0.5); g.set(s2 * 4, 0, 11, C); g.set(s2 * 3, 0, 12, B); g.set(s2 * 4, 0, 13, D); }
+      for (let z = 8; z <= 21; z++) { const u = (z - 8) / 13, w = 3.4 * Math.sin(Math.PI * (0.22 + u * 0.78)) ** 0.9, ox = Math.sin(z * 0.8) * u * 1.4; g.ell(ox, 0, z, w, w * 0.8, 0.6, (x, y) => { const d = Math.hypot(x - ox, y) / Math.max(0.5, w); return d < 0.38 && u < 0.6 ? A : d < 0.72 && u < 0.8 ? B : u > 0.75 || H(x, y, z) < 0.3 ? D : C; }); }
+      g.set(2, 0, 20, D); g.set(-2, 0, 18, C); g.set(3, 0, 17, D); g.set(1, 0, 23, D); g.set(-3, 0, 20, C); return g;
+    },
+    form_otto() {                                        // his dinner
+      const g = G(), BN = 0xf6eedc;
+      for (let z = -6; z <= 7; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z % 5 === 0 ? 0xe2d6bc : BN);
+      for (const s2 of [1, -1]) g.ell(s2 * 1.6, 0, -7, 1.6, 1.3, 1.6, BN);
+      for (let z = 4; z <= 20; z++) { const u = (z - 4) / 16, w = 1.2 + 4.2 * Math.sin(Math.PI * Math.min(0.94, 0.06 + u * 0.88)) ** 0.8; g.disc; for (let x = -6; x <= 6; x++) for (let y = -6; y <= 6; y++) if (Math.hypot(x, y) <= w) g.set(x, y, z, H(x >> 1, y >> 1, z >> 1) < 0.18 ? 0x7a3e14 : y < -1 && x < 1 && H(x, y, z) < 0.6 ? 0xe8a24a : H(x, y, z) < 0.35 ? 0xb8682a : 0xc87a34); }
+      g.set(-1, -5, 13, 0xfff0c8); g.set(-2, -5, 12, 0xfff0c8); g.set(0, -4, 17, VX.glow(0xffd88a)); return g;
+    },
+    form_kas() {                                         // a branch that never stopped growing
+      const g = G(), L = [0x74b04c, 0x5f9a42, 0x8ac85a];
+      for (let z = -6; z <= 14; z++) { const ox = Math.round(Math.sin(z * 0.35) * 0.8); g.set(ox, 0, z, z & 1 ? 0x7a5a30 : 0x8a6a3a); if (z < 6) { g.set(ox + 1, 0, z, 0x6a4c28); g.set(ox, 1, z, 0x6a4c28); g.set(ox, -1, z, 0x8a6a3a); } }
+      for (const [x, z, x2, z2] of [[0, 6, 5, 12], [0, 8, -5, 13], [0, 12, 2, 20], [0, 13, -3, 19]]) g.line(x, 0, z, x2, 0, z2, 0x7a5a30, 0.4);
+      for (const [cx, cz, r] of [[5, 13, 2.4], [-5, 14, 2.4], [2, 20, 2.8], [-3, 19, 2.2], [0, 16, 2]]) g.ell(cx, 0, cz, r, r * 0.8, r, (x, y, z) => H(x, y, z) < 0.62 ? L[(x + y + z + 60) % 3] : -1);
+      for (let z = -5; z < 12; z++) { const t = z * 0.9; g.set(Math.round(Math.cos(t) * 2), Math.round(Math.sin(t) * 2), z, z % 3 ? 0x5a9a44 : L[2]); }
+      for (const [x, y, z, c] of [[5, -2, 13, 0xffa0c8], [-5, -2, 15, 0x9ab4ff], [2, -3, 20, 0xffd0ea], [-3, -2, 18, 0xffa0c8], [0, -2, 11, 0x9ab4ff]]) { g.set(x, y, z, VX.glow(0xfff0b0)); for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x + a, y, z + b, c); }
+      return g;
+    },
+    form_wim() {                                         // something small, warm, and not as brave as it looks: a cat
+      const g = G(), K = 0x7a7288, K2 = 0x5e566c, W2 = 0xf6f2ea, P2 = 0xf2a0b8, E = VX.glow(0xd8f070), D = 0x241e2c;
+      for (let z = -9; z <= 2; z++) { const ox = z < -3 ? Math.round(((-3 - z) / 6) ** 2 * 4) : 0; for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(ox + x, y, z, z < -7 ? W2 : (z & 3) === 1 ? K2 : K); }
+      g.ell(0, 0, 5, 3.4, 2.8, 4, (x, y, z) => y < -1 && Math.abs(x) < 2 && z > 3 ? W2 : Math.abs(x) > 1 && (z & 3) === 1 ? K2 : K);
+      for (const s2 of [1, -1]) { g.ell(s2 * 2, -3, 4, 1.1, 1.2, 1.6, K); g.box(s2 * 2, -4, 3, s2 * 2, -4, 4, W2); }
+      g.ell(0, 0, 13, 5.6, 4.2, 4.6, (x, y, z) => z > 16 && Math.abs(x) < 1 ? K2 : K);
+      for (let x = -3; x <= 3; x++) for (let z = 9; z <= 12; z++) if (Math.abs(x) + (z < 10 ? 1 : 0) < 4) g.set(x, -4, z, W2);      // the muzzle
+      for (const s2 of [1, -1]) { for (let k = 0; k < 4; k++) for (let x = 2 + (k >> 1); x <= 5 - (k >> 1); x++) g.box(s2 * x, -1, 16 + k, s2 * x, 0, 16 + k, x === 3 && k < 3 ? P2 : K2); for (const z of [13, 14]) { g.set(s2 * 2, -5, z, E); g.set(s2 * 3, -5, z, E); g.set(s2 * 2, -5, z, D); } g.set(s2 * 4, -5, 11, W2); g.set(s2 * 6, -4, 12, W2); g.set(s2 * 6, -4, 10, W2); }
+      g.set(0, -5, 12, P2); g.set(-1, -5, 10, D); g.set(1, -5, 10, D); g.set(0, -5, 11, D); return g;
+    },
+    form_bet() {                                         // her mother's ladle
+      const g = G(), O = 0x8a5a32, O2 = 0x6b4426, CU = 0xc8783a, CU2 = 0xe8a060;
+      for (let z = -7; z <= 10; z++) { g.set(0, 0, z, z & 1 ? O : O2); if (z < 3) for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x, y, z, (z + 20) % 4 === 0 ? CU : O); }
+      for (let z = 8; z <= 10; z++) for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x, y, z, CU); g.ell(0, 0, -8, 1.4, 1.4, 1, CU);
+      for (let x = -6; x <= 6; x++) for (let y = -2; y <= 5; y++) for (let z = -6; z <= 6; z++) { const d = Math.hypot(x, y * 1.15, z); if (d > 5.7 || y < -1) continue; g.set(x, y, z + 15, d > 4.4 ? (y === -1 ? CU2 : H(x, y, z) < 0.2 ? CU2 : CU) : y === 0 ? (H(x, 3, z) < 0.22 ? 0xf0c070 : H(x, 5, z) < 0.12 ? 0x8ac85a : 0xd08a3a) : y > 0 ? 0xb87430 : -1); }
+      g.set(1, 0, 16, VX.glow(0xffd890)); g.set(-2, 0, 14, VX.glow(0xffd890)); return g;
+    },
+    form_tobin() {                                       // an ear-trumpet: for listening with
+      const g = G(), B1 = 0xd8a838, B2 = 0xf0d070, B3 = 0xa87a24;
+      for (let z = -7; z <= 17; z++) { const u = (z + 7) / 24, r = 0.9 + u ** 2.2 * 5.6; for (let x = -7; x <= 7; x++) for (let y = -7; y <= 7; y++) { const d = Math.hypot(x, y); if (d <= r && (d > r - 1.1 || z < 4)) g.set(x, y, z, z === 17 ? B2 : z % 7 === 0 ? B3 : x < 0 && y < 0 ? B2 : B1); } }
+      g.ell(0, 0, -8, 1.6, 1.6, 1, 0x2c2436); for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; g.set(R(Math.cos(a) * 3), R(Math.sin(a) * 3) , 13, VX.glow(0xfff0b0)); } return g;
+    },
+    form_selma() {                                       // sleep
+      const g = G(), N = 0x2a3466, N2 = 0x3c4a8a, M = VX.glow(0xfff2bc), M2 = VX.glow(0xffe08a), CL = 0xf2f0fa;
+      for (let z = -6; z <= 9; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, H(x, y, z) < 0.16 ? M : z & 1 ? N : N2);
+      for (const [x, z, r] of [[0, 9, 2.4], [3, 9, 1.8], [-3, 9, 1.8], [1, 10, 2]]) g.ell(x, 0, z, r, r, r * 0.8, CL);
+      for (let x = -7; x <= 7; x++) for (let z = -7; z <= 7; z++) { if (Math.hypot(x, z) <= 6.2 && Math.hypot(x - 3.2, z - 1.4) > 4.9) for (let y = -1; y <= 1; y++) g.set(x, y, z + 18, y ? M2 : M); }
+      for (const [x, z] of [[4, 18], [2, 21], [6, 22]]) { g.set(x, 0, z, M); if (z !== 22) for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (z === 18) g.set(x + a, 0, z + b, M2); } return g;
+    },
+    form_nadi() {                                        // lightning, all talk
+      const g = G(), A = VX.glow(0xfffbe0), B = VX.glow(0xffe23a), C = VX.glow(0x7ac8ff), N = 0x2c3a5a;
+      for (let z = -6; z <= 5; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z % 3 === 0 ? 0xc8783a : N);
+      const pts = [[0, 5], [3, 10], [-2, 11], [4, 18], [-1, 17], [2, 25]];
+      for (let k = 0; k + 1 < pts.length; k++) { const [x, z] = pts[k], [x2, z2] = pts[k + 1]; g.line(x, 0, z, x2, 0, z2, B, 1); } for (let k = 0; k + 1 < pts.length; k++) { const [x, z] = pts[k], [x2, z2] = pts[k + 1]; g.line(x, -1, z, x2, -1, z2, A, 0.3); }
+      for (const [x, y, z] of [[5, 0, 13], [6, 0, 14], [-4, 0, 14], [-5, 0, 16], [4, 0, 23], [-3, 0, 21]]) g.set(x, y, z, C); return g;
+    },
+    form_cassian() {                                     // a looking-glass: everybody but himself
+      const g = G(), AU = 0xd8b050, AU2 = 0xf4dc90;
+      for (let z = -7; z <= 6; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= (z === -6 || z === 0 ? 2 : 1)) g.set(x, y, z, z % 4 === 0 ? AU2 : AU);
+      for (let x = -6; x <= 6; x++) for (let z = -8; z <= 8; z++) { const d = Math.hypot(x / 5.4, z / 7.2); if (d > 1.04) continue; for (let y = -1; y <= 1; y++) g.set(x, y, z + 13, d > 0.82 ? ((x * 3 + z * 5 + 90) % 4 === 0 ? AU2 : AU) : y === -1 ? (Math.abs(x + z) < 2 || Math.abs(x + z - 5) < 1 ? 0xf6fcff : 0xb4d4e8) : AU); }
+      for (const s2 of [1, -1]) g.ell(s2 * 6, 0, 13, 1.2, 1, 1.6, AU2); g.ell(0, 0, 21, 1.6, 1, 1.4, AU2); return g;
+    },
+    form_odile() {                                       // a sugar rose, with the thorns left on
+      const g = G(), P1 = 0xffc4dc, P2 = 0xf28ab4, P3 = 0xd85a90;
+      for (let z = -6; z <= 13; z++) { g.set(0, 0, z, z & 1 ? 0x4a8a44 : 0x3a7238); if (z < 4) { g.set(1, 0, z, 0x3a7238); g.set(0, 1, z, 0x3a7238); } }
+      for (const [x, y, z] of [[1, 0, 6], [-1, 0, 8], [1, 0, 11], [0, -1, 5], [0, -1, 10]]) { g.set(x, y, z, 0x8a3a4a); g.set(x * 2, y * 2, z + 1, 0xc85a6a); g.set(x * 3, y * 3, z + 1, 0xf2e0e4); }
+      g.ell(0, 0, 17, 4.4, 4, 3.8, (x, y, z) => { const r = Math.hypot(x, y), sp = Math.floor((Math.atan2(y, x) / TAU * 5 + r * 0.4 + 10)) % 2; return r < 1.4 ? P3 : sp ? P1 : P2; });
+      for (let k = 0; k < 14; k++) g.set(R(Math.cos(k) * 4), R(Math.sin(k) * 3.6), 16 + (k % 4), 0xfff6fa); for (const s2 of [1, -1]) g.ell(s2 * 2.6, 0, 12, 2, 0.8, 1, 0x4a8a44); return g;
+    },
+    form_lucan() {                                       // a night-light
+      const g = G(), V = 0xe8e0d0, SV = 0xc8ccd8, F = VX.glow(0xffc860), F2 = VX.glow(0xfff4c8), GL = 0xffe2a0;
+      for (let z = -6; z <= 16; z++) { g.set(0, 0, z, z % 5 === 0 ? SV : V); if (z < 5) for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) g.set(x, y, z, z % 5 === 0 ? SV : V); }
+      g.line(0, 0, 16, -2, 0, 19, SV, 0.4); g.line(-2, 0, 19, -5, 0, 19, SV, 0.4); g.box(-6, 0, 16, -6, 0, 18, SV);
+      for (let x = -3; x <= 3; x++) for (let y = -3; y <= 3; y++) for (let z = 8; z <= 15; z++) { const e = Math.abs(x) === 3 || Math.abs(y) === 3, c = Math.abs(x) === 3 && Math.abs(y) === 3; if (z === 8 || z === 15 || c) g.set(-6 + x, y, z, SV); else if (e) g.set(-6 + x, y, z, z > 9 && z < 13 && Math.abs(x + y) % 6 < 2 ? F2 : z > 13 || z < 10 ? GL : F); }
+      g.box(-8, -2, 16, -4, 2, 16, SV); return g;
+    },
+    form_sibyl() {                                       // the hours
+      const g = G(), K = 0x3a2c4c, AU = 0xd8b050, GL = 0xd4e4f0, SD = VX.glow(0xffd88a);
+      for (let z = -6; z <= 6; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z % 4 === 0 ? AU : K);
+      for (let z = 7; z <= 21; z++) { const k = Math.abs(z - 14) / 7, r = z === 7 || z === 21 ? 4.6 : 0.8 + k * 3.2; for (let x = -5; x <= 5; x++) for (let y = -5; y <= 5; y++) { const d = Math.hypot(x, y); if (d > r) continue; g.set(x, y, z, z === 7 || z === 21 ? AU : (z < 11 || (z > 14 && z < 18) || d < 0.7) ? SD : GL); } }
+      for (const [x, y] of [[4, 0], [-4, 0]]) g.box(x, y, 8, x, y, 20, AU); return g;
+    },
+    form_dorn() {                                        // a mountain, minding something small
+      const g = G(), st = (x, y, z) => H(x >> 1, y >> 1, z >> 1) < 0.35 ? 0x8a8680 : H(x, y, z) < 0.2 ? 0xa8a49a : 0x9a968e;
+      for (let z = -7; z <= 12; z++) { const r = z < 2 ? 1.5 : 1.5 + (z - 2) * 0.3; for (let x = -5; x <= 5; x++) for (let y = -5; y <= 5; y++) if (Math.hypot(x, y) <= r) g.set(x, y, z, z > 9 && H(x, y, z) < 0.6 ? 0x6a9a4a : st(x, y, z)); }
+      g.box(0, 0, 13, 0, 0, 17, 0x5a9a44); for (const [x, y, z] of [[1, 0, 16], [2, 0, 17], [-1, 0, 17], [-2, 0, 18], [0, 1, 18], [0, -1, 18]]) g.set(x, y, z, 0x8ac85a); g.set(0, 0, 18, VX.glow(0xfff0b0)); return g;
+    },
+    form_thorne() {                                      // a whittling knife
+      const g = G(); for (let z = -6; z <= 3; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) if (Math.abs(x) + Math.abs(y) <= 1) g.set(x, y, z, z === 3 ? 0xc8783a : z & 1 ? 0x8a5a32 : 0x6b4426);
+      for (let z = 4; z <= 14; z++) { const w = z < 11 ? 1 : 0; for (let x = -w; x <= 1; x++) g.set(x, 0, z, x === -w ? 0xf4f8fc : 0xb8c0cc); } for (let k = 0; k < 12; k++) g.set(2 + R(Math.cos(k * 0.6) * 1.6), R(Math.sin(k * 0.6) * 1.6), 9 + (k >> 1), k & 1 ? 0xe8d0a0 : 0xd0a860); return g;
+    },
+    /* the one that fell: a black baton with gold coverings */
+    wand_black() { const g = G(), K = 0x16131c, K2 = 0x241f2e, AU = 0xe0b84a, AU2 = 0xf6dc8a; for (let z = -6; z <= 10; z++) for (let x = -1; x <= 1; x++) for (let y = -1; y <= 1; y++) { const c = Math.abs(x) + Math.abs(y); if (z <= -4 || z >= 8 ? c > 2 : c > 1) continue; g.set(x, y, z, z <= -4 || z >= 8 ? (c === 2 ? AU : AU2) : z === -1 || z === 4 ? AU : H(x, y, z) < 0.3 ? K2 : K); } g.set(0, 0, -7, AU2); g.set(0, 0, 11, AU2); for (const [x, y] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { g.set(x * 2, y * 2, -5, AU); g.set(x * 2, y * 2, 9, AU); } return g; },
+    /* and what it becomes: a great staff, standing on its foot (the grip 1.05 m up) */
+    staff() {
+      const g = G(), K = 0x16131c, K2 = 0x2a2436, AU = 0xe0b84a, AU2 = 0xf6dc8a;
+      for (let y = 0; y <= 66; y++) g.disc(0, 0, y < 3 ? 1.6 : 1.2, y, y, (x, yy, z) => yy < 3 || (yy % 11 === 0) ? AU : H(x, yy, z) < 0.25 ? K2 : K);
+      for (let y = 4; y < 64; y++) { const t = y * 0.42; g.set(R(Math.cos(t) * 2), y, R(Math.sin(t) * 2), y % 3 ? AU : AU2); }      // a gold vine up it
+      for (const s2 of [1, -1]) { for (let t = 0; t <= 1; t += 0.02) { const a = -0.5 + t * 2.9, r = 8; g.ell(s2 * (Math.sin(a) * r + (t < 0.2 ? 0 : 0)), 72 - Math.cos(a) * r + 2, 0, 1.2 - t * 0.5, 1.2 - t * 0.5, 1.2 - t * 0.4, t > 0.85 ? AU2 : (R(t * 30) % 5 === 0 ? AU2 : AU)); } for (const [t, l] of [[0.35, 3], [0.62, 4]]) { const a = -0.5 + t * 2.9; g.line(s2 * Math.sin(a) * 8, 74 - Math.cos(a) * 8, 0, s2 * (Math.sin(a) * 8 + l), 75 - Math.cos(a) * 8 + 1, 0, AU2, 0.4); } }
+      for (let y = 66; y < 70; y++) g.disc(0, 0, 2.2 - (y - 66) * 0.3, y, y, AU); g.disc(0, 0, 2.6, 64, 65, AU2);
+      return g;
+    },
+    staff_gem() { const g = G(), A = VX.glow(0xfff4d0), B = VX.glow(0xc8b4ff), C2 = VX.glow(0x8ad8ff); for (let y = -5; y <= 5; y++) { const w = 3.4 - Math.abs(y) * 0.62; for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) if (Math.abs(x) + Math.abs(z) <= w) g.set(x, y, z, y > 1 ? A : x + z > 0 ? B : C2); } return g; },
+    staff_ring() { const g = G(), AU2 = VX.glow(0xffe29a); for (let k = 0; k < 150; k++) { const a = k / 150 * TAU; if (R(a / TAU * 10) % 2) g.set(R(Math.cos(a) * 14), 0, R(Math.sin(a) * 14), AU2); } for (let k = 0; k < 10; k++) { const a = (k + 0.5) / 10 * TAU; g.box(R(Math.cos(a) * 14) - 1, 0, R(Math.sin(a) * 14) - 1, R(Math.cos(a) * 14) + 1, 0, R(Math.sin(a) * 14) + 1, VX.glow(k % 2 ? 0xc8b4ff : 0x8ad8ff)); } return g; },
+    tub() {                                              // the wandwright's tub: a great banded bucket, 1.15 m tall, its foot at the origin
+      const g = G();
+      for (let y = 0; y <= 47; y++) { const r = 17 + y * 0.13; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) > r - 2 || yy < 2 ? (yy === 8 || yy === 9 || yy === 34 || yy === 35 ? 0x585c66 : (R((Math.atan2(z, x) + Math.PI) / TAU * 26) & 1) ? OAK : OAK_D) : -1); }
+      for (const s2 of [-1, 1]) g.box(s2 * 23, 38, -2, s2 * 25, 43, 2, 0x3a3a42);
+      return g;
+    },
+    tubfill() { const g = G(); for (let k = 0; k < 46; k++) { const a = H(k, 1, 2) * TAU, r = Math.sqrt(H(k, 2, 3)) * 15, x = Math.cos(a) * r, z = Math.sin(a) * r, c = [0xa8743e, 0xd8c49a, 0x9a4a34, 0x4a5a48, 0xeee6d6, 0x6a4668][k % 6]; g.line(x * 0.6, 30, z * 0.6, x * 1.12, 42 + H(k, 3, 4) * 12, z * 1.12, c, 0.5); } return g; },
+    spoon() { const g = G(); g.box(0, 0, -7, 0, 0, 3, 0xb8884a); g.ell(0, 0, 6, 2, 0.8, 2.6, (x, y, z) => y > 0 && Math.hypot(x, z - 6) < 1.6 ? -1 : 0xc89a5a); return g; },
+    breadstick() { const g = G(); for (let z = -8; z <= 9; z++) g.ell(0, 0, z, 1, 0.9, 0.8, (x, y) => H(x, y, z) < 0.3 ? 0xe8c890 : 0xc98a42); return g; },
+    tally() { const g = G(); g.box(-24, 0, 0, 24, 34, 1, (x, y) => Math.abs(x) > 22 || y < 2 || y > 32 ? OAK_D : H(x >> 3, y >> 3, 2) < 0.2 ? 0x2a2a34 : 0x24242c); const W2 = 0xe8e8ec; for (const [x0, x1, y] of [[-18, 18, 28], [-14, 4, 25]]) for (let x = x0; x < x1; x++) if (H(x >> 1, y, 4) < 0.75) g.set(x, y, 2, W2); for (let k = 0; k < 3; k++) for (let j = 0; j < 5; j++) { const x = -18 + k * 13 + j * 2; if (j < 4) g.box(x, 10, 2, x, 18, 2, W2); else g.line(-19 + k * 13, 11, 2, -11 + k * 13, 17, 2, W2); } return g; },
+    suit_heart() { return suitGrid('heart', 0xff5a7a); }, suit_diamond() { return suitGrid('diamond', 0xff8ab0); }, suit_spade() { return suitGrid('spade', 0x9ab4ff); }, suit_club() { return suitGrid('club', 0xb8a0ff); },
+    bellflower() { const g = G(); for (let y = 0; y < 9; y++) g.disc(0, 0, 4 + y * 0.2, y, y, (x, yy, z) => Math.hypot(x, z) > 3 + yy * 0.2 || yy === 7 ? (yy === 7 && Math.hypot(x, z) < 4 ? 0x4a3424 : 0xb0603c) : -1); g.line(0, 8, 0, 2, 20, 0, 0x5a9a44, 0.4); g.line(2, 20, 0, 5, 21, 0, 0x5a9a44, 0.4); for (let y = 0; y < 6; y++) g.disc(6, 0, 1 + y * 0.35, 20 - y, 20 - y, (x, yy, z) => Math.hypot(x - 6, z) > 0.4 + y * 0.35 ? (y > 4 ? 0xc8d8ff : 0x8aa0f0) : -1); g.set(6, 14, 0, VX.glow(0xfff0b0)); for (const [x, y, z] of [[1, 12, 1], [2, 13, 2], [-1, 11, 0], [-2, 12, -1]]) g.set(x, y, z, 0x74b04c); return g; },
+    cup() { const g = G(); g.disc(0, 0, 2.2, 0, 4, (x, y, z) => y === 0 || Math.hypot(x, z) > 1.4 ? (y === 3 ? 0x8a4a7a : 0xf1ece2) : y === 3 ? 0x9a6a3a : -1); return g; },
+    key() { const g = G(), I = 0x8a8a94; g.box(0, 0, -5, 0, 0, 4, I); for (let k = 0; k < 20; k++) g.set(R(Math.cos(k) * 2), 0, 6 + R(Math.sin(k) * 2), I); g.set(1, 0, -5, I); g.set(1, 0, -3, I); return g; },
+    shavings() { const g = G(); for (let k = 0; k < 70; k++) { const a = H(k, 1, 1) * TAU, r = Math.sqrt(H(k, 2, 1)) * 16; g.line(Math.cos(a) * r, 0, Math.sin(a) * r, Math.cos(a) * r + 2, 1 + (k % 3), Math.sin(a) * r + 1, k & 1 ? 0xe8d0a0 : 0xd0a860); } return g; },
     rune(k) { return G(); },
   };
   delete props.rune;
 
-  window.CAST = { people, build, beasts: { horse: () => horse(0x8a5a34, 0x3a2418), cow }, props };
+  window.CAST = { people, build, beasts: { horse: () => horse(0x8a5a34, 0x3a2418), horse2: () => horse(0xa8a298, 0x5a544e), cow }, props };
 })();

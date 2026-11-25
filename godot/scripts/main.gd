@@ -94,6 +94,9 @@ var film_n := 0
 var film_max := 40
 var film_from := 8
 var tour: Array = []                # dev: --tour=view;view;... a still of each into --film's folder
+var dev_pick := 0                  # dev: --pick=n, which choice to make by itself
+var dev_bond := ""                 # dev: --bond=wim:3,bet:2
+var tt_pin := NAN                  # Trap Trick held at a height (on the roofs), whatever's there
 var dev_auto := false              # dev: --auto walks the story on by itself
 
 
@@ -108,6 +111,8 @@ func _ready() -> void:
 		elif a == "--garden": start_level = "garden"
 		elif a.begins_with("--scene="): dev_scene = a.substr(8)
 		elif a == "--auto": dev_auto = true
+		elif a.begins_with("--pick="): dev_pick = int(a.substr(7))
+		elif a.begins_with("--bond="): dev_bond = a.substr(7)
 		elif a.begins_with("--tour="):
 			for v in a.substr(7).split(";"):
 				var q := v.split(",")
@@ -115,6 +120,8 @@ func _ready() -> void:
 		elif a.begins_with("--film="):
 			var fa := a.substr(7).split(",")
 			film_dir = fa[0]
+			get_window().unfocusable = true                  # (a test: out of the way, off every screen)
+			get_window().position = Vector2i(-20000, -20000)
 			if fa.size() > 1: film_every = int(fa[1])
 			if fa.size() > 2: film_max = int(fa[2])
 			if fa.size() > 3: film_from = int(fa[3])
@@ -189,6 +196,12 @@ func _ready() -> void:
 ## Into the story: its title screen, or (dev) straight to a scene.
 func start_story(scene := "") -> void:
 	mode = "story"
+	if dev_bond != "":
+		story.act.bond = {}
+		story.act.flag = {}
+		for q in dev_bond.split(","):
+			if q.split(":")[0].right(1).is_valid_int(): story.act.flag[q.split(":")[0]] = true
+			else: story.act.bond[q.split(":")[0]] = int(q.split(":")[1])
 	tt.visible = false
 	fx.visible = false
 	hud_layer.visible = false
@@ -697,6 +710,9 @@ func _summon_update(dt: float) -> void:
 
 ## Push a point out of the scenery's collision circles, and keep it inside the garden.
 func collide(p: Vector3, r: float) -> Vector3:
+	if not is_nan(tt_pin):
+		tt.floor_y = tt_pin
+		return p
 	if mode == "story" and story.stage:
 		var st: Node3D = story.stage
 		var y: float = p.y

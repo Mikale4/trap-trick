@@ -202,6 +202,39 @@ func _door_update(d: Dictionary, dt: float) -> void:
 	d.set = true
 
 
+## Shut a door at once (for a scene, while the screen's dark), and keep it shut.
+func shut(id: String) -> void:
+	var d: Dictionary = doors[id]
+	d.want = false
+	d.hold = 0.0
+	d.by_hand = true
+	d.open = 0.0
+	d.set = false
+
+
+## Stand a door open at once, and keep it so.
+func stand_open(id: String) -> void:
+	var d: Dictionary = doors[id]
+	d.want = true
+	d.by_hand = true
+	d.open = 1.0
+	d.set = false
+
+
+## How near a point is to an open door's leaf.
+func leaf_gap(d: Dictionary, p: Vector3) -> float:
+	if d.open < 0.05 or absf(p.y - d.pos.y) > 1.5: return INF
+	var best := INF
+	for n in d.nodes:
+		var h: Vector3 = (n as Node3D).global_position
+		var a: float = smoothstep(0.0, 1.0, d.open) * 1.8 * (1.0 if n == d.nodes[0] else -1.0)
+		var c := Vector3(d.pos.x - h.x, 0, d.pos.z - h.z)
+		c = c.normalized().rotated(Vector3.UP, a)
+		var t := clampf((p.x - h.x) * c.x + (p.z - h.z) * c.z, 0.0, 1.1)
+		best = minf(best, Vector2(p.x - h.x - c.x * t, p.z - h.z - c.z * t).length())
+	return best
+
+
 func near_door(p: Vector3, r := 1.35):
 	var best = null
 	var bd := r

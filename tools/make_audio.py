@@ -241,6 +241,55 @@ def m_founder():
     s.done('founder', 2.8, 0.38)
 
 
+# Chapter Two. One little call of five notes (D F# A, G, E) goes through the roofs, the chase and the staff.
+def m_bucket():
+    s = Score(126, 16, 4)
+    P = 'G3 G3 C3 D37 G3 E3m A3m D37 ' 'C3 G3 A3m E3m C3 G3 D3sus D37'
+    s.chords(pluck, P, 4, 1.1, -0.1, arp=[0, None, 2, 1, None, 2, 1, None]); s.chords(pluck, P, 4, 1.1, 0, arp=[0, None, 2, None], tr=-12)
+    s.line(reed, 'D5:.5 B4:.5 G4:1 -:.5 D5:.5 E5:.5 D5:.5 B4:1 G4:1 -:2 E5:.5 C5:.5 G4:1 C5:1 E5:1 F#5:1 D5:1 A4:2 D5:.5 B4:.5 G4:1 -:.5 D5:.5 G5:.5 F#5:.5 E5:1 B4:1 -:2 C5:.5 E5:.5 A5:1 G5:.5 E5:.5 C5:1 D5:1 F#5:1 A5:1 -:1', 0, 0.75, -0.2)
+    s.line(box, 'E6:1 C6:1 G5:2 D6:1 B5:1 G5:2 C6:1 A5:1 E5:2 B5:1 G5:1 E5:2 E6:.5 D6:.5 C6:1 G5:2 D6:.5 C6:.5 B5:1 G5:2 A5:1 B5:1 C6:1 D6:1 F#6:1 D6:1 A5:1 -:1', 32, 0.85, 0.25)
+    for b in range(64): (b % 2) and s.at(b, shake(0, 0, 0.7), 0.3); (b % 4 == 0) and s.at(b, drum(84, 1, 0.5)); (b % 8 == 7) and s.at(b + 0.5, drum(120, 1, 0.3))
+    s.done('bucket', 1.2, 0.2)
+def m_wits():
+    s = Score(112, 16, 3)
+    P = 'C3m C3m G37 G37 C3m F3m D3dim G37 ' 'Ab3 Eb3 F3m C3m Ab3 F3m G37 C3m'
+    s.chords(harpsi, P, 3, 0.8, -0.2, arp=[None, 1, 2]); s.chords(pluck, P, 3, 1.1, 0, arp=[0, None, None], tr=-12)
+    s.line(reed, 'G4:.5 F#4:.5 G4:1 C5:1 Eb5:1.5 D5:.5 C5:1 B4:.5 A#4:.5 B4:1 D5:1 G4:3 G4:.5 F#4:.5 G4:1 C5:1 F5:1.5 Eb5:.5 D5:1 D5:1 Ab4:1 F4:1 G4:3', 0, 0.75, -0.1)
+    s.line(harpsi, 'Eb6:1 C6:1 Ab5:1 Bb5:1 G5:1 Eb5:1 Ab5:.5 G5:.5 F5:1 C5:1 Eb5:3 C6:1 Bb5:.5 Ab5:.5 Eb5:1 F5:.5 Ab5:.5 C6:1 Ab5:1 B5:1 D6:1 F6:1 C6:3', 24, 1.1, 0.2)
+    s.done('wits', 1.3, 0.22)
+def m_low():
+    s = Score(56, 16, 3)
+    P = 'E3m C3M7 G3 D3sus E3m C3M7 A3m7 B3sus ' 'C3M7 G3 A3m7 E3m C3M7 A3m7 B3sus E3m'
+    s.chords(strings, P, 3, 0.75, -0.1); s.chords(harp, P, 3, 0.6, 0.15, arp=[0, 1, 2, None, 2, 1])
+    s.line(box, 'B5:2 G5:1 E5:3 D5:2 G5:1 A5:3 B5:2 G5:1 E5:3 C6:2 B5:1 F#5:3', 0, 0.8, 0.2)
+    s.line(flute, 'E5:2 G5:1 D5:3 C5:2 E5:1 B4:3 E5:2 G5:1 A5:2 C6:1 B5:2 F#5:1 E5:3', 24, 0.7, -0.15)
+    s.done('low', 3.0, 0.42)
+def m_roofs():
+    s = Score(88, 16, 4)
+    P = 'B3m G3M7 D3 A3 B3m G3M7 E3m F#37 ' 'G3M7 A3 B3m F#3m G3M7 E3m A3sus A3'
+    s.chords(box, P, 4, 0.75, 0.15, arp=[0, 2, 1, 3, 2, 4, 3, 5], tr=24); s.chords(strings, P, 4, 0.6, -0.15); s.chords(pluck, P, 4, 0.9, 0, arp=[0, None, None, 0], tr=-12)
+    s.line(flute, '-:8 D5:.5 F#5:.5 A5:1 G5:1 E5:1 -:4 -:8 -:4 C#5:2 F#5:2', 0, 0.7, 0.1)
+    s.line(flute, 'D5:.5 F#5:.5 A5:2 G5:1 E5:3 -:1 F#5:.5 A5:.5 B5:2 A5:1 F#5:3 -:1 D5:.5 F#5:.5 A5:2 G5:1 B5:3 A5:1 G5:1 F#5:1 E5:2 E5:4', 32, 0.9, 0.1)
+    for b in range(0, 64, 8): s.at(b, bell(hz(midi('F#5')), 4, 0.18), 0.35)
+    s.done('roofs', 3.0, 0.42)
+def m_chase():
+    s = Score(164, 16, 4)
+    P = 'D3 D3 G3 A37 D3 B3m E3m A37 ' 'G3 D3 E3m B3m G3 D3 A3sus A37'
+    s.chords(pluck, P, 4, 1.1, -0.1, arp=[0, 1, 2, 1, 0, 1, 2, 1]); s.chords(pluck, P, 4, 1.3, 0, arp=[0, None, 2, None], tr=-12)
+    s.line(reed, 'D5:.5 F#5:.5 A5:1 G5:.5 F#5:.5 E5:1 D5:.5 E5:.5 F#5:.5 D5:.5 A4:2 B4:.5 D5:.5 G5:1 F#5:.5 E5:.5 D5:1 C#5:.5 E5:.5 A5:.5 G5:.5 F#5:1 E5:1 D5:.5 F#5:.5 A5:1 G5:.5 F#5:.5 E5:1 D5:.5 F#5:.5 B5:1 A5:.5 F#5:.5 D5:1 E5:.5 G5:.5 B5:.5 G5:.5 E5:1 D5:1 C#5:.5 E5:.5 G5:.5 A5:.5 E5:2', 0, 0.9, -0.2)
+    s.line(box, 'B5:.5 D6:.5 G6:1 B5:.5 D6:.5 G6:1 A5:.5 D6:.5 F#6:1 A5:.5 D6:.5 F#6:1 G5:.5 B5:.5 E6:1 G5:.5 B5:.5 E6:1 F#5:.5 B5:.5 D6:1 F#5:.5 B5:.5 D6:1 B5:1 G5:.5 B5:.5 D6:2 A5:1 F#5:.5 A5:.5 D6:2 D6:.5 C#6:.5 D6:.5 E6:.5 D6:.5 C#6:.5 B5:.5 A5:.5 C#6:.5 E6:.5 G6:1 A6:2', 32, 0.9, 0.2)
+    for b in range(64): s.at(b, drum(78, 1, 0.6 if b % 2 == 0 else 0.3)); s.at(b + 0.5, shake(0, 0, 0.8), 0.3); (b % 8 == 7) and s.at(b + 0.75, drum(140, 1, 0.4))
+    s.done('chase', 1.0, 0.18)
+def m_staff():
+    s = Score(72, 16, 4)
+    P = 'D3add9 A3 B3m G3M7 D3 F#3m G3 A3sus ' 'B3m G3 D3 A3 G3 E3m A3sus D3add9'
+    s.chords(strings, P, 4, 1.2, -0.15); s.chords(strings, P, 4, 0.8, 0.2, tr=12); s.chords(harp, P, 4, 1.0, 0, arp=[0, 1, 2, 3, 4, 5, 6, 5, 4, 3, 2, 3, 4, 5, 4, 3])
+    M = 'D5:.5 F#5:.5 A5:2 G5:1 E5:3 A5:1 B5:.5 D6:.5 F#6:2 E6:1 D6:2 B5:2 A5:2 D6:1 F#6:1 E6:2 C#6:2 B5:2 G5:1 B5:1 A5:4 D5:.5 F#5:.5 B5:2 A5:1 G5:3 B5:1 D6:.5 E6:.5 F#6:2 D6:1 E6:4 G6:2 F#6:1 E6:1 E6:2 B5:2 D6:2 C#6:2 D6:4'
+    s.line(strings, M, 0, 1.3, 0.1); s.line(flute, M, 0, 0.7, -0.1)
+    for b in range(0, 64, 4): s.at(b, drum(48, 1, 0.7)); (b % 8 == 0) and s.at(b, bell(hz(midi('D5')), 4, 0.4), -0.3); (b % 8 == 4) and s.at(b, bell(hz(midi('A5')), 4, 0.25), 0.3)
+    s.done('staff', 3.2, 0.44)
+
+
 # ============================================================ the air ==
 def loopn(y, x=2.0):
     k = int(x * SR); f = np.linspace(0, 1, k); y = y.copy(); y[:k] = y[:k] * f + y[-k:] * (1 - f); return y[:-k]
@@ -351,9 +400,42 @@ def effects():
     S('cheer', y, 1.2, 0.5)
 
 
+def effects2():                                                                                   # Chapter Two
+    def put(y, at, x): i = int(at * SR); n = min(len(x), len(y) - i); y[i:i + n] += x[:n]
+    for k in range(3):
+        d = 0.2; t = T(d); f = [980, 1180, 860][k]; S('clack%d' % k, sum(np.sin(TAU * f * r * t) * np.exp(-t * q) for r, q in ((1, 46), (2.7, 70), (4.9, 95))) * 0.6 + bp(noise(d), 1500, 6000) * np.exp(-t * 120) * 0.6, 0.35, 0.4)
+    for k in range(3):                                                                            # a wand's say: two or three quick bent notes
+        y = np.zeros(int(0.6 * SR))
+        for j in range(2 + k % 2):
+            d = 0.12; f0 = [1250, 1480, 1100][k] * (1 + 0.2 * j); t = T(d); put(y, j * 0.12, (sweep(d, f0, f0 * [1.35, 1.2, 0.8][(k + j) % 3]) + 0.25 * sweep(d, f0 * 2, f0 * 2.7)) * np.sin(np.pi * t / d) ** 0.7)
+        S('chirp%d' % k, y, 0.8, 0.3)
+    y = np.zeros(int(1.5 * SR))
+    for _ in range(70): d = 0.05; t = T(d); put(y, rng.uniform(0, 1.15), np.sin(TAU * rng.uniform(600, 1300) * t) * np.exp(-t * 90) * rng.uniform(0.1, 0.5))
+    t = T(1.5); S('roll', y + bp(noise(1.5), 200, 900) * np.sin(np.pi * np.minimum(1, t / 1.5)) ** 0.6 * 0.5, 0.4, 0.4)
+    y = np.zeros(int(2.6 * SR))
+    for _ in range(190): d = 0.11; t = T(d); f = rng.uniform(700, 1500); put(y, min(2.4, rng.gamma(2.2, 0.38)), (np.sin(TAU * f * t) + 0.5 * np.sin(TAU * f * 2.7 * t)) * np.exp(-t * 60) * rng.uniform(0.15, 0.8))
+    S('spill', y, 0.6, 0.6)
+    t = T(0.5); S('thump', (sweep(0.5, 150, 48) * np.exp(-t * 11) + bp(noise(0.5), 120, 900) * np.exp(-t * 26) * 0.7), 0.4, 0.75)
+    y = np.zeros(int(0.8 * SR))
+    for k in range(3): d = 0.2; t = T(d); put(y, k * 0.17, np.sin(TAU * 210 * t) * np.exp(-t * 34) + bp(noise(d), 300, 1600) * np.exp(-t * 60) * 0.5)
+    S('knock', y, 0.4, 0.55)
+    y = np.zeros(int(0.9 * SR))
+    for k in range(4): d = 0.15; t = T(d); put(y, k * 0.19, bp(noise(d), 2200, 7000) * np.sin(np.pi * t / d) ** 0.5 * rng.uniform(0.4, 0.9))
+    S('chalk', y, 0.3, 0.3)
+    y = np.zeros(int(1.4 * SR))
+    for k, m in enumerate((74, 78, 81, 86)): put(y, k * 0.09, box(hz(m), 1.0, 0.7))
+    S('bond', y, 1.4, 0.34)
+    d = 3.4; t = T(d); y = sweep(d, 70, 420, 1.6) * np.minimum(1, t / 0.9) * np.exp(-np.maximum(0, t - 1.0) * 2.2) * 0.5 + bp(noise(d), 600, 6000) * np.minimum(1, t / 1.0) ** 2 * np.exp(-np.maximum(0, t - 1.0) * 2.6) * 0.5
+    for k, m in enumerate((62, 69, 74, 78, 81, 86, 90)): put(y, 0.95 + k * 0.05, bell(hz(m), 2.2, 0.5))
+    S('transform', y, 2.4, 0.75)
+    d = 1.8; t = T(d); y = sweep(d, 220, 880, 1.4) * np.minimum(1, t / 0.5) * np.exp(-np.maximum(0, t - 0.55) * 5) * 0.4 + bp(noise(d), 1200, 7000) * np.minimum(1, t / 0.55) ** 2 * np.exp(-np.maximum(0, t - 0.55) * 5) * 0.4
+    for k, m in enumerate((74, 81, 86, 93)): put(y, 0.55 + k * 0.06, box(hz(m), 1.0, 0.8))
+    S('become', y, 1.8, 0.5)
+
+
 if __name__ == '__main__':
     only = sys.argv[1:]
-    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, m_high, m_duel, m_sneak, m_founder, a_farm, a_town, a_school, a_night, a_rain, a_room, effects]
+    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, m_high, m_duel, m_sneak, m_founder, m_bucket, m_wits, m_low, m_roofs, m_chase, m_staff, a_farm, a_town, a_school, a_night, a_rain, a_room, effects, effects2]
     for j in jobs:
         if only and j.__name__ not in only: continue
         j(); print(j.__name__)

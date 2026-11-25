@@ -305,7 +305,7 @@ func c1_board() -> void:
 	M = at("maron", -2.1, -18.4, 0.5, FY[0])
 	at("bet", 3.6, -17.0, -0.6, FY[0])
 	var Lu := at("lucan", 0.5, -7.2, PI, FY[0])
-	var Do := at("dorn", 1.6, -6.9, PI, FY[0])
+	var Do := at("dorn", 2.0, -6.8, PI, FY[0])
 	var Si := at("sibyl", -0.7, -6.9, PI, FY[0])
 	var led: Node3D = s.prop("ledger")
 	Si.hold("L", led, Transform3D(Basis(Vector3.RIGHT, 1.2), Vector3(-0.1, -0.06, 0.12)))
@@ -373,6 +373,8 @@ func c1_board() -> void:
 	await s.wait(1.6)
 	W.shiver = 0.0
 	R.look = Lu
+	await s.wait(0.3)
+	s.face(R, 0.2, 1.4, 36)
 	await s.say("reiner_uni", "I'll take it. His and mine.", { "eyes": "sad", "mouth": "flat" })
 	s.face(Lu, 0.2, 1.4, 34)
 	await s.say("lucan", "How generous. Sibyl, write down generous.", { "eyes": "soft", "mouth": "smile" })
@@ -546,7 +548,7 @@ func c3_late() -> void:
 	s.face(M, 0.3, 1.5, 34)
 	await s.say("maron", "You smell of other people's luggage.", { "eyes": "half", "mouth": "flat" })
 	M.look = R.hand_pos("R")
-	s.cut(R.hand_pos("R") + Vector3(-0.5, 0.2, -0.4), R.hand_pos("R"), 32)
+	s.cut(R.hand_pos("R") + Vector3(sin(R.yaw), 0, cos(R.yaw)) * 0.75 + Vector3(0, 0.22, 0), R.hand_pos("R"), 34)
 	await s.say("maron", "And that isn't yours.")
 	s.over(M, R, 1.0, 38)
 	await s.say("reiner_uni", "It's only custom.", { "eyes": "down", "mouth": "flat" })
@@ -817,7 +819,7 @@ func c5_proctor() -> void:
 	s.cut(Vector3(11.4, 1.5, -13.0), V.head_pos(), 40)
 	await s.wait(1.4)
 	music("high")
-	A.place(Vector3(9.7, FY[0], -10.1), PI)
+	A.place(Vector3(10.4, FY[0], -10.6), PI)
 	A.look = V
 	V.look = A
 	s.two(A, V, 1.0, 2.6, 40, 0.1)
@@ -825,9 +827,9 @@ func c5_proctor() -> void:
 	V.look = null
 	s.face(V, 0.2, 1.5, 34)
 	await s.say("vane", "I have caught poachers, forgers, and a bishop. I shall not be long.", { "eyes": "half", "mouth": "flat" })
-	A.place(Vector3(7.5, FY[0], -10.6), PI / 2)
+	A.place(Vector3(6.9, FY[0], -11.5), PI / 2)
 	A.look = V
-	V.go_free([Vector3(10.0, FY[0], -10.5), Vector3(11.3, FY[0], -10.75)], 1.4)
+	V.go_free([Vector3(8.7, FY[0], -11.0), Vector3(10.2, FY[0], -11.15), Vector3(11.3, FY[0], -10.75)], 1.4)
 	s.cut(Vector3(14.6, 1.6, -10.3), Vector3(11.4, 1.2, -11.4), 46)
 	await s.say("vane", "Pockets. Satchels. Books. On the table.", { "eyes": "stern", "mouth": "flat" })
 	await s.until(func(): return V.path.is_empty(), 4.0)
@@ -1170,6 +1172,7 @@ func c8_well() -> void:
 	take(["wim"])
 	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
 	var bw: Dictionary = s.stage.data.rooms.owl.beds[1]
+	s.stage.shut("owl_r0")
 	var c0x: float = (b.x + bw.x) * 0.5
 	var R := reiner(c0x, b.z + 0.0, PI, b.y)
 	R.sit(0.44, "desk")
@@ -1182,7 +1185,7 @@ func c8_well() -> void:
 	s.move(Vector3(c0x + 1.1, b.y + 1.5, b.z + 1.6), Vector3(c0x, b.y + 0.95, b.z - 0.6), Vector3(c0x + 0.8, b.y + 1.35, b.z + 1.0), Vector3(c0x, b.y + 0.95, b.z - 0.6), 6.0, 46)
 	await s.fade(0.0, 1.0)
 	R.feel("down", "flat")
-	await s.say("reiner_uni", "\"Dear Mam, Da and Lotte. All is well. The food is good, and the stairs are very big.\"")
+	await s.say("reiner_uni", "\"Dear Mam, Pa and Lotte. All is well. The food is good, and the stairs are very big.\"")
 	R.look = null
 	s.cut(Vector3(c0x - 0.7, b.y + 1.15, b.z - 1.0), R.head_pos(), 40)
 	await s.say("reiner_uni", "\"I have made friends. I was in a contest on Tuesday. I came second.\"", { "eyes": "sad", "mouth": "wavy" })
@@ -1200,6 +1203,7 @@ func c8_well() -> void:
 	s.cut(Vector3(c0x - 1.0, b.y + 1.25, b.z - 0.95), Vector3(c0x + 0.3, b.y + 0.98, b.z + 0.3), 52)
 	await s.say("wim", "I'm frightened all the time, you know. From when I wake up. I just do it early, so it's out of the way.", { "eyes": "worry", "mouth": "flat" })
 	R.look = W
+	s.face(W, 0.3, 1.3, 40)
 	await s.say("wim", "When you said carry it yourself, I was so frightened I forgot to be. For about a second. It was lovely.", { "eyes": "soft", "mouth": "smile" })
 	s.face(R, -0.7, 1.2, 42)
 	R.feel("soft", "smile")
@@ -1222,7 +1226,7 @@ func c8_well() -> void:
 	s.cut(Vector3(c0x - 0.75, b.y + 1.2, b.z - 1.1), R.head_pos() - Vector3(0, 0.08, 0), 40)
 	R.feel("down", "flat")
 	await s.say("lotte", "\"Dear Reiner. I ask the candle every day. It hasn't moved. I think it likes you best.\"", { "as": "Lotte's letter" })
-	await s.say("lotte", "\"Is Duchess brave? Da says go in at the door. Which door? Mam says eat. Penny the cow lives at Hollin's now. I saw her. She looked at me kindly. Love, Lotte.\"", { "as": "Lotte's letter" })
+	await s.say("lotte", "\"Is Duchess brave? Pa says go in at the door. Which door? Mam says eat. Penny the cow lives at Hollin's now. I saw her. She looked at me kindly. Love, Lotte.\"", { "as": "Lotte's letter" })
 	R.feel("sad", "smile")
 	R.do("laugh", 1.4)
 	await s.wait(1.6)
@@ -1540,6 +1544,7 @@ func c9_errand() -> void:
 	card(V, "R", "spade")
 	V.do("offer", 4.0)
 	await s.wait(1.0)
+	s.face(V, 0.35, 1.7, 40)
 	await s.say("vane", "\"Next time, bring a bigger net.\"", { "eyes": "shut", "mouth": "wavy" })
 	await s.fade(1.0, 0.9)
 	drop(V, "R")
@@ -1593,7 +1598,7 @@ func c10_ledger() -> void:
 	T.feel("wide", "wavy")
 	await s.wait(1.6)
 	await s.say("tobin", "It was only... they said I'd be Lantern by spring.", { "eyes": "down", "mouth": "wavy" })
-	s.over(T, R, 1.0, 38)
+	s.face(R, 0.25, 1.4, 38)
 	await s.say("reiner_uni", "What did you tell them?", { "eyes": "open", "mouth": "flat" })
 	s.face(T, -0.2, 1.3, 34)
 	await s.say("tobin", "That you'd step in, if it was Wim.", { "eyes": "sad", "mouth": "frown" })
@@ -1603,7 +1608,7 @@ func c10_ledger() -> void:
 	await s.wait(1.6)
 	music("high")
 	var Lu := at("lucan", 0.4, -7.2, PI, FY[0])
-	var Do := at("dorn", 1.5, -6.9, PI, FY[0])
+	var Do := at("dorn", 2.0, -6.8, PI, FY[0])
 	var Si := at("sibyl", -0.7, -6.9, PI, FY[0])
 	Lu.go_free([Vector3(0.6, FY[0], -11.2)], 1.2)
 	Do.go_free([Vector3(1.7, FY[0], -11.0)], 1.2)
@@ -1893,11 +1898,9 @@ func c12_founders() -> void:
 	var sp := duel_stands(Vector3(-0.8, 0, 4.6), Vector3(0.8, 0, 4.6))
 	R.look = Lu
 	Lu.look = R
-	for i in 12:
-		var f: Dictionary = s.stage.floats[i]
-		f.p0 = f.p
-		var an := i / 12.0 * TAU
-		f.p = c0 + Vector3(sin(an) * 5.2, 3.2 + (i % 3) * 0.5, cos(an) * 5.2)
+	for i in 14:                                          # turnip lanterns on the ground, all round the ring
+		var an := (i + 0.5) / 14.0 * TAU
+		a.keep(s.put("turnip", Vector3(c0.x + sin(an) * 2.75, 0, c0.z + cos(an) * 2.75), an + PI, 0.9))
 	for q in [[0, 4.2, 8.4, 1.5], [-4.2, 3.4, 2.0, 1.1], [4.2, 3.4, 2.0, 1.1], [0, 3.6, -2.2, 1.0]]:      # the lanterns' light on the ring
 		var o := OmniLight3D.new()
 		o.position = Vector3(q[0], q[1], q[2])
@@ -2057,7 +2060,6 @@ func c12_founders() -> void:
 	s.campus._ring_wave()
 	await s.wait(4.4)
 	await s.fade(1.0, 1.2)
-	for f in s.stage.floats: if f.has("p0"): f.p = f.p0
 	drop(V, "R")
 	drop(W, "R")
 	a._free_people()

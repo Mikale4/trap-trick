@@ -8,7 +8,8 @@ var part := 0
 var run_id := 0                       # a newer run stops the older one
 var tmp: Array = []
 var cart: Node3D
-var horse := {}
+var horse := {}                       # the pair that draws the cart
+var horse2 := {}
 var cows: Array = []
 var bird := {}
 var tt_on := false
@@ -20,6 +21,11 @@ const SAVE := "user://story.json"
 const PARTS1 := ["Dawn", "Chores", "The letter", "Leaving home", "Thistlewick", "The Academy", "Owl House", "The candle lesson", "A few bad weeks", "The bargain", "The first lesson", "The night"]
 var PARTS: Array = []
 var ch1: Node
+var ch2: Node
+var bond := {}                        # how well Reiner knows people: { who: points }
+var flag := {}                        # what has happened (sub-parts seen, things given)
+var snaps := {}                       # how things stood with everyone at the start of each part, for playing it again
+const BONDS := ["wim", "bet", "kas", "isolde", "tobin", "dorn", "lucan", "sibyl", "vane", "maron"]
 
 
 func _ready() -> void:
@@ -27,7 +33,48 @@ func _ready() -> void:
 	ch1.s = s
 	ch1.a = self
 	add_child(ch1)
-	PARTS = PARTS1 + ch1.NAMES
+	ch2 = load("res://scripts/ch2.gd").new()
+	ch2.s = s
+	ch2.a = self
+	add_child(ch2)
+	PARTS = PARTS1 + ch1.NAMES + ch2.NAMES2
+	_load_bonds()
+
+
+## How well he knows someone: 0 hardly, 2 a friend, 4 and more a good one.
+func knows(who: String) -> int: return int(bond.get(who, 0))
+
+
+func gain(who: String, n: int) -> void:
+	if n <= 0: return
+	bond[who] = knows(who) + n
+	s.main.sfx("bond")
+	s.ui.toast("♦".repeat(mini(6, knows(who))) + "   " + String(s.NAMES.get(who, who)))
+
+
+## The people he knows best, best first (of those he knows at all).
+func closest() -> Array:
+	var l: Array = []
+	for w in BONDS: if knows(w) >= 2: l.append(w)
+	l.sort_custom(func(x, y): return knows(x) > knows(y))
+	return l
+
+
+func show_bonds() -> void:
+	var t_ := ""
+	for w in BONDS:
+		var n := knows(w)
+		t_ += "♦".repeat(mini(6, n)) + "·".repeat(maxi(0, 6 - n)) + "   " + String(s.NAMES[w]) + (("     " + ch2.hint(w)) if ch2.hint(w) != "" else "") + "\n"
+	s.read("People", t_)
+
+
+func _load_bonds() -> void:
+	if FileAccess.file_exists(SAVE):
+		var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+		if d is Dictionary:
+			bond = d.get("bond", {})
+			flag = d.get("flag", {})
+			snaps = d.get("snaps", {})
 
 
 func begin(scene: String) -> void:
@@ -43,7 +90,7 @@ func begin(scene: String) -> void:
 			s.hour = 9.0
 			var i := 0
 			for n in s.main.bake.cast.keys():
-				if n in ["horse", "cow"]: continue
+				if n in ["horse", "horse2", "cow"]: continue
 				var a: Node3D = s.enter(n, Vector3(-7.2 + (i % 12) * 1.25, 0, 3.0 + (i / 12) * 2.0), 0.0)
 				a.eyes = ["open", "happy", "wide", "sad", "stern", "half"][i % 6]
 				a.mouth = ["flat", "smile", "open", "frown", "grin", "smirk"][i % 6]
@@ -62,6 +109,7 @@ func begin(scene: String) -> void:
 			s.set_meta("skip", true)
 			start(0)
 		"night": _night_test()
+		"owl": _owl_test()
 		"swing": _swing_test()
 		"test": _test()
 		"simtown":
@@ -70,6 +118,67 @@ func begin(scene: String) -> void:
 			s.hour = 11.0
 			s.play()
 		_: school(float(scene.trim_prefix("school")))
+
+
+## Dev: in at Owl House's door with the key, up to the bed, and the prompt in its place the while.
+func _owl_test() -> void:
+	start(6)
+	await s.until(func(): return s.mode == "play" and s.hero != null, 30.0)
+	var press := func(code: int, secs: float) -> void:
+		for on in [true, false]:
+			var e := InputEventKey.new()
+			e.physical_keycode = code
+			e.pressed = on
+			Input.parse_input_event(e)
+			if on: await s.wait(secs)
+	var where := func(what: String) -> void: print("%s: hero %s  prompt '%s' %s  objective '%s' %s  clock %s  screen %s" % [what, s.hero.position, s.ui.prompt_l.text if s.ui.prompt_p.visible else "", s.ui.prompt_p.get_global_rect(), s.ui.obj_l.text, s.ui.obj_p.get_global_rect(), s.ui.clock_p.get_global_rect(), s.ui.get_viewport().get_visible_rect().size])
+	await s.wait(1.5)
+	for k in 14:                                        # up to a lot of people and things, so the prompt changes often
+		var p: Dictionary = s.campus.people[k]
+		if p.a.visible: s.hero.place(p.a.position + Vector3(0.8, 0, 0.8), 0.0)
+		await s.wait(0.25)
+		where.call("by " + p.who)
+	s.mode = "film"
+	var lo := 9999.0
+	var hi := -9999.0
+	for k in 240:                                       # and the box itself, through a great many changes
+		s.ui.prompt(["", "E   Talk to Wim", "E   Read the timetable", "E   Go into Owl House", "", "E   Spend time with Professor Halden", "E   Sit down"][randi() % 7])
+		await s.beat()
+		if randf() < 0.5: await s.beat()
+		if s.ui.prompt_p.visible:
+			lo = minf(lo, s.ui.prompt_p.get_global_rect().position.x)
+			hi = maxf(hi, s.ui.prompt_p.get_global_rect().end.x)
+	print("by many: prompt from %.0f to %.0f of 1280" % [lo, hi])
+	s.mode = "play"
+	s.hero.place(Vector3(-27.0, 0, 21.2), -PI / 2)
+	s.cam_yaw = PI / 2
+	await s.wait(1.0)
+	where.call("at the door")
+	await press.call(KEY_E, 0.1)
+	await s.wait(2.0)
+	where.call("after E")
+	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
+	var near := func(q: Vector3) -> int:
+		var bi := 0
+		for i in s.stage.nodes.size(): if s.stage._np(i).distance_to(q) < s.stage._np(bi).distance_to(q): bi = i
+		return bi
+	var way: Array = s.stage.find_path(near.call(s.hero.position), near.call(Vector3(b.x + 0.9, b.y, b.z + 0.6)))
+	way.append({ "p": Vector3(b.x + 0.9, b.y, b.z + 0.6), "door": "" })
+	for q in way:                                       # on foot, W held, E at any door that's shut
+		var t0: float = s.time
+		var e := InputEventKey.new()
+		e.physical_keycode = KEY_W
+		e.pressed = true
+		Input.parse_input_event(e)
+		while s.mode == "play" and s.time < t0 + 8.0 and Vector2(q.p.x - s.hero.position.x, q.p.z - s.hero.position.z).length() > 0.35:
+			s.cam_yaw = atan2(q.p.x - s.hero.position.x, q.p.z - s.hero.position.z) + PI
+			if s.use_now != null and String(s.use_now.label) == "Open the door" and s.stage.doors.has(q.door):
+				await press.call(KEY_E, 0.05)
+				await s.wait(0.6)
+			await s.beat()
+		print("after walk to %s (%s): hero %s  %s" % [q.p, q.door, s.hero.position, "" if s.time < t0 + 8.0 else "STUCK"])
+	await s.wait(1.5)
+	print("mode ", s.mode, "  hour ", s.hour)
 
 
 ## Dev: Trap Trick walks in at the great door, up the stairs, and into the Proctor's light.
@@ -204,6 +313,7 @@ func title() -> void:
 	if sv > 0 and sv < PARTS.size(): items.append(["continue", "Continue:  " + PARTS[sv]])
 	items.append(["new", "Opening Act"])
 	items.append(["ch1", "Chapter One"])
+	items.append(["ch2", "Chapter Two"])
 	items.append(["chapters", "Chapters"])
 	items.append(["school", "School Days"])
 	items.append(["free", "Roam as Trap Trick"])
@@ -216,13 +326,15 @@ func menu(id: String) -> void:
 		"continue": start(_saved())
 		"new": start(0)
 		"ch1": start(PARTS1.size())
+		"ch2": start(PARTS1.size() + ch1.NAMES.size())
 		"chapters":
-			s.ui.show_menu([["list0", "The Opening Act"], ["list1", "Chapter One:  The Lantern Board"], ["title", "Back"]], 0.35)
+			s.ui.show_menu([["list0", "The Opening Act"], ["list1", "Chapter One:  The Lantern Board"], ["list2", "Chapter Two:  What Chooses You"], ["title", "Back"]], 0.35)
 			return
-		"list0", "list1":
+		"list0", "list1", "list2":
 			var items: Array = []
-			var from := 0 if id == "list0" else PARTS1.size()
-			var to := PARTS1.size() if id == "list0" else PARTS.size()
+			var edge: Array = [0, PARTS1.size(), PARTS1.size() + ch1.NAMES.size(), PARTS.size()]
+			var from: int = edge[int(id.substr(4))]
+			var to: int = edge[int(id.substr(4)) + 1]
 			for i in range(from, to): items.append(["part%d" % i, "%d.  %s" % [i - from + 1, PARTS[i]]])
 			items.append(["title", "Back"])
 			s.ui.show_menu(items, 0.35)
@@ -236,6 +348,9 @@ func menu(id: String) -> void:
 			s.main.start_free()
 		"quit": s.get_tree().quit()
 		"resume": s.pause(false)
+		"people":
+			s.pause(false)
+			show_bonds()
 		"retry":
 			s.pause(false)
 			if part >= 0: start(part)
@@ -263,9 +378,9 @@ func _saved() -> int:
 
 
 func _save(i: int) -> void:
-	if s.main.shot_path != "" or s.main.film_dir != "": return
+	if s.main.shot_path != "" or s.main.film_dir != "" or s.main.dev_auto: return
 	var f := FileAccess.open(SAVE, FileAccess.WRITE)
-	if f: f.store_string(JSON.stringify({ "part": i }))
+	if f: f.store_string(JSON.stringify({ "part": i, "bond": bond, "flag": flag, "snaps": snaps }))
 
 
 ## Play from a part on.
@@ -282,8 +397,16 @@ func start(i: int) -> void:
 	s.fader_c = Color.BLACK
 	var list: Array = [p1_dawn, p2_chores, p3_letter, p4_leaving, p5_town, p6_academy, p7_owl, p8_lesson, p9_weeks, p10_bargain, p11_first, p12_night]
 	list.append_array(ch1.list())
+	list.append_array(ch2.list())
+	if snaps.has(str(i)) and s.main.dev_bond == "":      # (a part played again starts from how things stood then)
+		bond = (snaps[str(i)].bond as Dictionary).duplicate(true)
+		flag = (snaps[str(i)].flag as Dictionary).duplicate(true)
 	for k in range(i, list.size()):
 		part = k
+		if k == PARTS1.size() + ch1.NAMES.size() and s.main.dev_bond == "":
+			bond = {}
+			flag = {}
+		snaps[str(k)] = { "bond": bond.duplicate(true), "flag": flag.duplicate(true) }
 		_save(k)
 		if s.main.dev_auto: print("part %d %s  t=%.1f" % [k, PARTS[k], s.time])
 		clean()
@@ -303,7 +426,7 @@ func school(h: float) -> void:
 	clean()
 	s.campus.close()
 	s.go_place("academy")
-	s.campus.chapter = 1
+	s.campus.chapter = 2
 	s.hero = s.enter("reiner_uni", Vector3(0, 0, 22), PI)
 	s.campus.open(h)
 	ch1.board(24, true)
@@ -318,12 +441,15 @@ func school(h: float) -> void:
 
 
 func clean() -> void:
+	if s.stage:
+		for k in s.stage.doors: s.stage.doors[k].erase("by_hand")
 	for n in tmp: if is_instance_valid(n): n.queue_free()
 	tmp = []
 	fol = []
 	for f in s.flames.duplicate(): s.kill_flame(f.n)
 	cart = null
 	horse = {}
+	horse2 = {}
 	cows = []
 	bird = {}
 	if tt_on:
@@ -334,8 +460,10 @@ func clean() -> void:
 	s.goal = null
 	s.tt_mode = false
 	s.ui.watch(0.0)
-	s.campus.chapter = 0 if part < PARTS1.size() else 1
+	s.campus.chapter = 0 if part < PARTS1.size() else (1 if part < PARTS1.size() + ch1.NAMES.size() else 2)
 	ch1.reset()
+	ch2.reset()
+	if s.campus.chapter == 2: ch1.levelled = true
 
 
 ## Two people put their arms round each other (the only time anyone comes this close), and step apart again.
@@ -416,9 +544,11 @@ func _cart(p: Vector3, yaw: float) -> void:
 		wh.name = "wheel%d" % (sd + 1)
 		wh.position = Vector3(sd * 0.56, 0.72, 0)
 	horse = _beast("horse", Vector3.ZERO, 0)
-	s.remove_child(horse.n)
-	cart.add_child(horse.n)
-	horse.n.position = Vector3(0, 0, 2.25)
+	horse2 = _beast("horse2", Vector3.ZERO, 0)
+	for q in [[horse, 0.41], [horse2, -0.41]]:             # side by side, the pole between them
+		s.remove_child(q[0].n)
+		cart.add_child(q[0].n)
+		q[0].n.position = Vector3(q[1], 0, 2.25)
 	cart.set_meta("v", 0.0)
 	cart.set_meta("turn", 0.0)
 
@@ -426,6 +556,7 @@ func _cart(p: Vector3, yaw: float) -> void:
 func _cart_update(dt: float) -> void:
 	var v: float = cart.get_meta("v")
 	horse.sp = v
+	horse2.sp = v * 0.97
 	if v > 0.01:
 		var z := cart.position.z + cos(cart.rotation.y) * v * dt
 		if s.place == "farm":
@@ -502,7 +633,7 @@ func fly(pts: Array, d: float) -> void:
 func update(dt: float) -> void:
 	if s.has_meta("skip") and s.mode == "film": s.skipping = true
 	if cart and is_instance_valid(cart): _cart_update(dt)
-	if not horse.is_empty() and is_instance_valid(horse.n): _beast_update(horse, dt)
+	for h in [horse, horse2]: if not h.is_empty() and is_instance_valid(h.n): _beast_update(h, dt)
 	for c in cows: if is_instance_valid(c.n): _beast_update(c, dt)
 	if not bird.is_empty() and is_instance_valid(bird.n): _bird_update(dt)
 	for f in fol: if is_instance_valid(f.n): f.f.call(f.n, dt)
@@ -510,6 +641,7 @@ func update(dt: float) -> void:
 		s.main.tt.update(dt, tt_in)
 		s.main.fx.visible = true
 	ch1.update(dt)
+	ch2.update(dt)
 
 
 func _farm(h: float) -> void:
@@ -702,7 +834,7 @@ func _lotte_chat(L: Node3D) -> void:
 	var i: int = L.get_meta("li", 0)
 	L.set_meta("li", i + 1)
 	L.turn_to(s.hero)
-	L.say_bubble(["If you were a real mage, would you still feed the hens?", "Duchess laid two. One for you. Not the big one.", "Da says the Academy has a bell you can see.", "Mam's got buns in. I'm not telling you. I'm just saying it near you."][i % 4], s.campus.font)
+	L.say_bubble(["If you were a real mage, would you still feed the hens?", "Duchess laid two. One for you. Not the big one.", "Pa says the Academy has a bell you can see.", "Mam's got buns in. I'm not telling you. I'm just saying it near you."][i % 4], s.campus.font)
 	L.feel("happy", "smile", 3.0)
 
 
@@ -811,7 +943,7 @@ func p3_letter() -> void:
 	R.pose = "stand"
 	s.face(R, 0.5, 1.5, 34)
 	R.look = F
-	await s.say("reiner", "I failed the test, Da. Everyone's candle lit. I asked mine and it just... stood there. So I walked home.", { "eyes": "sad", "mouth": "frown" })
+	await s.say("reiner", "I failed the test, Pa. Everyone's candle lit. I asked mine and it just... stood there. So I walked home.", { "eyes": "sad", "mouth": "frown" })
 	s.over(R, F, -1.0, 34)
 	F.do("nod", 1.6)
 	await s.wait(0.9)
@@ -842,8 +974,8 @@ func p4_leaving() -> void:
 	var L: Node3D = s.enter("lotte", Vector3(3.2, 0, 3.6), -0.4)
 	var F: Node3D = s.enter("father", Vector3(-0.6, 0, 8.4), 0.6)
 	s.hero = R
-	F.look = horse.n
-	F.reach.R = Vector3(0.3, 1.4, 8.7)
+	F.look = horse2.n
+	F.reach.R = Vector3(-0.08, 1.35, 8.75)
 	var tk: Node3D = s.prop("trunk")
 	cart.add_child(tk)
 	tk.position = Vector3(0, 0.92, -0.35)
@@ -1022,7 +1154,7 @@ func p5_town() -> void:
 	await s.say("father", "This is me, then. The road's no friend to a cart after dark.", { "eyes": "soft", "mouth": "flat" })
 	await s.say("father", "Through the square, east street, out to the lookout. You'll not miss it. It's the only thing up there that hums.", { "do": "point" })
 	s.over(F, R, 1.0, 34)
-	await s.say("reiner", "Da. I'll go in at the door.", { "eyes": "stern", "mouth": "flat" })
+	await s.say("reiner", "Pa. I'll go in at the door.", { "eyes": "stern", "mouth": "flat" })
 	s.over(R, F, -1.0, 34)
 	F.feel("soft", "smile")
 	await s.wait(0.6)
@@ -1168,10 +1300,13 @@ func p7_owl() -> void:
 	if not live(id): return
 	s.ui.objective("Go in")
 	var t0: float = s.time
+	s.uses.append({ "pos": Vector3(-28.2, 0, 21), "r": 1.8, "label": "Go into Owl House", "first": true, "f": func(): s.campus._through("owl_door", PI) })
+	s.goal = Vector3(-28.2, 0, 21)
 	while live(id) and R.position.x < 150.0:
 		if s.main.dev_auto and s.time > t0 + 1.0: R.place(s.stage._np(s.stage.node_id["owl_door"]), PI)
 		await s.beat()
 	if not live(id): return
+	s.goal = null
 	s.ui.objective("Find your bed: upstairs, the first door past the landing")
 	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
 	await reach(Vector3(b.x + 0.9, b.y, b.z + 0.6), 1.5)
@@ -1184,6 +1319,7 @@ func p7_owl() -> void:
 	s.hour = 19.8
 	await s.fade(1.0, 0.5)
 	var bw: Dictionary = s.stage.data.rooms.owl.beds[1]
+	s.stage.shut("owl_r0")
 	R.place(Vector3(b.x + 0.1, b.y, b.z + 1.75), PI / 2)
 	var W: Node3D = s.actor("wim")
 	s.campus.by.wim.busy = true
@@ -1964,7 +2100,7 @@ func p10_bargain() -> void:
 	F.stand()
 	F.drop("R").queue_free()
 	F.sit(0.46, "sit")
-	s.cut(Vector3(kx + 2.4, 1.5, 1.0), Vector3(kx - 0.1, 1.05, 0.1), 46)
+	s.face(F, 0.3, 1.5, 38)
 	await s.say("father", "What do you ask, for teaching him?", { "eyes": "open", "mouth": "flat" })
 	s.face(M, 0.3, 1.3, 38)
 	M.look = F
@@ -2081,12 +2217,16 @@ func p11_first() -> void:
 	R.look = M
 	R.feel("wide", "flat")
 	M.pose = "kneel"
-	s.cut(Vector3(sx - 1.6, 1.2, sz + 2.0), Vector3(sx + 0.4, 0.95, sz + 0.6), 40)
+	await s.wait(0.5)
+	s.face(M, 0.35, 1.5, 38)
 	await s.say("maron", "Forget the word. Who wakes Lotte in the morning?", { "eyes": "open", "mouth": "flat" })
+	s.face(R, -0.3, 1.4, 38)
 	await s.say("reiner_uni", "I do.", { "eyes": "open" })
+	s.face(M, 0.35, 1.4, 36)
 	await s.say("maron", "How?", { "eyes": "half", "mouth": "smile" })
-	s.face(R, 0.3, 1.2, 34)
 	R.look = L
+	await s.wait(0.4)
+	s.face(R, 0.2, 1.3, 36)
 	await s.say("reiner_uni", "...Quietly. I sit on the end of the bed, and say it's a nice day, and I wait.", { "eyes": "soft", "mouth": "smile" })
 	s.face(M, -0.3, 1.2, 32)
 	await s.say("maron", "Say it like that.", { "eyes": "soft", "mouth": "smile" })

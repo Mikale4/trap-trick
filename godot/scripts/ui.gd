@@ -137,14 +137,15 @@ func setup(m: Node3D, s: Node3D) -> void:
 	obj_l = _label("", 18, CREAM)
 	obj_p.add_child(obj_l)
 	prompt_p = _panel()
-	prompt_p.anchor_left = 0.5
-	prompt_p.anchor_right = 0.5
-	prompt_p.anchor_top = 1.0
-	prompt_p.anchor_bottom = 1.0
-	prompt_p.offset_top = -92
-	prompt_p.offset_bottom = -54
-	prompt_p.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	add_child(prompt_p)
+	var pc := CenterContainer.new()                     # (keeps it in the middle, whatever it says: setting its size by hand let it creep sideways)
+	pc.anchor_right = 1.0
+	pc.anchor_top = 1.0
+	pc.anchor_bottom = 1.0
+	pc.offset_top = -94
+	pc.offset_bottom = -52
+	pc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(pc)
+	pc.add_child(prompt_p)
 	prompt_l = _label("", 18, CREAM)
 	prompt_p.add_child(prompt_l)
 	clock_p = _panel()
@@ -336,7 +337,6 @@ func prompt(text: String) -> void:
 	if prompt_l.text == text and prompt_p.visible == (text != ""): return
 	prompt_l.text = text
 	prompt_p.visible = text != ""
-	prompt_p.size.x = 0.0
 
 
 func read(t_: String, b_: String) -> void:
@@ -529,6 +529,21 @@ func show_menu(items: Array, shade := 0.0) -> void:
 	menu_i = 0
 	menu.visible = true
 	menu_shade.color.a = shade
+
+
+## A choice to make in a scene: in the middle of the screen, over what was said.
+func show_choices(items: Array) -> void:
+	show_menu(items, 0.22)
+	menu_box.anchor_left = 0.5
+	menu_box.offset_left = -300
+	menu_box.offset_top = -20
+
+
+func hide_choices() -> void:
+	hide_menu()
+	menu_box.anchor_left = 0.0
+	menu_box.offset_left = 110
+	menu_box.offset_top = -10
 
 
 func hide_menu() -> void:

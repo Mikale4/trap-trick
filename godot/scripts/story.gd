@@ -322,10 +322,16 @@ func face(a: Node3D, ang := 0.5, d := 1.5, fov := 34.0, up := 0.0) -> void:
 	var h: Vector3 = a.head_pos() + Vector3(0, 0.02, 0)
 	var hy := 0.0
 	if a.look != null:
-		var lp: Vector3 = a.look.position if a.look is Node3D else a.look
+		var lp: Vector3 = a.look.global_position if a.look is Node3D else a.look
 		hy = clampf(wrapf(atan2(lp.x - a.position.x, lp.z - a.position.z) - a.yaw, -PI, PI), -1.15, 1.15) * 0.9
-	var yw: float = a.yaw + hy + ang
-	cut(h + Vector3(sin(yw) * d, up, cos(yw) * d), h, fov)
+	var yw: float = a.yaw + hy
+	var at_: Vector3 = h + Vector3(sin(yw + ang) * d, up, cos(yw + ang) * d)
+	for q in [[ang, 1.0], [ang * 0.3, 1.0], [-ang, 1.0], [ang, 0.78], [-ang, 0.78], [ang + 0.45, 0.9], [-ang - 0.45, 0.9], [0.0, 0.7], [0.75, 0.75], [-0.75, 0.75]]:
+		var c: Vector3 = h + Vector3(sin(yw + q[0]) * d * q[1], up, cos(yw + q[0]) * d * q[1])
+		if _open_line(c, h, [a]):
+			at_ = c
+			break
+	cut(at_, h, fov)
 	sway = 0.6
 
 
@@ -334,14 +340,55 @@ func two(a: Node3D, b: Node3D, side := 1.0, d := 2.6, fov := 36.0, up := 0.1) ->
 	var m: Vector3 = (a.head_pos() + b.head_pos()) * 0.5
 	var ab: Vector3 = b.position - a.position
 	var n := Vector3(-ab.z, 0, ab.x).normalized() * side
-	cut(m + n * d + Vector3(0, up, 0), m - Vector3(0, 0.12, 0), fov)
+	var at_: Vector3 = m + n * d + Vector3(0, up, 0)
+	for q in [[1.0, 1.0], [1.0, 0.8], [-1.0, 1.0], [-1.0, 0.8], [1.0, 0.62], [-1.0, 0.62]]:
+		var c: Vector3 = m + n * d * q[0] * q[1] + Vector3(0, up, 0)
+		if _open_line(c, a.head_pos(), [a, b]) and _open_line(c, b.head_pos(), [a, b]):
+			at_ = c
+			break
+	cut(at_, m - Vector3(0, 0.12, 0), fov)
 
 
 ## Over a's shoulder, at b.
 func over(a: Node3D, b: Node3D, side := 1.0, fov := 34.0) -> void:
 	var ab: Vector3 = (b.position - a.position).normalized()
 	var n := Vector3(-ab.z, 0, ab.x) * side
-	cut(a.head_pos() - ab * 1.15 + n * 0.78 + Vector3(0, 0.16, 0), b.head_pos() - Vector3(0, 0.1, 0), fov)
+	var at_: Vector3 = a.head_pos() - ab * 1.15 + n * 0.78 + Vector3(0, 0.16, 0)
+	for q in [1.0, -1.0]:
+		var c: Vector3 = a.head_pos() - ab * 1.15 + n * 0.78 * q + Vector3(0, 0.16, 0)
+		if _open_line(c, b.head_pos(), [a, b]):
+			cut(c, b.head_pos() - Vector3(0, 0.1, 0), fov)
+			return
+	if _open_line(at_, b.head_pos(), [b]): cut(at_, b.head_pos() - Vector3(0, 0.1, 0), fov)
+	else: face(b, 0.3 * side, 1.4, fov)
+
+
+## Is there nothing between two points: no wall, no open door's leaf, nobody's head (but these people's)?
+func _open_line(c: Vector3, h: Vector3, but: Array) -> bool:
+	var l := c.distance_to(h)
+	if stage:
+		for k in int(l / 0.08) + 1:
+			if stage.solid(c.lerp(h, k * 0.08 / maxf(l, 0.01))): return false
+		for k in stage.doors:
+			var d: Dictionary = stage.doors[k]
+			if d.open < 0.1 or c.distance_to(d.pos) > l + 2.6: continue
+			for i in int(l / 0.1) + 1:
+				var p: Vector3 = c.lerp(h, i * 0.1 / maxf(l, 0.01))
+				if p.y < d.pos.y + 2.2 and stage.leaf_gap(d, Vector3(p.x, d.pos.y, p.z)) < 0.1: return false
+	for n in actors:
+		var b: Node3D = actors[n]
+		if b in but or not is_instance_valid(b) or not b.visible or b.global_position.distance_to(c) > l + 1.6: continue
+		var bh: Vector3 = b.head_pos()
+		if bh.distance_to(c) < 0.42: return false
+		var u := clampf((bh - c).dot(h - c) / maxf(0.01, l * l), 0.0, 1.0)
+		if u > 0.0 and u < 0.95 and bh.distance_to(c.lerp(h, u)) < 0.26: return false
+	return true
+
+
+## (dev) near enough the camera, and before it, to be noticed
+func shot_sees(a: Node3D) -> bool:
+	var v: Vector3 = a.position + Vector3(0, 1, 0) - main.cam.global_position
+	return v.length() < 9.0 and v.dot(-main.cam.global_basis.z) > 0.0
 
 
 func _shot_now() -> Array:
@@ -362,8 +409,8 @@ func fade(to: float, secs := 0.6, c := Color.BLACK) -> void:
 
 
 const NAMES := { "reiner": "Reiner", "reiner_uni": "Reiner", "lotte": "Lotte", "mother": "Mother", "father": "Father", "maron": "Maron", "halden": "Professor Halden", "brandt": "Brandt", "wim": "Wim", "tobin": "Tobin", "isolde": "Isolde", "petra": "Petra", "nadi": "Nadi", "otto": "Otto", "selma": "Selma", "kas": "Kas", "wren": "Professor Wren", "marrow": "Professor Marrow", "corvin": "Master Corvin", "lys": "Professor Lys", "aurel": "Headmistress Aurel", "sabine": "Sabine", "dorle": "Dorle", "hob": "Hob", "agnes": "Agnes",
-	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane" }
-const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman" }
+	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane", "thorne": "Mistress Thorne", "cassian": "Cassian", "odile": "Odile" }
+const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman", "thorne": "woman", "odile": "girl" }
 
 
 ## Someone says a line. Waits until it's been read (or passed over).
@@ -376,10 +423,66 @@ func say(n: String, text: String, o := {}) -> void:
 		a.talking = 0.35 + text.length() * 0.029
 	var v: String = VOICE.get(n, "girl" if n in ["isolde", "petra", "nadi", "selma", "ilse", "yve", "marta", "sunniva", "liss", "dove", "bet"] else "boy")
 	ui.start_line(o.get("as", NAMES.get(n, "")), text, o.get("auto", mode == "film" or main.dev_auto), v)
+	if main.dev_auto and mode == "film": _cam_check(n, text, o.has("as"))
 	while ui.line_on: await beat()
 	ui.end_line()
 	if a: a.talking = 0.0
 	await wait(o.get("after", 0.25))
+
+
+## (dev) What stands between the camera and someone's face: "" if nothing does.
+func _between(a: Node3D) -> String:
+	var c: Vector3 = main.cam.global_position
+	var h: Vector3 = a.head_pos()
+	if main.cam.is_position_behind(h): return "behind the camera"
+	var vs: Vector2 = main.cam.get_viewport().get_visible_rect().size
+	var q: Vector2 = main.cam.unproject_position(h) / vs
+	if q.x < 0.0 or q.x > 1.0 or q.y < 0.06 or q.y > 0.94: return "out of frame"
+	var l := c.distance_to(h)
+	if stage:
+		for k in int(l / 0.06):
+			if stage.solid(c.lerp(h, k * 0.06 / l)): return "a wall"
+		for k in stage.doors:
+			var d: Dictionary = stage.doors[k]
+			if d.open < 0.1 or c.distance_to(d.pos) > l + 3.0: continue
+			for i in int(l / 0.06):
+				var p: Vector3 = c.lerp(h, i * 0.06 / l)
+				if p.y < d.pos.y + 2.2 and stage.leaf_gap(d, Vector3(p.x, d.pos.y, p.z)) < 0.06: return "the door " + String(k)
+	for n in actors:
+		var b: Node3D = actors[n]
+		if b == a or not is_instance_valid(b) or not b.visible or b.global_position.distance_to(c) > l + 0.6: continue
+		var bh: Vector3 = b.head_pos()
+		var u := clampf((bh - c).dot(h - c) / (l * l), 0.0, 1.0)
+		if u > 0.03 and u < 0.93 and bh.distance_to(c.lerp(h, u)) < 0.2: return String(n)
+	return ""
+
+
+## (dev) Can whoever's speaking be seen? Or, if it's someone else's face we're on, can that?
+func _cam_check(n: String, text: String, voice_off: bool) -> void:
+	await wait(0.6)
+	if mode != "film" or fader > 0.6: return
+	var say_ := "CAM %d  %s: \"%s\"  " % [act.part, n, text.left(34)]
+	if stage and stage.solid(main.cam.global_position): print(say_ + "camera inside a wall")
+	var a: Node3D = actors.get(n)
+	var why := "not here"
+	if a and a.visible:
+		why = _between(a)
+		if why == "":
+			var to: Vector3 = main.cam.global_position - a.head_pos()
+			var f: Vector3 = (a.P.head as Node3D).global_basis.z
+			var ang := rad_to_deg(absf(wrapf(atan2(to.x, to.z) - atan2(f.x, f.z), -PI, PI)))
+			if ang < 100.0: return
+			why = "back of the head (%d deg)" % int(ang)
+	var seen: Array = []
+	for k in actors:
+		var b: Node3D = actors[k]
+		if b != a and is_instance_valid(b) and b.visible and b.global_position.distance_to(main.cam.global_position) < 9.0 and _between(b) == "": seen.append(k)
+	if seen.is_empty(): print(say_ + "NOBODY SEEN  (%s)" % why)
+	elif not voice_off: print(say_ + "speaker unseen: %s  (on %s)" % [why, ", ".join(seen.slice(0, 3))])
+	if main.film_dir != "" and (seen.is_empty() or why != "out of frame") and not (voice_off and not seen.is_empty()):      # (a picture of it)
+		var im: Image = main.get_viewport().get_texture().get_image()
+		im.resize(640, 360, Image.INTERPOLATE_BILINEAR)
+		im.save_jpg("%s/cam_%02d_%04d_%s.jpg" % [main.film_dir, act.part, int(time), n], 0.85)
 
 
 ## Words on the screen that nobody says.
@@ -467,11 +570,11 @@ func ask(items: Array) -> int:
 	choice = -1
 	var was := mode
 	mode = "choice"
-	ui.show_menu(items)
+	ui.show_choices(items)
 	while choice < 0:
-		if main.dev_auto: choice = 0
+		if main.dev_auto or skipping: choice = mini(main.dev_pick, items.size() - 1) if main.dev_auto else 0
 		await beat()
-	ui.hide_menu()
+	ui.hide_choices()
 	mode = was
 	return choice
 
@@ -616,6 +719,7 @@ func key(code: int) -> void:
 		KEY_C: hero.do("bow", 1.4)
 		KEY_V: hero.do("cheer", 1.4)
 		KEY_T: campus.show_timetable()
+		KEY_J: act.show_bonds()
 		KEY_L: main._set_lighting(not main.rich_light)
 
 
@@ -635,7 +739,7 @@ func menu_pick() -> void:
 
 func pause(on: bool) -> void:
 	paused = on
-	if on: ui.show_menu([["resume", "Resume"], ["retry", "Restart this part"], ["title", "Title screen"], ["quit", "Quit"]], 0.55)
+	if on: ui.show_menu([["resume", "Resume"], ["people", "People"], ["retry", "Restart this part"], ["title", "Title screen"], ["quit", "Quit"]], 0.55)
 	else: ui.hide_menu()
 
 
@@ -727,6 +831,13 @@ func _apart(dt: float) -> void:
 	main.town.extra = here if place == "town" else []
 	for i in here.size():
 		var a: Node3D = here[i]
+		if main.dev_auto and mode == "film" and fader < 0.9 and stage and shot_sees(a):
+			for k in stage.doors:
+				var gap: float = stage.leaf_gap(stage.doors[k], a.position)
+				var kd := "%d %s|%s" % [act.part, a.who, k]
+				if gap < 0.3 and (not near_log.has(kd) or gap < near_log[kd][0] - 0.05):
+					near_log[kd] = [gap, time]
+					print("DOOR %s  %.2f m  t=%.1f  (%s)" % [kd, gap, time, a.pose])
 		for j in range(i + 1, here.size()):
 			var b: Node3D = here[j]
 			var dx: float = b.position.x - a.position.x
