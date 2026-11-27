@@ -1324,6 +1324,8 @@ func _caught() -> void:
 	vane.i = 0
 	spotted = 0.0
 	s.cam_tgt = vane.back + Vector3(0, 1.2, 0)
+	s.main.fx.card_puff(vane.back + Vector3(0, 0.9, 0), 14)
+	s.main.sfx("poof", null, -6.0)
 	await s.fade(0.0, 0.5)
 	vane.hold = false
 	s.locked = false

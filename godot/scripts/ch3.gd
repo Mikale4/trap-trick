@@ -17,6 +17,9 @@ var flakes: GPUParticles3D
 var flake_m: ParticleProcessMaterial
 var mouth_m: ShaderMaterial
 var gust := 0.0
+var cur_bird := {}                     # the paper bird going over now: { n, c, d }
+var carry := {}                        # a card held up in front of somebody, clear of them
+var up_trail := false
 # those who follow
 var line: Array = []
 var crumbs: Array = []
@@ -49,6 +52,10 @@ func reset() -> void:
 	storm_to = 0.0
 	still = false
 	gust = 0.0
+	up_trail = false
+	s.mark.scale = Vector3.ONE
+	for n in TOUR + ["penny", "erebus"]:
+		if s.actors.has(n): s.actors[n].body.visible = true
 	line = []
 	crumbs = []
 	mana_on = false
@@ -60,6 +67,7 @@ func reset() -> void:
 	scent = []
 	if not cat.is_empty() and cat.has("ghost"): _ghost(cat.ghost, false)
 	cat = {}
+	carry = {}
 	s.eye_h = 1.15
 	s.cam_dist = 3.4
 	s.ui.mana(-1.0)
@@ -129,8 +137,25 @@ func weather_env() -> void:
 	e.ambient_light_energy *= lerpf(1.0, 1.15, clampf(k, 0.0, 1.0))
 
 
+## Going up by the flags: the next bend of the trail, so the light's always somewhere one can see.
+func _next_bend(p: Vector3) -> Vector3:
+	var t: Array = s.stage.data.marks.trail
+	var at_ := Vector2(p.x, p.z)
+	var best := 1
+	var bd := INF
+	for i in range(1, t.size()):
+		var q := Geometry2D.get_closest_point_to_segment(at_, Vector2(t[i - 1][0], t[i - 1][1]), Vector2(t[i][0], t[i][1]))
+		var d := at_.distance_to(q)
+		if d < bd + 0.01:
+			bd = d
+			best = i
+	while best < t.size() - 1 and at_.distance_to(Vector2(t[best][0], t[best][1])) < 3.4: best += 1
+	return Vector3(t[best][0], 0, t[best][1]) if best < t.size() - 1 else Vector3(-3.5, 0, -33.6)
+
+
 func _weather_update(dt: float) -> void:
 	storm = move_toward(storm, storm_to, dt * 0.28)
+	if up_trail and s.hero: s.goal = _next_bend(s.hero.position)
 	if not is_instance_valid(flakes): return
 	var c: Vector3 = s.main.cam.global_position
 	var inside: bool = c.x > 250.0
@@ -179,6 +204,10 @@ func follow(names: Array) -> void:
 		line.append(p)
 	var h: Node3D = s.hero
 	for i in 40: crumbs.append(h.position + Vector3(0, 0, i * 0.34))
+	for i in line.size():                                # (where they'll be walking, from the first)
+		var q: Vector3 = crumbs[4 + (i / 2) * 5 + (i % 2)] + Vector3(-1.08 if i % 2 else 1.08, 0, 0)
+		line[i].path = []
+		line[i].place(s.stage.collide(q, 0.26, q, line[i]), PI)
 
 
 func _follow_update(dt: float) -> void:
@@ -188,7 +217,11 @@ func _follow_update(dt: float) -> void:
 		if crumbs.size() > 60: crumbs.pop_back()
 	for i in line.size():
 		var p: Node3D = line[i]
-		var t_: Vector3 = crumbs[mini(crumbs.size() - 1, 4 + i * 4)]
+		var j := mini(crumbs.size() - 1, 4 + (i / 2) * 5 + (i % 2))              # (two by two, so they're never between her and the camera)
+		var t_: Vector3 = crumbs[j]
+		var along: Vector3 = (crumbs[maxi(0, j - 3)] - crumbs[mini(crumbs.size() - 1, j + 3)]) * Vector3(1, 0, 1)
+		if along.length() > 0.2: t_ += Vector3(along.z, 0, -along.x).normalized() * (1.08 if i % 2 else -1.08)
+		t_ = s.stage.collide(t_, 0.26, t_, p)
 		var d: Vector3 = t_ - p.position
 		d.y = 0.0
 		if d.length() > 7.0: p.place(t_, p.yaw)
@@ -250,6 +283,7 @@ func e1_far() -> void:
 	P.drop("R")
 	follow(TOUR)
 	s.play()
+	_up_the_hill()
 	s.ui.toast("You're Penny. Lead them up by the flags.")
 	await _sight(Vector3(1.6, 0, 27.5), "Show them the Tooth", func() -> void:
 		s.move(Vector3(0.4, 1.7, 29.4), Vector3(34, 14, 22), Vector3(0.6, 1.8, 29.6), Vector3(34, 16, 22), 4.0, 46)
@@ -275,7 +309,7 @@ func e1_far() -> void:
 		await s.say("penny", "It's a hot spring. It's only a hot spring. ...It's never done that.", { "eyes": "worry", "mouth": "small", "as": "Penny, under her breath" })
 		P3.look = null)
 	await _sight(Vector3(6.6, 0, -2.5), "Show them the Wing", func() -> void:
-		s.move(Vector3(5.2, 1.7, 0.4), Vector3(38, 8, -14), Vector3(5.2, 1.7, 0.6), Vector3(38, 12, -14), 4.0, 44)
+		s.move(Vector3(5.0, 2.1, 1.0), Vector3(36, 7.5, -3), Vector3(5.2, 2.2, 1.0), Vector3(36, 9, -3.6), 4.0, 44)
 		await s.say("penny", "And there's the Wing, folded, see the ribs of it, and if you look just past the end you can see all the way to...", { "eyes": "happy", "mouth": "smile", "as": "Penny" })
 		storm_to = 0.45
 		s.main.sfx("wind")
@@ -308,6 +342,13 @@ func _sight(p: Vector3, label: String, f: Callable) -> void:
 	await f.call()
 	line = keep_line
 	s.play()
+	_up_the_hill()
+
+
+## Back in one's own hands on the trail: facing up it, and the camera too.
+func _up_the_hill() -> void:
+	s.hero.place(s.hero.position, PI)
+	s.cam_yaw = 0.0
 
 
 # ==================================================================== 2 == --
@@ -334,18 +375,22 @@ func e2_weather() -> void:
 	P.face_yaw = PI
 	follow(TOUR)
 	s.play()
-	s.ui.objective("Get them to the cave.  When the gust comes, get behind a standing stone")
+	_up_the_hill()
+	s.ui.objective("Follow the red flags up to the cave.  When the gust comes, get behind a standing stone")
 	s.ui.toast("The wind's from ahead: the near side of a stone is out of it.")
 	var id: int = a.run_id
 	var stones: Array = s.stage.data.marks.stones
-	s.goal = Vector3(-3.5, 0, -33.6)
+	up_trail = true
+	s.mark.scale = Vector3.ONE * 1.8
 	var caught := 0
 	var t0: float = s.time
 	while a.run_id == id and Vector2(P.position.x + 3.5, P.position.z + 33.6).length() > 2.2:
 		# calm, then it gathers, then it comes
 		var t1: float = s.time
 		while a.run_id == id and s.time < t1 + 4.6 and P.position.z > -31.6:
-			if s.main.dev_auto: P.place(P.position.lerp(Vector3(-3.5, 0, -33.6), 0.02) if s.time > t0 + 14.0 else P.position, PI)
+			if s.main.dev_auto and s.time > t0 + 14.0:              # (walked, and walls and all)
+				var to_: Vector3 = (_next_bend(P.position) - P.position) * Vector3(1, 0, 1)
+				P.place(s.stage.collide(P.position + to_.limit_length(s.dt_last * 3.0), 0.2, P.position, P), PI)
 			await s.beat()
 		if P.position.z <= -31.6:
 			await s.beat()
@@ -378,6 +423,7 @@ func e2_weather() -> void:
 			gust = maxf(0.0, gust - s.dt_last * 1.2)
 			if s.time > t4 + 2.5: gust = 0.0
 			await s.beat()
+	up_trail = false
 	if a.run_id != id: return
 	gust = 0.0
 	s.goal = null
@@ -878,6 +924,7 @@ func e4_deep() -> void:
 	s.smoke(P.hand_pos("R"), 8, false)
 	P.pose = "kneel"
 	P.feel("sad", "wavy")
+	for n in TOUR: act(n).feel("worry", "small")
 	music("")
 	await s.wait(0.7)
 	s.face(P, 0.2, 1.3, 36)
@@ -912,17 +959,38 @@ func e4_deep() -> void:
 	P.feel("wide", "small")
 	await s.say("penny", "It's forty yards. You can't...", { "eyes": "wide", "mouth": "small" })
 	# the part in between, taken out
-	P.reach.R = P.position + Vector3(0.15, 1.15, 0.45)
-	E.place(P.position + Vector3(0.25, 0.0, 1.05), PI)
-	E.position.y = DROP.y + 0.55
+	var W: Node3D = s.warp()
+	s.move(DROP + Vector3(0.2, 29.8, -1.95), DROP + Vector3(1.5, 29.6, 0.6), DROP + Vector3(0.3, 29.8, -1.8), DROP + Vector3(1.5, 29.6, 0.6), 1.6, 66)
+	await s.wait(0.5)
+	E.feel("shut", "flat")
+	await W.go([E], true, 1.5)
+	drop(P, "R")
+	P.reach.R = P.position + Vector3(0.12, 1.0, 0.44)
+	E.place(P.position + Vector3(0.22, 0.0, 0.78), PI)
+	E.position.y = DROP.y + 0.1
 	E.prev_pos = E.position
-	E.reach.R = P.position + Vector3(0.15, 1.2, 0.5)
-	s.main.sfx("blink")
-	s.burst(P.position + Vector3(0.15, 1.15, 0.45), Color("c22850"), Color("2a1830"), 40, 2.4, 0.0, 0.03, 1.0)
-	s.cut(P.position + Vector3(1.1, 1.3, 0.7), P.position + Vector3(0.18, 1.12, 0.5), 26)
-	await s.wait(1.6)
-	s.main.sfx("blink")
-	await s.fade(1.0, 0.3, Color.WHITE)
+	E.reach.R = P.position + Vector3(0.12, 1.03, 0.46)
+	E.feel("half", "flat")
+	s.move(P.position + Vector3(3.3, 1.7, 1.2), P.position + Vector3(0.15, 1.2, 0.45), P.position + Vector3(2.9, 1.6, 1.0), P.position + Vector3(0.15, 1.2, 0.45), 2.0, 54)
+	for n in TOUR: act(n).look = E
+	await W.go([E], false, 1.5, { "lift": -0.03 })
+	P.feel("wide", "oh")
+	await s.wait(0.5)
+	s.cut(P.position + Vector3(2.0, 1.5, 0.5), P.position + Vector3(0.16, 1.22, 0.42), 46)
+	s.main.sfx("chime", null, -8.0)
+	await s.wait(1.5)
+	# and all of them
+	s.move(DROP + Vector3(-3.0, 2.6, -1.4), DROP + Vector3(0.3, 0.95, -5.6), DROP + Vector3(-2.7, 2.4, -1.7), DROP + Vector3(0.3, 0.95, -5.6), 2.4, 54)
+	E.feel("shut", "flat")
+	await s.wait(0.6)
+	await W.go([E, P] + TOUR.map(func(n): return act(n)), true, 2.0)
+	await s.wait(0.5)
+	s.main.sfx("crack")                                  # (and the ledge goes, with nobody on it)
+	s.shake = 1.4
+	for k in 4: s.burst(DROP + Vector3(randf_range(-3, 3), 0.1, -3.6), Color("8a94a8"), Color("dfe8f4"), 22, 2.0, -8.0, 0.07, 1.0)
+	await s.wait(0.7)
+	await s.fade(1.0, 0.4, Color.WHITE)
+	W.hide_([])
 	E.stage = s.stage
 	s.ui.mana(-1.0)
 	drop(P, "R")
@@ -947,15 +1015,20 @@ func e5_where() -> void:
 	P.pose = "kneel"
 	P.look = E
 	s.cut(F + Vector3(6.5, 3.4, 12), F + Vector3(0, 1.2, 3.6), 46)
-	s.shot.p1 = F + Vector3(4.4, 2.4, 10)
-	s.shot.d = 6.0
+	s.shot.p1 = F + Vector3(4.2, 2.3, 10.4)
+	s.shot.d = 7.0
+	var all: Array = [E, P] + TOUR.map(func(n): return act(n))
+	var W: Node3D = s.warp()
 	for k in 6:                                          # (let the snow fill the air, and then)
 		await s.beat()
+	W.hide_(all)
 	await s.wait(0.2)
-	await s.fade(0.0, 1.6, Color.WHITE)
-	still = true
+	await s.fade(0.0, 1.0, Color.WHITE)
 	s.fader_c = Color.BLACK
-	await s.wait(2.6)
+	await s.wait(0.9)                                    # nothing for miles: and then
+	await W.go(all, false, 2.0)
+	still = true
+	await s.wait(1.8)
 	s.face(act("arnold"), 0.2, 1.4, 38)
 	await s.say("arnold", "The wind's stopped.", { "eyes": "wide", "mouth": "small" })
 	var H: Node3D = act("hettie")
@@ -973,7 +1046,7 @@ func e5_where() -> void:
 	P.pose = "stand"
 	await s.wait(0.6)
 	s.face(P, -0.2, 1.4, 36)
-	await s.say("penny", "I watched your arm. It's forty yards. Your arm didn't get any longer.", { "eyes": "wide", "mouth": "small" })
+	await s.say("penny", "I was looking straight at you. It's forty yards. You didn't climb down. You didn't even fall.", { "eyes": "wide", "mouth": "small" })
 	s.two(E, P, 1.0, 2.8, 40, 0.1)
 	await s.say("erebus", "You were there, and I was here. I took out the part in between.", { "as": "The boy", "eyes": "open", "mouth": "flat" })
 	s.face(act("gus"), 0.2, 1.4, 38)
@@ -991,6 +1064,7 @@ func e5_where() -> void:
 	await s.say("erebus", "I'm sorry. I don't know this place, or any of you. ...You're cold. Where is it that you're warm?", { "as": "The boy", "eyes": "half", "mouth": "flat" })
 	s.face(P, -0.2, 1.4, 36)
 	await s.say("penny", "There's a hut. At the bottom, where the flags start. It's five hours down, with the rope, if nobody...", { "eyes": "worry", "mouth": "flat" })
+	s.two(E, P, 1.0, 3.0, 42, 0.1)
 	E.go_free([P.position + Vector3(0.25, 0, -0.75)], 1.1)
 	await s.until(func(): return E.path.is_empty(), 4.0)
 	E.turn_to(P)
@@ -998,8 +1072,13 @@ func e5_where() -> void:
 	E.reach.R = P.position + Vector3(0.18, 1.18, -0.05)
 	E.hand.R = "open"
 	await s.wait(0.9)
-	s.main.sfx("blink")
-	await s.fade(1.0, 0.12, Color.WHITE)
+	s.move(F + Vector3(5.4, 2.9, 10.6), F + Vector3(0, 0.95, 5.2), F + Vector3(4.9, 2.6, 10.2), F + Vector3(0, 0.95, 5.2), 3.0, 46)
+	for n in TOUR: act(n).pose = "stand"
+	E.feel("shut", "flat")
+	await s.wait(0.7)
+	await W.go(all, true, 2.0)
+	await s.wait(0.5)
+	await s.fade(1.0, 0.3, Color.WHITE)
 	# the foot of the mountain
 	E.reach.R = null
 	E.hand.R = ""
@@ -1013,9 +1092,13 @@ func e5_where() -> void:
 	s.cut(Vector3(4.6, 1.9, 47.6), Vector3(0, 1.1, 42.6), 46)
 	music("drowse")
 	s.main.sound.air("wind")
-	await s.fade(0.0, 0.5, Color.WHITE)
+	for n in TOUR + ["penny"]: act(n).feel("squeeze", "wavy")
+	W.hide_(all)
+	await s.fade(0.0, 0.6, Color.WHITE)
 	s.fader_c = Color.BLACK
-	await s.wait(0.8)
+	await s.wait(0.5)
+	await W.go(all, false, 1.9)
+	await s.wait(0.6)
 	var D: Node3D = act("dunstan")
 	for n in ["dunstan", "gus", "arnold"]:
 		act(n).pose = "crouch"
@@ -1289,7 +1372,7 @@ func stream(to: Vector3) -> void:
 
 func _mana_update(dt: float) -> void:
 	if not mana_on: return
-	var want: bool = force or (Input.is_physical_key_pressed(KEY_F) or Input.is_joy_button_pressed(0, JOY_BUTTON_RIGHT_SHOULDER)) and s.mode == "play" and not s.locked
+	var want: bool = force or (s.held(KEY_F) or s.joy(JOY_BUTTON_RIGHT_SHOULDER)) and s.mode == "play" and not s.locked
 	if faint > 0.0:
 		faint -= dt
 		want = false
@@ -1786,6 +1869,7 @@ func _birds(n: int, hard: float) -> void:
 		var hit := false
 		s.campus.talk_lock = 6.0
 		s.ui.objective("Light the birds as they go by  (%d left)" % (n - got))
+		cur_bird = { "n": b, "c": c, "d": d }
 		s.main.sfx("flutter", null, -10.0)
 		while a.run_id == id and s.time < t0 + secs and not hit:
 			var u: float = (s.time - t0) / secs
@@ -1808,6 +1892,7 @@ func _birds(n: int, hard: float) -> void:
 				s.burst(b.position, Color("ffe9a8"), Color("c8b4ff"), 26, 2.0, 0.4, 0.03, 1.0)
 			await s.beat()
 		force = false
+		cur_bird = {}
 		b.queue_free()
 		await s.wait(lerpf(0.9, 0.35, hard))
 	s.campus.talk_lock = 0.0
@@ -1975,6 +2060,7 @@ func e11_note() -> void:
 	M.stage = s.stage
 	M.pose = "stand"
 	s.hero = M
+	_night_pane(cx, bd.y + 1.5, bd.z - 3.4)
 	moon(Vector3(cx + 0.5, bd.y + 2.0, bd.z + 0.8), 0.45, Color("ffd8a8"), 5.0)
 	moon(Vector3(cx + 0.15, bd.y + 1.35, bd.z - 0.75), 0.55, Color("ffd8a8"), 3.5)
 	var cardp := Vector3(bd.x, bd.y + 0.62, bd.z - 0.75)
@@ -2000,12 +2086,11 @@ func e11_note() -> void:
 	await s.wait(0.7)
 	M.reach.R = null
 	bc.visible = false
-	var cd: Node3D = s.prop("blackcard")
-	M.hold("R", cd, Transform3D(Basis(Vector3.RIGHT, -0.5).scaled(Vector3.ONE * 0.62), Vector3(0.0, -0.04, 0.06)))
-	M.do("offer", 6.0)
+	carry = { "who": M, "n": a.keep(s.put("blackcard", cardp, 0.0, 0.62)) }
+	M.hand.R = "point"
 	music("low")
 	await s.wait(0.6)
-	s.cut(M.hand_pos("R") + Vector3(0.3, 0.3, -0.85), M.hand_pos("R") + Vector3(0, 0.12, 0.1), 40)
+	s.cut(M.hand_pos("R") + Vector3(0.42, 0.24, -0.72), M.hand_pos("R") + Vector3(0, 0.1, 0.1), 46)
 	await s.wait(0.8)
 	await s.tell("On the back, in white: \"You dropped something.\"")
 	s.face(M, 0.2, 1.15, 34)
@@ -2014,6 +2099,7 @@ func e11_note() -> void:
 	await s.say("maron", "First the garden. Now my pillow.", { "eyes": "worry", "mouth": "small" })
 	# not as her
 	M.look = null
+	s.cut(Vector3(cx - 0.95, bd.y + 1.55, bd.z - 0.95), Vector3(cx + 0.1, bd.y + 1.1, bd.z + 0.6), 56)
 	M.go_free([Vector3(cx + 0.1, bd.y, bd.z - 0.1)], 0.9)
 	await s.wait(1.0)
 	M.face_yaw = PI * 0.66
@@ -2022,6 +2108,13 @@ func e11_note() -> void:
 	s.face(M, 0.5, 1.3, 40)
 	await s.say("maron", "I could go and look. Hat, umbrella, over the roofs. ...That's what they want. That's who they're waiting for.", { "eyes": "half", "mouth": "flat" })
 	await s.say("maron", "So she's staying in tonight.", { "eyes": "stern", "mouth": "smile" })
+	M.reach.R = null
+	M.hand.R = ""
+	s.burst((carry.n as Node3D).position + Vector3(0, 0.1, 0), Color("14111a"), Color("3a3448"), 16, 0.9, -0.6, 0.02, 0.9)
+	s.main.sfx("card")
+	(carry.n as Node3D).visible = false
+	carry = {}
+	await s.wait(0.5)
 	M.do("snap", 0.9)
 	await s.wait(0.5)
 	s.main.sfx("ting")
@@ -2037,7 +2130,13 @@ func e11_note() -> void:
 	s.cut(Vector3(cx + 0.5, bd.y + 1.3, bd.z - 0.15), sill + Vector3(0, 0.24, 0), 40)
 	await s.wait(1.4)
 	M.look = sill + Vector3(0, 0.25, 0)
-	await cat_say("It's eleven o'clock. I was on my second sleep.", "The black cat")
+	await cat_say("It's eleven o'clock. I was on my second sleep.", "The black cat (in mind)")
+	s.face(M, 0.3, 1.2, 38)
+	M.feel("squeeze", "flat")
+	await s.wait(0.5)
+	await s.say("maron", "You could meow first. It's like having a bell go off in there.", { "eyes": "half", "mouth": "wavy" })
+	_cat_shot(0.3, 0.75)
+	await cat_say("I keep my mouth for herrings.")
 	s.face(M, 0.3, 1.2, 38)
 	await s.say("maron", "Somebody's been in my room, Cat.", { "eyes": "stern", "mouth": "flat" })
 	_cat_shot(0.4, 0.75)
@@ -2087,11 +2186,50 @@ func _cat_make(p: Vector3, yaw: float) -> void:
 	lt.omni_range = 2.0
 	lt.position = Vector3(0, 0.75, 0.75)
 	cat.n.add_child(lt)
+	var wv := MeshInstance3D.new()                   # rings off her head, when she thinks at anybody
+	var wq := QuadMesh.new()
+	wq.size = Vector2(0.95, 0.95)
+	wv.mesh = wq
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, skip_vertex_transform;
+uniform float k;
+void vertex() {
+	vec3 c = MODEL_MATRIX[3].xyz;
+	VERTEX = (VIEW_MATRIX * vec4(c, 1.0)).xyz + vec3(VERTEX.xy, -0.16);
+}
+void fragment() {
+	vec2 g = ((floor(UV * 40.0) + 0.5) / 40.0 - 0.5) * 2.0;
+	float r = max(length(g), 0.001), w = fract(r * 2.2 - TIME * 0.7);
+	float ring = step(0.78, w) * smoothstep(1.0, 0.45, r) * smoothstep(0.16, 0.36, r);
+	if (ring <= 0.01) discard;
+	ALBEDO = vec3(0.62, 0.48, 1.0); ALPHA = ring * k * 0.4;
+}
+"""
+	var wm := ShaderMaterial.new()
+	wm.shader = sh
+	wv.material_override = wm
+	wv.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	wv.visible = false
+	s.add_child(wv)
+	a.keep(wv)
+	cat.wave = wv
+	var el := OmniLight3D.new()
+	el.light_color = Color("a88aff")
+	el.light_energy = 0.0
+	el.omni_range = 0.9
+	(cat.P.head as Node3D).add_child(el)
+	el.position = Vector3(0, 0.08, 0.22)
+	cat.eyel = el
 
 
-func cat_say(text: String, as_ := "The cat") -> void:
-	cat.talk = 0.3 + text.length() * 0.03
-	s.main.sfx("meow", null, -14.0)
+func cat_say(text: String, as_ := "The cat (in mind)") -> void:
+	cat.talk = 0.4 + text.length() * 0.05
+	s.main.sfx("mindin", null, -7.0)
+	for n in ["maron"]:                                 # (and where it's heard)
+		var m: Node3D = s.actors.get(n)
+		if m and m.visible and m.position.distance_to(cat.n.global_position) < 4.0: s.burst(m.head_pos() + Vector3(0, 0.1, 0), Color("b49aff"), Color("efe6ff"), 7, 0.22, 0.12, 0.016, 1.6)
 	await s.say("cat", text, { "as": as_ })
 	cat.talk = 0.0
 
@@ -2148,8 +2286,16 @@ func _cat_update(dt: float) -> void:
 		hy = clampf(wrapf(atan2(lp.x - n.global_position.x, lp.z - n.global_position.z) - cat.yaw, -PI, PI), -1.1, 1.1)
 	hd.rotation.y = lerpf(hd.rotation.y, hy, 1.0 - exp(-6.0 * dt))
 	hd.rotation.x = 0.5 * sit - sin(cat.t * 0.9) * 0.05 + 0.2 * crouch
-	(P.jaw as Node3D).rotation.x = absf(sin(cat.t * 17.0)) * 0.4 if cat.talk > 0.0 and s.ui.line_on else 0.0
+	(P.jaw as Node3D).rotation.x = 0.0                    # (the mouth never moves: it isn't said with that)
 	cat.talk = maxf(0.0, cat.talk - dt)
+	var mind: float = move_toward(cat.get("mindk", 0.0), 1.0 if cat.talk > 0.0 and s.ui.line_on else 0.0, dt * 3.0)
+	cat.mindk = mind
+	if cat.has("wave"):
+		var wv: MeshInstance3D = cat.wave
+		wv.visible = mind > 0.01
+		wv.global_position = hd.global_position + Vector3(0, 0.06, 0)
+		(wv.material_override as ShaderMaterial).set_shader_parameter("k", mind)
+	if cat.has("eyel"): (cat.eyel as OmniLight3D).light_energy = mind * 0.7
 	var w := sin(cat.t * 1.7)
 	(P.tail1 as Node3D).rotation = Vector3(0.5 - 0.9 * k + 0.7 * sit - run * 0.3, w * 0.25, 0)
 	(P.tail2 as Node3D).rotation = Vector3(0.3 + sin(cat.t * 2.1) * 0.1, sin(cat.t * 1.7 - 0.7) * 0.35 + sit * 0.9, 0)
@@ -2313,6 +2459,10 @@ func e12_cat() -> void:
 	g.visible = false
 	s.eye_h = 1.15
 	s.cam_dist = 3.4
+	cat.n.visible = false
+	cat = {}
+	s.hero = null
+	await _loose()
 	a._free_people()
 
 
@@ -2335,7 +2485,7 @@ func _clue(p: Vector3, text: String, f: Callable) -> void:
 
 func _scent_update(_dt: float) -> void:
 	if scent.is_empty() or s.hero == null or s.mode != "play": return
-	if not Input.is_physical_key_pressed(KEY_F) and not Input.is_joy_button_pressed(0, JOY_BUTTON_RIGHT_SHOULDER): return
+	if not s.held(KEY_F) and not s.joy(JOY_BUTTON_RIGHT_SHOULDER): return
 	sway_t += _dt
 	if sway_t < 0.06: return
 	sway_t = 0.0
@@ -2365,7 +2515,7 @@ func _trail(from: Vector3, to: Vector3) -> Array:
 	return l
 
 
-## The Proctor, and a weakness of his.
+## The Proctor, and a weakness of his. She tells him everything she knows; but not out loud, and he isn't Maron.
 func _vane_puss(g: Node3D) -> void:
 	s.film()
 	var V := at("vane", -2.4, -14.8, PI / 2, FY[0])
@@ -2377,22 +2527,42 @@ func _vane_puss(g: Node3D) -> void:
 	V.look = g.position + Vector3(0, 0.3, 0)
 	s.cut(Vector3(2.0, 0.7, -12.9), Vector3(-1.2, 0.9, -14.7), 48)
 	await s.say("vane", "Who's there? Stand where you are!", { "eyes": "stern", "mouth": "shout" })
-	await s.wait(0.8)
+	_cat_shot(0.3, 0.75)
+	cat.pose = "stand"
+	await cat_say("The cat. I'm standing. Good evening, Proctor.")
+	s.face(V, 0.2, 1.5, 36)
 	V.feel("wide", "small")
-	await s.wait(0.8)
+	await s.wait(1.0)
 	await s.say("vane", "...Puss.", { "eyes": "soft", "mouth": "small" })
+	s.cut(Vector3(2.0, 0.7, -12.9), Vector3(-0.6, 0.8, -14.5), 48)
 	V.go_free([Vector3(-0.3, FY[0], -14.4)], 1.2)
 	await s.until(func(): return V.path.is_empty(), 4.0)
 	V.pose = "kneel"
-	V.reach.R = g.position + Vector3(-0.1, 0.5, 0.0)
+	moon(Vector3(0.9, 1.5, -12.9), 0.7, Color("ffd8a8"), 4.5)
+	g.place(Vector3(0.12, FY[0], -14.04), -2.2)            # (and it comes up alongside, where a hand can get at it)
+	cat.yaw = -2.2
 	cat.pose = "sit"
-	s.cut(Vector3(0.5, 0.9, -11.8), Vector3(0.0, 0.72, -14.4), 50)
-	await s.wait(0.8)
+	await s.wait(0.3)
+	var ears := func() -> Vector3: return (cat.P.head as Node3D).global_position + Vector3(0.02, 0.1, 0)
+	V.stoop = 0.5
+	V.reach.R = ears.call()
+	s.cut(Vector3(1.0, 0.95, -11.95), Vector3(-0.1, 0.62, -14.2), 50)
+	await s.wait(0.6)
 	s.main.sfx("purr")
 	await s.say("vane", "Who's on duty, then? Are you on duty? Yes. So am I.", { "eyes": "happy", "mouth": "smile" })
-	_cat_shot(0.4, 0.75)
-	await cat_say("Thirty years a proctor, and he's the only one in the building who does behind the ears.", "The cat, privately")
+	_cat_shot(0.75, 0.75)
+	await cat_say("Somebody's walked over the court on the water and gone up your stairs, with black chalk on their fingers. You may want to write that down.")
+	s.cut(Vector3(1.0, 0.95, -11.95), Vector3(-0.1, 0.62, -14.2), 50)
+	var t0: float = s.time                              # (he does behind the ears)
+	s.main.sfx("purr")
+	while s.time < t0 + 1.8:
+		V.reach.R = ears.call() + Vector3(sin(s.time * 9.0) * 0.03, cos(s.time * 9.0) * 0.015, 0.0)
+		await s.beat()
+	await s.say("vane", "Yes, you are. Yes, you are.", { "eyes": "happy", "mouth": "smile" })
+	_cat_shot(0.7, 0.7)
+	await cat_say("Not a word of it. They never do. ...But he's the only one in the building who does behind the ears.")
 	V.reach.R = null
+	V.stoop = 0.0
 	V.pose = "stand"
 	await s.wait(1.0)
 	s.face(V, 0.2, 1.5, 36)
@@ -2405,6 +2575,283 @@ func _vane_puss(g: Node3D) -> void:
 	s.play()
 
 
+# ----------------------------------------------------------------- the fire --
+## After everything: the candle again. It's learnt to look; tonight it tries to say something, and gets so worked up about it
+## that it comes off the wick.
+func _loose() -> void:
+	open(3.1)
+	for p in s.campus.people:
+		p.busy = true
+		p.a.visible = false
+	s.film()
+	s.fader = 1.0
+	s.fader_to = 1.0
+	s.lamps_out = 1.0
+	music("")
+	s.main.sound.air("night")
+	var b: Dictionary = s.stage.data.rooms.owl.beds[0]
+	var bw: Dictionary = s.stage.data.rooms.owl.beds[1]
+	s.stage.shut("owl_r0")
+	var cx: float = (b.x + bw.x) * 0.5
+	var O := Vector3(cx, b.y, b.z)
+	var R := reiner(cx, b.z, PI, b.y)
+	R.lie_at(Vector3(b.x, b.y, b.z), b.yaw)
+	var W: Node3D = act("wim")
+	W.visible = true
+	W.lie_at(Vector3(bw.x, bw.y, bw.z), bw.yaw)
+	var top: float = b.y + 0.744
+	var C: Node3D = a.keep(s.put("candle", Vector3(cx + 0.1, top, b.z - 0.9)))
+	a.keep(s.put("toyhen", Vector3(cx - 0.3, top, b.z - 1.02), 0.6))
+	a.keep(s.put("wand_black", Vector3(cx + 0.42, top + 0.06, b.z - 0.84), 1.1))
+	_night_pane(cx, b.y + 1.5, b.z - 3.4)
+	moon(Vector3(cx, b.y + 1.9, b.z - 0.7), 0.4, Color("9ab0f0"), 4.5)
+	var wick: Vector3 = C.position + Vector3(0, 0.285, 0)
+	var side: float = signf(b.x - wick.x)
+	fire = _fire_make(wick)
+	fire.soul = 1.0
+	fire.soul_to = 1.0
+	fire.eyes_to = 1.0
+	fire.h_to = 0.16
+	# it's been at it a while
+	s.cut(wick + Vector3(-0.1, 0.12, 0.66), wick + Vector3(0, 0.08, 0), 36)
+	await s.wait(0.6)
+	s.main.sfx("sould", null, 0.0)
+	await s.wait(0.8)
+	await s.fade(0.0, 1.0)
+	_letters(5)
+	await s.wait(1.2)
+	fire.lean_to = Vector2(0.5, 0.0)                     # (no)
+	await s.wait(0.8)
+	s.main.sfx("sould", null, 1.0)
+	_letters(6)
+	fire.lean_to = Vector2(-0.5, 0.2)
+	await s.wait(1.6)
+	fire.eyes_to = 0.0
+	await s.wait(0.3)
+	fire.eyes_to = 1.0
+	fire.h_to = 0.2
+	s.main.sfx("soule", null, 1.0)
+	_letters(9)
+	s.move(wick + Vector3(-0.1, 0.12, 0.66), wick + Vector3(0, 0.1, 0), wick + Vector3(0.1, 0.16, 0.78), wick + Vector3(0, 0.14, 0), 4.0, 38)
+	# worked up
+	var t0: float = s.time
+	while s.time < t0 + 2.6:
+		var u: float = (s.time - t0) / 2.6
+		fire.lean_to = Vector2(sin(s.time * (5.0 + u * 8.0)), cos(s.time * (4.0 + u * 7.0))) * (0.5 + u * 1.5)
+		fire.lean = (fire.lean as Vector2).lerp(fire.lean_to, 1.0 - exp(-9.0 * s.dt_last))
+		fire.h_to = 0.2 + u * 0.14
+		(fire.n as Node3D).position = wick + Vector3(0, 0.012 * u * absf(sin(s.time * 17.0)), 0)
+		if randf() < 0.14: s.burst(wick + Vector3(0, 0.1, 0), Color("ffc04a"), Color("ff6a2a"), 2, 0.6, 0.6, 0.012, 0.7)
+		await s.beat()
+	# and off
+	s.main.sfx("flit", null, 2.0)
+	s.burst(wick, Color("ffe08a"), Color("ff7a2a"), 22, 1.0, -0.6, 0.014, 0.8)
+	s.burst(wick + Vector3(0, 0.02, 0), Color(0.6, 0.58, 0.62), Color(0.35, 0.33, 0.38), 8, 0.12, 0.25, 0.012, 1.4, 30.0)
+	fire.loose = true
+	fire.lean_to = Vector2.ZERO
+	fire.h_to = 0.17
+	await _fly([wick, wick + Vector3(0.03, 0.2, 0.02), wick + Vector3(-0.04, 0.13, 0.06), wick + Vector3(0.0, 0.17, 0.1)], 1.1)
+	s.cut(wick + Vector3(0.12, 0.26, 1.0), wick + Vector3(0, 0.21, 0.06), 36)
+	fire.lit = 1.2
+	await _hover(1.0)
+	fire.lean_to = Vector2(0, 0.3)                       # it looks down at where it was
+	await _hover(0.8)
+	fire.eyes_to = 0.0
+	await _hover(0.22)
+	fire.eyes_to = 1.0
+	s.main.sfx("soula", null, 0.0)
+	_letters(5)
+	await _hover(1.0)
+	# round the room, like something that's just found out it can
+	s.cut(O + Vector3(0.55, 1.9, 1.9), O + Vector3(-0.1, 1.15, -0.6), 58)
+	s.main.sfx("flit", null, 0.0)
+	await _fly([fire.n.position, O + Vector3(0.45, 1.25, -0.5), O + Vector3(0.75, 1.55, 0.3), O + Vector3(0.1, 1.75, 0.75), O + Vector3(-0.75, 1.45, 0.4), O + Vector3(-0.7, 1.2, -0.3)], 2.6)
+	s.main.sfx("soulb", null, 1.0)
+	_letters(6)
+	# whose it is
+	var hd: Vector3 = R.head_pos()
+	var by_: Vector3 = hd + Vector3(-side * 0.42, 0.22, 0.12)
+	s.main.sfx("flit", null, -6.0)
+	await _fly([fire.n.position, (fire.n.position + by_) * 0.5 + Vector3(0, 0.1, 0.1), by_], 1.1)
+	fire.yaw = side * 0.9
+	s.cut(by_ + Vector3(-side * 0.5, 0.34, 0.72), hd.lerp(by_, 0.45) + Vector3(0, 0.06, 0), 42)
+	fire.lean_to = Vector2(side * 0.5, -0.1)
+	await _hover(0.9)
+	s.main.sfx("sould", null, 1.0)
+	_letters(6)
+	await _hover(2.0)
+	s.main.sfx("soule", null, 1.0)
+	_letters(8)
+	await _hover(1.6)
+	# it's pleased with that; and it's bigger
+	fire.yaw = 0.0
+	fire.lean_to = Vector2.ZERO
+	s.cut(O + Vector3(0.5, 1.6, 1.7), O + Vector3(0.0, 1.1, -0.5), 52)
+	await _fly([by_, O + Vector3(-0.3, 1.3, -0.25), O + Vector3(0.05, 1.15, -0.35)], 1.0)
+	s.main.sfx("whoof", null, 2.0)
+	t0 = s.time
+	while s.time < t0 + 1.6:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 1.6)
+		_size(1.0 + u * 0.75 + sin(s.time * 11.0) * 0.04 * u)
+		fire.lit = 1.2 + u * 1.1
+		(fire.n as Node3D).position = O + Vector3(0.05, 1.15 + sin(s.time * 2.4) * 0.02, -0.35)
+		if randf() < 0.2: s.burst(fire.n.position + Vector3(0, 0.2, 0), Color("ffc04a"), Color("ff6a2a"), 3, 0.8, 0.8, 0.018, 0.9)
+		await s.beat()
+	s.burst(Vector3(cx - 0.3, top + 0.14, b.z - 1.02), Color(0.5, 0.48, 0.5), Color(0.25, 0.24, 0.26), 12, 0.2, 0.3, 0.016, 1.6, 30.0)      # (the hen's scorched)
+	s.main.sfx("fizz", null, -6.0)
+	s.cut(O + Vector3(-0.95, 1.5, 0.95), O + Vector3(-0.02, 1.2, -0.6), 48)
+	fire.lean_to = Vector2(-0.7, -0.5)
+	await _hover(0.7)
+	fire.lean_to = Vector2(0.6, 0.5)
+	await _fly([fire.n.position, O + Vector3(0.22, 1.3, -0.2)], 0.4)
+	fire.eyes_to = 0.0
+	await _hover(0.2)
+	fire.eyes_to = 1.0
+	await _hover(0.9)
+	# there's a window
+	s.move(O + Vector3(0.75, 1.5, 0.75), O + Vector3(-0.1, 1.2, -1.5), O + Vector3(0.6, 1.45, 0.5), O + Vector3(-0.1, 1.15, -1.5), 4.0, 50)
+	fire.yaw = PI
+	fire.lean_to = Vector2(0, -0.5)
+	s.main.sfx("soula", null, 1.0)
+	_letters(5)
+	await _hover(1.4)
+	s.main.sfx("flit", null, 1.0)
+	fire.h_to = 0.15
+	await _fly([fire.n.position, O + Vector3(-0.05, 1.15, -0.85), O + Vector3(-0.2, 0.9, -1.3), O + Vector3(-0.2, 0.86, -1.7), O + Vector3(-0.2, 1.0, -2.3)], 2.0)
+	(fire.n as Node3D).visible = false
+	fire.lit = 0.0
+	await s.wait(0.9)                                    # (two boys, asleep, in the dark)
+	s.cut(O + Vector3(0.5, 1.6, 1.7), O + Vector3(0.0, 0.8, -0.6), 52)
+	await s.wait(1.4)
+	# outside
+	var w0 := Vector3(-28.42, 4.14, 24.17)
+	a.keep(s.put("casement", w0, PI / 2, 1.0))
+	s.cut(Vector3(-24.4, 3.0, 27.4), Vector3(-28.0, 4.7, 24.2), 46)
+	(fire.n as Node3D).position = w0 + Vector3(0.02, 0.2, 0)
+	fire.h_to = 0.2
+	fire.lit = 2.2
+	_size(1.75)
+	fire.yaw = 0.8
+	(fire.l as OmniLight3D).omni_range = 7.0
+	_halo()
+	await s.wait(0.7)
+	(fire.n as Node3D).visible = true
+	s.main.sfx("flit", null, 2.0)
+	await _fly([fire.n.position, w0 + Vector3(0.7, 0.35, 0.1), w0 + Vector3(1.3, 0.75, 0.5), w0 + Vector3(1.4, 1.0, 0.7)], 1.8)
+	fire.lean_to = Vector2.ZERO
+	s.main.sfx("soulb", null, 1.0)
+	_letters(7)
+	await _hover(1.4)
+	# there's such a lot of it
+	s.cut(fire.n.position + Vector3(1.5, 0.15, 1.9), fire.n.position + Vector3(0, 0.3, 0), 44)
+	fire.eyes_to = 0.0
+	await _hover(0.25)
+	fire.eyes_to = 1.0
+	s.main.sfx("whoof", null, 3.0)
+	t0 = s.time
+	while s.time < t0 + 1.4:
+		var u: float = smoothstep(0.0, 1.0, (s.time - t0) / 1.4)
+		_size(1.75 + u * 0.75)
+		fire.h_to = 0.2 + u * 0.08
+		fire.fat = 1.0 + u * 0.15
+		fire.lit = 2.2 + u * 1.4
+		(fire.n as Node3D).position.y += s.dt_last * 0.14
+		if randf() < 0.3: s.burst(fire.n.position + Vector3(0, 0.3, 0), Color("ffc04a"), Color("ff6a2a"), 3, 1.0, 0.8, 0.022, 1.0)
+		await s.beat()
+	s.main.sfx("soulf", null, 2.0)
+	_letters(12)
+	await _hover(2.4)
+	_letters(8)
+	await _hover(1.0)
+	# and away over the roofs
+	s.move(Vector3(2, 5.4, 36), Vector3(-20, 7.0, 16), Vector3(4, 6.2, 33), Vector3(-9, 9.0, 4), 6.5, 48)
+	s.main.sfx("flit", null, 0.0)
+	var q0: Vector3 = fire.n.position
+	_fly([q0, q0 + Vector3(2.0, 1.6, 0.4), Vector3(-21, 9.0, 19), Vector3(-16, 10.4, 12), Vector3(-9, 10.6, 8), Vector3(-2, 13.0, 2)], 7.0)
+	await s.wait(2.6)
+	s.main.sfx("soulf", null, -2.0)
+	await s.wait(3.0)
+	# and cut short
+	s.fader = 1.0
+	s.fader_to = 1.0
+	s.main.sound.cut()
+	fire = {}
+	s.lamps_out = 0.0
+	R.get_up()
+	W.get_up()
+	R.visible = false
+	W.visible = false
+	await s.wait(1.6)
+
+
+func _size(k: float) -> void: (fire.n as Node3D).scale = Vector3.ONE * k
+
+
+## A glow round it, to see it by from a long way off.
+func _halo() -> void:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(0.9, 0.9)
+	mi.mesh = q
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, blend_add, depth_draw_never, cull_disabled, shadows_disabled, skip_vertex_transform, fog_disabled;
+void vertex() { float k = length(MODEL_MATRIX[0].xyz); VERTEX = (VIEW_MATRIX * vec4(MODEL_MATRIX[3].xyz, 1.0)).xyz + vec3(VERTEX.xy * k, 0.0); }
+void fragment() {
+	vec2 g = ((floor(UV * 30.0) + 0.5) / 30.0 - 0.5) * 2.0;
+	float r = length(g);
+	if (r > 1.0) discard;
+	ALBEDO = vec3(1.0, 0.62, 0.3); ALPHA = pow(1.0 - r, 2.4) * (0.42 + 0.05 * sin(TIME * 9.0));
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	(fire.n as Node3D).add_child(mi)
+	mi.position = Vector3(0, 0.09, 0)
+
+
+## It goes through these, with its tail behind it, dropping sparks.
+func _fly(pts: Array, secs: float) -> void:
+	var c := Curve3D.new()
+	for i in pts.size():
+		var t: Vector3 = ((pts[mini(i + 1, pts.size() - 1)] as Vector3) - pts[maxi(i - 1, 0)]) / 6.0
+		c.add_point(pts[i], -t, t)
+	var L := c.get_baked_length()
+	var t0: float = s.time
+	var id: int = a.run_id
+	var f: Dictionary = fire
+	var was: Vector3 = f.n.position
+	var sp := 0.0
+	while a.run_id == id and s.time < t0 + secs and not s.skipping and is_instance_valid(f.n):
+		var u: float = clampf((s.time - t0) / secs, 0.0, 1.0)
+		var p := c.sample_baked(L * (u * u * (3.0 - 2.0 * u)), true) + Vector3(0, sin(s.time * 5.0) * 0.012, 0)
+		var v: Vector3 = (p - was) / maxf(s.dt_last, 0.001)
+		was = p
+		f.n.position = p
+		f.lean_to = Vector2(-v.x, -v.z).limit_length(1.4) * 0.8
+		sp += s.dt_last
+		if sp > 0.07:
+			sp = 0.0
+			s.burst(p + Vector3(0, 0.05, 0), Color("ffc04a"), Color("ff5a2a"), 2, 0.25, -0.5, 0.012 * f.n.scale.x, 1.0)
+		await s.beat()
+	if is_instance_valid(f.n): f.n.position = pts[-1]
+
+
+## It hangs where it is, and can't keep still.
+func _hover(secs: float) -> void:
+	var t0: float = s.time
+	var id: int = a.run_id
+	var p0: Vector3 = fire.n.position
+	while a.run_id == id and s.time < t0 + secs and not s.skipping:
+		var k: float = minf(1.0, (s.time - t0) * 3.0) * minf(1.0, (t0 + secs - s.time) * 3.0)
+		(fire.n as Node3D).position = p0 + Vector3(sin(s.time * 3.1) * 0.02, sin(s.time * 4.3) * 0.016, cos(s.time * 2.7) * 0.014) * k * (fire.n as Node3D).scale.x
+		await s.beat()
+	(fire.n as Node3D).position = p0
+
+
 # ------------------------------------------------------------------- frame --
 func update(dt: float) -> void:
 	super.update(dt)
@@ -2413,6 +2860,12 @@ func update(dt: float) -> void:
 	_mana_update(dt)
 	_cat_update(dt)
 	_scent_update(dt)
+	if carry.has("n") and is_instance_valid(carry.n):
+		var w: Node3D = carry.who
+		var fw := Vector3(sin(w.yaw), 0, cos(w.yaw))
+		w.reach.R = w.position + fw * 0.4 + Vector3(0, 1.06, 0) - Vector3(fw.z, 0, -fw.x) * 0.07
+		(carry.n as Node3D).position = w.hand_pos("R") + fw * 0.035 + Vector3(0, 0.02, 0)
+		(carry.n as Node3D).rotation = Vector3(-0.18, w.yaw + PI, 0)
 	# his hair, in what wind there is
 	var E: Node3D = s.actors.get("erebus")
 	if E and E.visible and E.P.has("mane"):

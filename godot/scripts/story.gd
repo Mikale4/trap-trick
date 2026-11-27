@@ -28,6 +28,9 @@ var indoor_to := 0.0
 var indoor_auto := true
 var lamps_out := 0.0                  # 1: every lamp in the place is out
 var skipping := false
+var ask_best := -1                     # (which answer would please them most: the Demo reads it)
+var cast_last := -99.0                 # when the arrow keys were last wanted
+var _warp: Node3D
 var skip_hold := 0.0
 var busy := false                     # a scene is under way (no other may start)
 var reading := false
@@ -421,7 +424,7 @@ func fade(to: float, secs := 0.6, c := Color.BLACK) -> void:
 
 const NAMES := { "reiner": "Reiner", "reiner_uni": "Reiner", "lotte": "Lotte", "mother": "Mother", "father": "Father", "maron": "Maron", "halden": "Professor Halden", "brandt": "Brandt", "wim": "Wim", "tobin": "Tobin", "isolde": "Isolde", "petra": "Petra", "nadi": "Nadi", "otto": "Otto", "selma": "Selma", "kas": "Kas", "wren": "Professor Wren", "marrow": "Professor Marrow", "corvin": "Master Corvin", "lys": "Professor Lys", "aurel": "Headmistress Aurel", "sabine": "Sabine", "dorle": "Dorle", "hob": "Hob", "agnes": "Agnes",
 	"rowan": "Rowan", "ilse": "Ilse", "fenn": "Fenn", "yve": "Yve", "joss": "Joss", "marta": "Marta", "bram": "Bram", "sunniva": "Sunniva", "cato": "Cato", "liss": "Liss", "orin": "Orin", "dove": "Dove", "lucan": "Lucan", "dorn": "Dorn", "sibyl": "Sibyl", "bet": "Bet", "vane": "Proctor Vane", "thorne": "Mistress Thorne", "cassian": "Cassian", "odile": "Odile", "penny": "Penny", "erebus": "Erebus", "arnold": "Arnold", "dunstan": "Dunstan", "hettie": "Hettie", "gus": "Gus", "cat": "The cat" }
-const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman", "thorne": "woman", "odile": "girl", "penny": "girl", "arnold": "man", "dunstan": "old", "hettie": "woman", "cat": "old" }
+const VOICE := { "reiner": "boy", "reiner_uni": "boy", "lotte": "child", "mother": "woman", "father": "man", "maron": "girl", "halden": "old", "brandt": "old", "marrow": "old", "corvin": "man", "hob": "man", "wren": "woman", "lys": "woman", "aurel": "woman", "sabine": "woman", "dorle": "woman", "agnes": "woman", "bram": "man", "dorn": "man", "vane": "old", "sibyl": "woman", "thorne": "woman", "odile": "girl", "penny": "girl", "arnold": "man", "dunstan": "old", "hettie": "woman", "cat": "mind" }
 
 
 ## Someone says a line. Waits until it's been read (or passed over).
@@ -520,6 +523,7 @@ func cast(words: Array, o := {}) -> float:
 	var was := locked
 	locked = true
 	ui.prompt("")
+	await _ready_for(words, String(o.get("name", "")), false)
 	ui.spell_start(words, o)
 	var t0 := time
 	while not ui.spell.is_empty() and not ui.spell.done:
@@ -528,7 +532,17 @@ func cast(words: Array, o := {}) -> float:
 	var r := 1.0 if skipping or main.dev_auto or ui.spell.is_empty() else float(ui.spell.hit) / words.size()
 	ui.spell_end()
 	locked = was
+	cast_last = time
 	return r
+
+
+## Before the arrow keys are wanted, a card that says so, and waits. (Straight after another, only the count of three.)
+func _ready_for(items: Array, name_: String, duel_: bool) -> void:
+	if skipping or time - cast_last < 25.0: return
+	ui.ready_start(name_, items, duel_)
+	var t0 := time
+	while not ui.ready_c.ok and not skipping and not (main.dev_auto and time > t0 + 1.3): await beat()
+	ui.ready_end()
 
 
 ## A duel of candles. items: [[syllable, direction, kind]]: g shelter one's own flame, c call it higher, b breathe on theirs.
@@ -538,6 +552,7 @@ func duel(items: Array, o := {}) -> Dictionary:
 	var was := locked
 	locked = true
 	ui.prompt("")
+	await _ready_for(items, String(o.get("name", "Wicks")), true)
 	var d := { "you": o.get("you", 0.7), "foe": o.get("foe", 0.9), "name_you": o.get("name_you", "Reiner"), "name_foe": o.get("name_foe", ""), "wind": 0.0 }
 	var fy = o.get("fy", null)
 	var ff = o.get("ff", null)
@@ -567,6 +582,7 @@ func duel(items: Array, o := {}) -> Dictionary:
 	if skipping or main.dev_auto: r = { "you": maxf(0.2, d.you), "foe": d.foe, "hit": items.size(), "miss": 0 }
 	ui.spell_end()
 	locked = was
+	cast_last = time
 	return r
 
 
@@ -587,6 +603,7 @@ func ask(items: Array) -> int:
 		await beat()
 	ui.hide_choices()
 	mode = was
+	ask_best = -1
 	return choice
 
 
@@ -637,6 +654,27 @@ func burst(at: Vector3, c1: Color, c2: Color, n := 24, sp := 1.6, grav := -1.5, 
 
 func smoke(at: Vector3, n := 14, dark := true) -> void:
 	burst(at, Color(0.25, 0.23, 0.24) if dark else Color(0.95, 0.95, 0.97), Color(0.45, 0.43, 0.44) if dark else Color(0.8, 0.82, 0.88), n, 0.7, 0.9, 0.07, 1.4, 50.0)
+
+
+## A key held down: the player's, or the Demo's while it plays (and then only the Demo's).
+func held(code: int) -> bool:
+	if main.demo and main.demo.on: return main.demo.holding(code)
+	return Input.is_physical_key_pressed(code)
+
+
+func joy(b: int) -> bool: return not (main.demo and main.demo.on) and Input.is_joy_button_pressed(0, b)
+
+
+func pad() -> bool: return not (main.demo and main.demo.on) and Input.get_connected_joypads().size() > 0
+
+
+## Going from one place to another with nothing in between (warp.gd).
+func warp() -> Node3D:
+	if _warp == null:
+		_warp = preload("res://scripts/warp.gd").new()
+		add_child(_warp)
+		_warp.setup(self)
+	return _warp
 
 
 func sparkle(at: Vector3, n := 16, c := Color("ffe08a")) -> void:
@@ -700,6 +738,9 @@ func key(code: int) -> void:
 			KEY_ENTER, KEY_E, KEY_SPACE, KEY_KP_ENTER: menu_pick()
 			KEY_ESCAPE: if paused: pause(false)
 		return
+	if not ui.ready_c.is_empty():
+		if code in [KEY_W, KEY_A, KEY_S, KEY_D, KEY_UP, KEY_LEFT, KEY_DOWN, KEY_RIGHT]: ui.ready_key()
+		return
 	if not ui.spell.is_empty():
 		match code:
 			KEY_W, KEY_UP: ui.spell_key("U")
@@ -750,7 +791,7 @@ func menu_pick() -> void:
 
 func pause(on: bool) -> void:
 	paused = on
-	if on: ui.show_menu([["resume", "Resume"], ["people", "People"], ["retry", "Restart this part"], ["title", "Title screen"], ["quit", "Quit"]], 0.55)
+	if on: ui.show_menu([["resume", "Resume"], ["demo_here", "Demo: let it play from here"], ["people", "People"], ["retry", "Restart this part"], ["title", "Title screen"], ["quit", "Quit"]], 0.55)
 	else: ui.hide_menu()
 
 
@@ -775,7 +816,7 @@ func use() -> void:
 # ------------------------------------------------------------------- frame --
 func process(dt: float) -> void:
 	dt_last = dt
-	skip_hold = skip_hold + dt if (Input.is_physical_key_pressed(KEY_TAB) or Input.is_joy_button_pressed(0, JOY_BUTTON_BACK)) and mode == "film" else 0.0
+	skip_hold = skip_hold + dt if (held(KEY_TAB) or joy(JOY_BUTTON_BACK)) and mode == "film" else 0.0
 	if skip_hold > 0.45: skipping = true
 	var n := 24 if skipping and mode == "film" else 1
 	for i in n:
@@ -891,12 +932,12 @@ func _eased(a: Node3D, p: Vector3) -> Vector3:
 func _player(dt: float) -> void:
 	var fwd := 0.0
 	var side := 0.0
-	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): fwd += 1.0
-	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): fwd -= 1.0
-	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): side += 1.0
-	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): side -= 1.0
-	var run := Input.is_physical_key_pressed(KEY_SHIFT)
-	if Input.get_connected_joypads().size() > 0:
+	if held(KEY_W) or held(KEY_UP): fwd += 1.0
+	if held(KEY_S) or held(KEY_DOWN): fwd -= 1.0
+	if held(KEY_D) or held(KEY_RIGHT): side += 1.0
+	if held(KEY_A) or held(KEY_LEFT): side -= 1.0
+	var run := held(KEY_SHIFT)
+	if pad():
 		var lx := Input.get_joy_axis(0, JOY_AXIS_LEFT_X)
 		var ly := Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
 		if absf(lx) > 0.18: side += lx
@@ -905,7 +946,7 @@ func _player(dt: float) -> void:
 		var ry := Input.get_joy_axis(0, JOY_AXIS_RIGHT_Y)
 		if absf(rx) > 0.18: cam_yaw -= rx * dt * 2.6
 		if absf(ry) > 0.18: cam_pitch = clampf(cam_pitch + ry * dt * 1.6, -0.3, 1.1)
-		run = run or Input.is_joy_button_pressed(0, JOY_BUTTON_B) or Vector2(lx, ly).length() > 0.92
+		run = run or joy(JOY_BUTTON_B) or Vector2(lx, ly).length() > 0.92
 	if main.shot_mode == "walk" or main.shot_mode == "run":
 		fwd = 1.0
 		run = main.shot_mode == "run"
@@ -953,19 +994,19 @@ func _player_tt(dt: float) -> void:
 	var fwd := 0.0
 	var side := 0.0
 	if not locked:
-		if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): fwd += 1.0
-		if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): fwd -= 1.0
-		if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): side += 1.0
-		if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): side -= 1.0
-		if Input.get_connected_joypads().size() > 0:
+		if held(KEY_W) or held(KEY_UP): fwd += 1.0
+		if held(KEY_S) or held(KEY_DOWN): fwd -= 1.0
+		if held(KEY_D) or held(KEY_RIGHT): side += 1.0
+		if held(KEY_A) or held(KEY_LEFT): side -= 1.0
+		if pad():
 			var lx := Input.get_joy_axis(0, JOY_AXIS_LEFT_X)
 			var ly := Input.get_joy_axis(0, JOY_AXIS_LEFT_Y)
 			if absf(lx) > 0.18: side += lx
 			if absf(ly) > 0.18: fwd -= ly
 	var m := Vector2(fwd, side)
 	if m.length() > 1.0: m = m.normalized()
-	var held_j: bool = not locked and (Input.is_physical_key_pressed(KEY_SPACE) or Input.is_joy_button_pressed(0, JOY_BUTTON_A))
-	main.tt.update(dt, { "x": -sin(cam_yaw) * m.x + cos(cam_yaw) * m.y, "z": -cos(cam_yaw) * m.x - sin(cam_yaw) * m.y, "run": Input.is_physical_key_pressed(KEY_SHIFT) or Input.is_joy_button_pressed(0, JOY_BUTTON_B), "jump": tt_jump, "jump_held": held_j })
+	var held_j: bool = not locked and (held(KEY_SPACE) or joy(JOY_BUTTON_A))
+	main.tt.update(dt, { "x": -sin(cam_yaw) * m.x + cos(cam_yaw) * m.y, "z": -cos(cam_yaw) * m.x - sin(cam_yaw) * m.y, "run": held(KEY_SHIFT) or joy(JOY_BUTTON_B), "jump": tt_jump, "jump_held": held_j })
 	tt_jump = false
 
 

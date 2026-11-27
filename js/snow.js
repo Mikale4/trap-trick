@@ -19,9 +19,14 @@
   /* a length of cliff (19 cm voxels), 42 along x, its face to +z: ledges, cracks, snow on whatever's flat */
   function cliff(seed, hi) {
     const g = G(), face = [];
-    for (let x = 0; x < 42; x++) for (let y = 0; y < hi; y++) { const f = R(6 + 5 * Math.sin(x * 0.3 + seed) + 4 * Math.sin(y * 0.22 + x * 0.1 + seed * 2) + H(x >> 2, y >> 2, seed) * 5 - y * 0.16); face[x * 200 + y] = Math.max(-10, f); }
+    for (let x = 0; x < 42; x++) for (let y = 0; y < hi; y++) { const e = Math.min(1, (Math.min(x, 41 - x) + 1) / 7), f = R(5 + e * (3.2 * Math.sin(x * 0.3 + seed) + 2.6 * Math.sin(y * 0.22 + x * 0.1 + seed * 2) + (H(x >> 2, y >> 2, seed) - 0.5) * 4) - y * 0.16); face[x * 200 + y] = Math.max(-10, f); }
     const top = x => hi - R(6 + 5 * Math.sin(x * 0.2 + seed) + H(x >> 2, 3, seed) * 4);
     for (let x = 0; x < 42; x++) { const t = top(x); for (let y = 0; y <= t; y++) { const f = face[x * 200 + y], up = y < t ? face[x * 200 + y + 1] : -99; for (let z = Math.max(-12, f - 2); z <= f; z++) g.set(x, y, z, z > up ? snow(x, y, z) : rock(x, y, z)); if (up < f) for (let z = Math.max(-12, up); z <= f; z++) g.set(x, y, z, snow(x, y, z)); } for (let z = -12; z <= face[x * 200 + t]; z++) { g.set(x, t, z, snow(x, t, z)); if (H(x, 5, z) < 0.5) g.set(x, t + 1, z, snow(x, t + 1, z)); } }
+    return g;
+  }
+  function crag(seed) {                                    // a shoulder of rock (19 cm), 3.4 m through at the foot, for the corners
+    const g = G(), hi = 46 + (seed * 7) % 9, rad = (a, y) => 8.6 - y * 0.12 + 1.1 * Math.sin(a * 3 + seed + y * 0.13) + (H(R(a * 4), y >> 2, seed) - 0.5) * 2.2, inn = (x, y, z) => y <= hi && Math.hypot(x, z) <= rad(Math.atan2(z, x), y);
+    for (let y = 0; y <= hi; y++) for (let x = -11; x <= 11; x++) for (let z = -11; z <= 11; z++) { if (!inn(x, y, z)) continue; const up = !inn(x, y + 1, z); if (!up && Math.hypot(x, z) < rad(Math.atan2(z, x), y) - 2.6) continue; g.set(x, y, z, up ? snow(x, y, z) : rock(x, y, z)); }
     return g;
   }
   function bank(seed) {                                    // a bank of snow (9.6 cm), 3 m along x
@@ -42,7 +47,7 @@
     g.box(22, 66, -12, 32, 92, -2, (x, y, z) => K.stoneAt(x + z, y, 3)); g.box(21, 93, -13, 33, 95, -1, snow); return g;
   }
   /* the sights: the Wing, a fin of rock with ribs in it; the Tooth, a spire; the Breathing Stone, a cairn with a vent */
-  function wing() { const g = G(); for (let x = 0; x < 120; x++) { const t = x / 120, h = R(96 * Math.sin(Math.PI * (0.12 + t * 0.78)) * (1 - t * 0.25)), rib = x % 17 < 3; for (let y = 0; y <= h; y++) { const d = rib ? 3 : 1 + (y < 14 ? 2 : 0); for (let z = -d; z <= d; z++) if (Math.abs(z) === d || y > h - 3) g.set(x, y, z + R(Math.sin(t * 3) * 10), y > h - 3 || (H(x >> 1, y >> 1, 3) < 0.14) ? snow(x, y, z) : rock(x, y, z)); } } return g; }
+  function wing() { const g = G(); for (let x = 0; x < 120; x++) { const t = x / 120, u = (x % 20) / 20, rib = x % 20 < 4, h = R(100 * Math.pow(Math.sin(Math.PI * (0.1 + t * 0.8)), 0.6) * (1 - t * 0.5) + (rib ? 6 : -9 * Math.sin(Math.PI * u))); for (let y = 0; y <= h; y++) { const d = rib ? 4 : 1 + (y < 14 ? 2 : 0); for (let z = -d; z <= d; z++) if (Math.abs(z) === d || y > h - 3) g.set(x, y, z + R(Math.sin(t * 3) * 10), y > h - 4 || (!rib && H(x >> 1, y >> 2, 3) < 0.3) ? snow(x, y, z) : rib ? mul(rock(x, y, z), 0.72) : rock(x, y, z)); } } return g; }
   function tooth() { const g = G(); for (let y = 0; y < 150; y++) { const r = 20 * Math.pow(1 - y / 152, 0.8), ox = Math.sin(y * 0.014) * 10; for (let x = -24; x <= 34; x++) for (let z = -24; z <= 24; z++) { const d = Math.hypot(x - ox, z); if (d <= r && d > r - 2.4) g.set(x, y, z, (z < 0 && H(x >> 1, y >> 1, z) < 0.4) || H(x, y, z) < 0.08 ? snow(x, y, z) : rock(x, y, z)); } } return g; }
   function cairn() { const g = G(); for (let y = 0; y < 18; y++) { const r = 15 - y * 0.55; g.disc(0, 0, r, y, y, (x, yy, z) => Math.hypot(x, z) < 3 && yy > 6 ? 0x2a2c38 : Math.hypot(x, z) < r - 3 && yy < 17 ? -1 : H(x >> 2, yy >> 2, z >> 2) < 0.3 ? snow(x, yy, z) : rock(x, yy, z)); } return g; }
   function mouth() {                                       // the mouth of the cave in its crag (19 cm)
@@ -83,30 +88,38 @@
     constructor(scene) {
       super(scene, 'snow');
       this.farColor = 0xe8eef8; this.floors = [[-80, -110, 120, 90, 0]]; this.ramps = []; this.slabs = []; this.blocks = [];
-      const path = [[0, 46], [0, 16], [3, 11], [6.5, 6], [6.5, -8], [3, -13], [-3.5, -17], [-3.5, -36]];
+      const path = [[0, 46], [0, 16], [3, 11], [6.5, 6], [6.5, -8.4], [5, -12.4], [1.5, -14.8], [-2.2, -16], [-3.5, -18.6], [-3.5, -37]];
+      this.marks.trail = path;
       const near = (x, z) => { let b = 99; for (let i = 0; i + 1 < path.length; i++) { const [x0, z0] = path[i], [x1, z1] = path[i + 1], dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz))); b = Math.min(b, Math.hypot(x - x0 - dx * t, z - z0 - dz * t)); } return b; };
-      const ground = (x, z, px, py) => { const n = H(px, py, 7), d = near(x, z) + (H(R(x * 2), R(z * 2), 3) - 0.5) * 0.5, m = H(R(x * 1.1), R(z * 1.1), 5); if (d < 1.1) return n < 0.16 ? 0xc4d0e4 : n < 0.5 ? 0xd2dcec : 0xdae3f1; if (d < 1.7) return n < 0.3 ? 0xdce5f2 : 0xe6edf8; return n < 0.05 ? 0xdbe5f4 : m < 0.22 ? 0xe9effa : n < 0.5 ? 0xf0f5fc : 0xf4f8fe; };
+      const ground = (x, z, px, py) => { const n = H(px, py, 7), d = near(x, z) + (H(R(x * 2), R(z * 2), 3) - 0.5) * 0.5, m = H(R(x * 1.1), R(z * 1.1), 5); if (d < 1.0) return n < 0.2 ? 0xa2b0ca : n < 0.5 ? 0xb4c2da : 0xc2cee4; if (d < 1.5) return n < 0.3 ? 0xc8d4e8 : 0xd8e1f0; return n < 0.05 ? 0xdbe5f4 : m < 0.22 ? 0xe9effa : n < 0.5 ? 0xf0f5fc : 0xf4f8fe; };
       this.paintCore(-24.576, -20, 2048, ground);
-      this.paintGround(220, 1024, 0, 0, (x, z, px, py) => { const m = H(R(x * 0.3), R(z * 0.3), 5), n = H(px, py, 7); return Math.abs(x) < 25 && z > -45 && z < 50 ? ground(x, z, px, py) : m < 0.2 ? 0xe2eaf6 : n < 0.3 ? 0xe9f0fa : 0xf0f5fc; });
+      this.paintGround(220, 2048, 0, 0, (x, z, px, py) => { const m = H(R(x * 0.3), R(z * 0.3), 5), n = H(px, py, 7); return Math.abs(x) < 25 && z > -45 && z < 50 ? ground(x, z, px, py) : m < 0.2 ? 0xe2eaf6 : n < 0.3 ? 0xe9f0fa : 0xf0f5fc; });
       const P = (name, make, s, x, z, ry, o) => this.put(name, make, s, x, z, ry, o);
-      // the cliffs either hand: west all the way; east by the bends, and open country where the trail looks out
-      [0, 1, 2].forEach(k => this.kind('cliff' + k, () => cliff(k * 2.3 + 1, [58, 72, 64][k]), WB));
-      const face = (x, z, ry, k, o) => this.place('cliff' + k, x, z, ry, o);       // (8 m along its own x, its face to its own +z)
-      for (const [x, z, ry, k] of [[-4.6, 48, HP, 0], [-4.8, 40, HP, 1], [-4.4, 32, HP, 2], [-4.8, 24, HP, 0], [-4.2, 16, HP, 1], [-1.6, 8.6, HP * 0.82, 2], [1.0, 1.4, HP, 0], [1.2, -5.6, HP, 1]]) face(x, z, ry, k);
-      for (const [x, z, ry, k] of [[12.4, -8, -HP, 2], [12.2, -16.8, -HP, 1], [10, -19.6, Math.PI, 0], [1.6, -18.6, -HP, 1], [1.8, -26.6, -HP, 2], [1.6, -34.4, -HP, 0], [-8.6, -10.4, HP, 2], [-8.8, -18.4, HP, 0], [-8.6, -26.4, HP, 1]]) face(x, z, ry, k);
-      P('mouth', mouth, WB, -3.5, -38.4, 0, { ao: false });
-      [0, 1, 2].forEach(k => this.kind('bank' + k, () => bank(k * 1.7), CB));
-      for (const [x, z, ry, k] of [[4.0, 44, HP, 0], [4.1, 40, HP, 1], [4.0, 36.4, HP, 2], [4.2, 32.4, HP, 0], [4.0, 28.6, HP, 1], [4.2, 25, HP, 2], [4.4, 21.4, HP, 0], [5.0, 18, HP * 0.8, 1], [7.4, 14.8, HP * 0.5, 2], [10.4, 11.4, HP, 0], [10.6, 7.6, HP, 1], [10.4, 4, HP, 2], [10.6, 0.4, HP, 0], [10.4, -3.2, HP, 1]]) this.place('bank' + k, x, z, ry);
+      // the cliffs either hand, set end to end along the trail's two bends; east of the first of it, open country
+      const GR = {}, keep = (n, f) => () => (GR[n] = f()), rocks = [];              // (what's solid: see below)
+      const hard = (n, x, z, ry) => { rocks.push([n, x, z, ry || 0]); return this.place(n, x, z, ry || 0); };
+      [0, 1, 2].forEach(k => { this.kind('cliff' + k, keep('cliff' + k, () => cliff(k * 2.3 + 1, [58, 72, 64][k])), WB); this.kind('crag' + k, keep('crag' + k, () => crag(k * 2 + 1)), WB); });
+      const face = (x, z, ry, k) => hard('cliff' + k, x, z, ry);                      // (8.06 m along its own +x, its face to its own +z)
+      for (const [x, z, ry, k] of [[-4.6, 49.5, HP, 0], [-4.8, 41.5, HP, 1], [-4.5, 33.5, HP, 2], [-4.8, 25.5, HP, 0], [-4.4, 17.5, HP, 1], [-4.4, 9.6, HP, 2],      // up the first of it, on the west
+        [-6.4, 6.2, 0, 0], [1.0, 7.2, HP, 2], [1.0, -0.8, HP, 1],                                                                                            // round the bend, and up
+        [0.8, -7.5, Math.PI, 0], [-7.2, -7.5, Math.PI, 2],                                                                                                  // the second bend, its near side
+        [-8.5, -7.0, HP, 1], [-8.5, -15.0, HP, 0], [-8.5, -23.0, HP, 2], [-8.5, -31.0, HP, 1], [-8.5, -39, HP, 0],                                            // the last of it, on the west
+        [12.4, -12.6, -HP, 2], [12.4, -20.6, -HP, 1], [1.0, -19.6, 0, 2], [9.0, -19.6, 0, 0],                                                                  // the second bend, its far side
+        [1.3, -27.4, -HP, 1], [1.3, -35.4, -HP, 2], [1.3, -43.4, -HP, 0]]) face(x, z, ry, k);                                                                  // the last of it, on the east
+      for (const [x, z, k] of [[1.9, 7.6, 0], [1.4, -8.0, 1], [1.0, -19.3, 2], [-4.2, 7.6, 1], [12.0, -19.0, 0], [-8.2, -8.0, 2], [12.6, -5.0, 1], [-8.2, -36.4, 0], [1.2, -36.4, 1]]) hard('crag' + k, x, z, x);
+      this.kind('mouth', keep('mouth', mouth), WB, { ao: false }); hard('mouth', -3.5, -38.4, 0);
+      [0, 1, 2].forEach(k => this.kind('bank' + k, keep('bank' + k, () => bank(k * 1.7)), CB));
+      for (const [x, z, ry, k] of [[4.0, 44, HP, 0], [4.1, 40, HP, 1], [4.0, 36.4, HP, 2], [4.2, 32.4, HP, 0], [4.0, 28.6, HP, 1], [4.2, 25, HP, 2], [4.4, 21.4, HP, 0], [5.0, 18, HP * 0.8, 1], [8.0, 15.4, HP * 0.5, 2], [10.4, 11.4, HP, 0], [10.6, 7.6, HP, 1], [10.4, 4, HP, 2], [10.6, 0.4, HP, 0], [10.4, -2.6, HP, 1]]) if (z < 30) hard('bank' + k, x, z, ry); else this.place('bank' + k, x, z, ry);
       [0, 1, 2].forEach(k => this.kind('stand' + k, () => standing(k + 1), CB));
-      this.marks.stones = [[5.0, 2.6], [8.0, -4.6], [2.4, -11.4], [-4.8, -19.4], [-2.4, -26.0]];
+      this.marks.stones = [[5.0, 2.6], [8.0, -4.6], [2.2, -12.6], [-4.8, -20.6], [-2.3, -27.4]];
       this.marks.stones.forEach(([x, z], i) => { this.place('stand' + (i % 3), x, z, 0.2 * (i % 2 ? 1 : -1)); this.col(x, z, 0.62); });
-      for (const [x, z] of [[2.4, 38], [2.3, 29], [2.5, 20], [8.9, 8], [9.0, -1], [1.6, -14.6], [-1.6, -23], [-5.6, -31]]) { P('pole', pole, S1, x, z, (x * 7 + z) % 1); this.col(x, z, 0.15); }
+      for (const [x, z] of [[2.4, 38], [2.3, 29], [2.5, 20], [8.9, 8], [9.0, -1], [8.6, -9.4], [5.2, -15.6], [0.4, -16.4], [-1.9, -19.6], [-5.3, -25], [-1.9, -31.6], [-5.6, -35.2]]) { P('pole', pole, S1, x, z, (x * 7 + z) % 1); this.col(x, z, 0.15); }
       P('sign', tourSign, S1, -2.2, 41.5, 0.5); this.col(-2.2, 41.5, 0.6); P('hut', hut, SB, -2.0, 52.5, Math.PI * 0.94); this.block(-4.4, 50.6, 0.6, 54.4);
       P('bench', T.bench, S1, 1.8, 45.6, -HP); this.col(1.8, 45.6, 0.5); this.seats.push({ x: 1.8, z: 45.6, yaw: -HP, h: 0.5 });
       P('stump', () => { const g = G(); g.disc(0, 0, 9, 0, 16, (x, y, z) => y === 16 ? (Math.floor(Math.hypot(x, z)) & 1 ? 0xd8b07a : 0xc09860) : H(x, y >> 2, z) < 0.3 ? 0x4a3626 : 0x5c4430); return g; }, S1, 7.6, 43.6, 0); this.col(7.6, 43.6, 0.3); this.marks.stump = [7.6, 43.6];
       [0, 1].forEach(k => this.kind('pine' + k, () => pine(k), CB));
       for (const [x, z, k] of [[9.6, 46, 0], [12, 41.6, 1], [8.6, 38.4, 1], [14.4, 47, 0], [11.4, 35, 0], [16, 38, 1], [9, 31, 0], [13, 28, 1], [10, 51, 1], [5.4, 55, 0], [-8, 57, 1], [15.5, 53, 1]]) { this.place('pine' + k, x, z, x); this.col(x, z, 0.5); }
-      P('wing', wing, WB, 30, -14, 0.5, { noCast: true }); P('tooth', tooth, WB, 34, 22, 0.8, { noCast: true }); P('cairn', cairn, S1, 8.6, 5.0, 0); this.col(8.6, 5.0, 0.4); this.marks.cairn = [8.6, 5.0]; this.marks.wing = [40, -14]; this.marks.tooth = [34, 22];
+      P('wing', wing, WB, 37, 9, HP, { noCast: true }); P('tooth', tooth, WB, 34, 22, 0.8, { noCast: true }); P('cairn', cairn, S1, 8.6, 5.0, 0); this.col(8.6, 5.0, 0.4); this.marks.cairn = [8.6, 5.0]; this.marks.wing = [37, -3]; this.marks.tooth = [34, 22];
       for (let i = 0; i < 4; i++) this.kind('mtn' + i, () => K.mountainGrid(i), 4.0);
       for (let i = 0; i < 16; i++) { const a = i / 16 * TAU + 0.2, r = 235 + (i % 4) * 36; this.place('mtn' + (i % 4), Math.sin(a) * r, Math.cos(a) * r, a * 3, { noCast: true, s: 1.1 + (i % 3) * 0.4, y: -8 }); }
       for (let i = 0; i < 9; i++) this.place('mtn' + (i % 4), 118 + (i % 3) * 20, -96 + i * 27, i, { noCast: true, s: 0.5 + (i % 2) * 0.16, y: -9 });
@@ -129,7 +142,15 @@
       this.floors.push([AX - 6, -9, AX + 6, -2.4, AY]);
       this.light(AX, AY + 24, 0, 0xcfe0ff, 2.6, 34, 'above'); this.light(AX + 4.2, AY + 1.0, -6.0, 0xe86ab8, 0.9, 5.0, 'heart'); this.light(AX - 3, AY + 4, -3, 0x7ab0f0, 0.8, 12, 'ice');
       this.marks.drop = [AX, AY];
-      this.walk = [[-3, 14, 3, 49.5], [-3, 8, 9.6, 15], [3.2, -10, 9.6, 9], [-6.4, -17, 9.6, -9], [-6.4, -35.2, -1, -15], [CX - 6, -5, CX + 6, 6.2], [AX - 5, -8.2, AX + 5, -3], [3, 33, 13, 49]];
+      this.walk = [[-4.4, 14, 3.2, 49.5], [-4.6, 6.4, 10, 15], [1, -12, 11.4, 10], [-8.2, -19.4, 12.2, -8], [-8.2, -37, 1.2, -16], [CX - 6, -5, CX + 6, 6.2], [AX - 5, -8.2, AX + 5, -3], [3, 33, 13, 49]];
+      // the rock itself, as a map of 20 cm squares: 1, solid to somebody walking; 2, to the camera
+      { const C = 0.2, X0 = -16, Z0 = -46, NX = 190, NZ = 510, M = new Uint8Array(NX * NZ);
+        for (const [n, px, pz, ry] of rocks) { const k = n.startsWith('bank') ? CB : WB, c = Math.cos(ry), q = Math.sin(ry), cells = new Map();
+          GR[n].each((x, y, z) => { const yy = (y + 0.5) * k; if (yy > 4.4 || yy < 0.28) return; const id = (x + 512) * 1024 + z + 512; cells.set(id, (cells.get(id) || 0) | (yy < 1.5 ? 3 : 2)); });
+          if (n.startsWith('cliff')) for (let x = 0; x < 42; x++) { let f = -99, f2 = -99; for (let z = -14; z < 24; z++) { const v = cells.get((x + 512) * 1024 + z + 512) || 0; if (v & 1) f = z; if (v & 2) f2 = z; } for (let z = -12; z <= f2; z++) cells.set((x + 512) * 1024 + z + 512, z <= f ? 3 : 2); }
+          for (const [id, v] of cells) { const lx = (Math.floor(id / 1024) - 512) * k, lz = (id % 1024 - 512) * k; for (const a of [-0.4, 0, 0.4]) for (const b of [-0.4, 0, 0.4]) { const ux = lx + a * k, uz = lz + b * k, i = Math.floor((px + ux * c + uz * q - X0) / C), j = Math.floor((pz - ux * q + uz * c - Z0) / C); if (i >= 0 && j >= 0 && i < NX && j < NZ) M[j * NX + i] |= v; } } }
+        const rle = []; for (let i = 0; i < M.length;) { let j = i; while (j < M.length && M[j] === M[i]) j++; rle.push(M[i], j - i); i = j; }
+        this.marks.rock = { x: X0, z: Z0, c: C, nx: NX, nz: NZ, rle }; }
     }
   }
   window.SNOW = Snow;

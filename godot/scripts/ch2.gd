@@ -986,6 +986,9 @@ func _scene(w: String, P: Node3D, R: Node3D, seated: bool, lines: Array) -> void
 				_pair(P, R, seated)
 				var items: Array = []
 				for o in l.ask: items.append([str(items.size()), o[0]])
+				var best := 0
+				for q in l.ask.size(): if int(l.ask[q][1]) > int(l.ask[best][1]): best = q
+				s.ask_best = best
 				var k: int = await s.ask(items)
 				var o: Array = l.ask[k]
 				a.flag["%s_%s" % [w, l.get("id", "c")]] = k
@@ -2782,6 +2785,7 @@ func _ember() -> void:
 	var C: Node3D = a.keep(s.put("candle", Vector3(cx + 0.1, top, b.z - 0.9)))
 	a.keep(s.put("toyhen", Vector3(cx - 0.28, top, b.z - 0.98), 0.6))
 	a.keep(s.put("wand_black", Vector3(cx + 0.42, top + 0.06, b.z - 0.84), 1.1))
+	_night_pane(cx, b.y + 1.5, b.z - 3.4)
 	moon(Vector3(cx, b.y + 1.9, b.z - 0.7), 0.4, Color("9ab0f0"), 4.5)
 	var wick: Vector3 = C.position + Vector3(0, 0.285, 0)
 	var side: float = signf(b.x - wick.x)
@@ -2860,6 +2864,32 @@ func _ember() -> void:
 	await s.wait(1.5)
 
 
+## The night, outside a dormitory's window (there's nothing really out there).
+func _night_pane(x: float, y: float, z: float) -> void:
+	var mi := MeshInstance3D.new()
+	var q := QuadMesh.new()
+	q.size = Vector2(9, 6)
+	mi.mesh = q
+	var sh := Shader.new()
+	sh.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled, shadows_disabled, fog_disabled;
+void fragment() {
+	vec2 g = floor(UV * vec2(300.0, 200.0));
+	float n = fract(sin(dot(g, vec2(12.9898, 78.233))) * 43758.5453), hill = 0.60 + 0.05 * sin(UV.x * 17.0) + 0.02 * sin(UV.x * 51.0 + 1.0);
+	float y = (g.y + 0.5) / 200.0;
+	ALBEDO = y > hill ? vec3(0.018, 0.024, 0.045) : mix(vec3(0.016, 0.022, 0.07), vec3(0.045, 0.055, 0.13), y / 0.6) + step(0.9965, n) * vec3(0.5, 0.52, 0.6);
+}
+"""
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	mi.material_override = m
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = Vector3(x, y, z)
+	s.add_child(mi)
+	a.keep(mi)
+
+
 # ---------------------------------------------------------------------- fire --
 const FC := 0.012                        # (its voxel: half of ours, it's a small fire)
 
@@ -2872,7 +2902,7 @@ func _fire_make(p: Vector3) -> Dictionary:
 	var bx := BoxMesh.new()
 	bx.size = Vector3.ONE * FC
 	mm.mesh = bx
-	mm.instance_count = 1500
+	mm.instance_count = 4200
 	mm.visible_instance_count = 0
 	mi.multimesh = mm
 	var m := StandardMaterial3D.new()
@@ -2882,7 +2912,7 @@ func _fire_make(p: Vector3) -> Dictionary:
 	mi.material_override = m
 	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	mi.position = p
-	mi.custom_aabb = AABB(Vector3(-0.3, -0.1, -0.3), Vector3(0.6, 0.6, 0.6))
+	mi.custom_aabb = AABB(Vector3(-0.6, -0.2, -0.6), Vector3(1.2, 1.2, 1.2))
 	s.add_child(mi)
 	a.keep(mi)
 	var l := OmniLight3D.new()
@@ -2919,9 +2949,12 @@ func _fire_update(dt: float) -> void:
 			f.let.erase(q)
 	var fl: float = 0.85 + sin(f.t * 8.0) * 0.07 + sin(f.t * 13.7) * 0.05
 	var l: OmniLight3D = f.l
-	l.light_energy = clampf(f.h / 0.12, 0.0, 1.5) * 0.75 * fl
+	l.light_energy = clampf(f.h / 0.12, 0.0, 1.5) * 0.75 * fl * float(f.get("lit", 1.0))
+	var yaw_: float = f.get("yaw", 0.0)                     # (the way it faces)
+	(f.n as Node3D).rotation.y = yaw_
+	var lean := Vector2(f.lean.x * cos(yaw_) - f.lean.y * sin(yaw_), f.lean.x * sin(yaw_) + f.lean.y * cos(yaw_))
 	l.light_color = Color("ffb868").lerp(Color("d8a0ff"), f.soul * 0.45)
-	l.position = Vector3(f.lean.x * f.h * 0.5, f.h * 0.6, f.lean.y * f.h * 0.5)
+	l.position = Vector3(lean.x * f.h * 0.5, f.h * 0.6, lean.y * f.h * 0.5)
 	f.acc += dt
 	if f.acc < 0.045: return
 	f.acc = 0.0
@@ -2932,9 +2965,9 @@ func _fire_update(dt: float) -> void:
 	var er: int = int(H * 0.4)
 	for iy in H:
 		var v: float = (iy + 0.5) / H
-		var rr: float = (0.042 + 0.012 * f.soul) / FC * lerpf(0.34, 1.0, smoothstep(0.0, 0.34, v)) * pow(1.0 - v, 0.62) * 1.12
-		var sx: float = (f.lean.x * v * v * f.h + sin(f.t * 1.5 - v * 4.2) * 0.009 * v) / FC + sin(f.t * 1.9 + v * 5.0) * f.soul * 0.7 * v
-		var sz: float = (f.lean.y * v * v * f.h + cos(f.t * 1.2 - v * 3.6) * 0.009 * v) / FC + cos(f.t * 1.9 + v * 5.0) * f.soul * 0.5 * v
+		var rr: float = (0.042 + 0.012 * f.soul) / FC * lerpf(0.34, 1.0, smoothstep(0.0, 0.34, v)) * pow(1.0 - v, 0.62) * 1.12 * float(f.get("fat", 1.0))
+		var sx: float = (lean.x * v * v * f.h + sin(f.t * 1.5 - v * 4.2) * 0.009 * v) / FC + sin(f.t * 1.9 + v * 5.0) * f.soul * 0.7 * v
+		var sz: float = (lean.y * v * v * f.h + cos(f.t * 1.2 - v * 3.6) * 0.009 * v) / FC + cos(f.t * 1.9 + v * 5.0) * f.soul * 0.5 * v
 		for ix in range(int(floor(sx - rr)), int(ceil(sx + rr)) + 1):
 			for iz in range(int(floor(sz - rr)), int(ceil(sz + rr)) + 1):
 				var dx := ix - sx
@@ -2944,8 +2977,8 @@ func _fire_update(dt: float) -> void:
 				if d > 0.7 and v > 0.2 and (hash(Vector3i(ix * 7 + tick, iy * 13 - tick, iz * 5)) & 255) < 50: continue
 				if n >= mm.instance_count: break
 				var c: Color = Color("fff2b0") if d < 0.45 else Color("ffc04a") if d < 0.8 else Color("ff8a2a")
-				if v < 0.1 or v < 0.17 and d > 0.6: c = Color("8ab4ff")
-				c = c.lerp(Color("f0e2ff") if d < 0.45 else Color("a070ff"), f.soul * 0.55 * smoothstep(0.1, 0.7, v))
+				if not f.has("loose") and (v < 0.1 or v < 0.17 and d > 0.6): c = Color("8ab4ff")
+				c = c.lerp(Color("8a50f0"), f.soul * 0.8 * smoothstep(0.5, 1.15, v * 0.8 + d * 0.5))
 				var front: bool = sqrt(dx * dx + (dz + 1.0) * (dz + 1.0)) / maxf(rr, 0.4) > 1.0
 				if front and absi(ix - int(round(sx))) == 2 and iy >= er and iy < er + int(round(f.eyes * 3.0)): c = Color("2a0c1c")
 				mm.set_instance_transform(n, Transform3D(Basis(), Vector3(ix, iy + 0.5, iz) * FC))
@@ -2965,7 +2998,9 @@ func _letters(n: int) -> void:
 		L.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		L.modulate = Color(1.0, 0.72, 0.42, 0.0)
 		L.outline_size = 0
-		L.position = (fire.n as Node3D).position + Vector3(randf_range(-0.09, 0.09), fire.h * randf_range(0.5, 1.2), randf_range(-0.03, 0.06))
+		var big: float = (fire.n as Node3D).scale.x
+		L.pixel_size *= big
+		L.position = (fire.n as Node3D).position + Vector3(randf_range(-0.09, 0.09), fire.h * randf_range(0.5, 1.2), randf_range(-0.03, 0.06)) * big
 		s.add_child(L)
 		a.keep(L)
 		fire.let.append({ "n": L, "t": -k * 0.22, "ph": randf() * TAU })

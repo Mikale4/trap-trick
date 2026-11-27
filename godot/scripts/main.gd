@@ -98,6 +98,8 @@ var dev_pick := 0                  # dev: --pick=n, which choice to make by itse
 var dev_bond := ""                 # dev: --bond=wim:3,bet:2
 var tt_pin := NAN                  # Trap Trick held at a height (on the roofs), whatever's there
 var dev_auto := false              # dev: --auto walks the story on by itself
+var dev_demo := ""                 # dev: --demo[=part] starts the Demo (from that part)
+var demo: Node                     # the Demo (demo.gd): the game plays itself
 
 
 func _ready() -> void:
@@ -111,6 +113,7 @@ func _ready() -> void:
 		elif a == "--garden": start_level = "garden"
 		elif a.begins_with("--scene="): dev_scene = a.substr(8)
 		elif a == "--auto": dev_auto = true
+		elif a.begins_with("--demo"): dev_demo = a.substr(7) if a.length() > 7 else "0"
 		elif a.begins_with("--pick="): dev_pick = int(a.substr(7))
 		elif a.begins_with("--bond="): dev_bond = a.substr(7)
 		elif a.begins_with("--tour="):
@@ -190,7 +193,14 @@ func _ready() -> void:
 	story = preload("res://scripts/story.gd").new()
 	add_child(story)
 	story.setup(self)
-	if dev_scene != "" or (shot_path == "" and not OS.get_cmdline_user_args().has("--free")): start_story(dev_scene)
+	demo = preload("res://scripts/demo.gd").new()
+	add_child(demo)
+	demo.setup(self)
+	if dev_demo != "":
+		start_story("")
+		story.act._shut()
+		demo.begin(int(dev_demo))
+	elif dev_scene != "" or (shot_path == "" and not OS.get_cmdline_user_args().has("--free")): start_story(dev_scene)
 
 
 ## Into the story: its title screen, or (dev) straight to a scene.
@@ -830,6 +840,12 @@ func _travel_update(dt: float) -> void:
 
 # ------------------------------------------------------------------ input --
 func _unhandled_input(e: InputEvent) -> void:
+	if mode == "story" and demo and demo.on:            # (the Demo's playing: Esc hands it back, ` speeds it up)
+		if e is InputEventKey and e.pressed and not e.echo:
+			if e.physical_keycode == KEY_ESCAPE: demo.stop("Over to you.")
+			elif e.physical_keycode == KEY_QUOTELEFT: demo.faster()
+		elif e is InputEventJoypadButton and e.pressed and e.button_index == JOY_BUTTON_START: demo.stop("Over to you.")
+		return
 	if mode == "story":
 		if e is InputEventKey and e.pressed and not e.echo: story.key(e.physical_keycode)
 		elif e is InputEventJoypadButton and e.pressed:

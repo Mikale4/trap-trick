@@ -38,6 +38,8 @@ var mount_at := Vector3.ZERO
 var lod := 0                          # 0 full, 1 plain
 var others: Array = []                # whoever else is about (story keeps it): walked round, never through
 var jam := 0.0                        # how long there's been no way through
+var stoop := 0.0                       # kneeling: how far down one bends
+var stoop_k := 0.0
 var narrow := false                   # in a doorway
 var prog := Vector2(INF, 0.0)         # how near the next point they've come, and how long since they came nearer
 var cm := {}                          # this frame's pose
@@ -662,7 +664,9 @@ func _stance(ik: Dictionary, shape: Dictionary) -> Array:
 			cm.thighR = Vector3(0.12, 0, -0.06)
 			cm.shinR = Vector3(1.6, 0, 0)
 			cm.footR = Vector3(0.9, 0, 0)
-			cm.torso += Vector3(0.12, 0, 0)
+			stoop_k = move_toward(stoop_k, stoop, 0.02)
+			cm.torso += Vector3(0.12 + stoop_k, 0, 0)
+			cm.head += Vector3(-stoop_k * 0.3, 0, 0)
 		"crouch":
 			hips.y = rest_y * 0.55
 			cm.thighL = Vector3(-1.5, 0, 0.16)

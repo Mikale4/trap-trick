@@ -643,7 +643,7 @@
       kind('toad', toadstoolGrid, S1);
       for (const a of [1.05, -1.05, Math.PI - 1.08, -(Math.PI - 1.08)]) {
         const x = Math.sin(a) * 8.75, z = Math.cos(a) * 8.75;
-        place('toad', x, z, facing(x, z)); col(x, z, 0.45); this.seats.push({ x, z, yaw: facing(x, z), h: 0.65 });
+        place('toad', x, z, facing(x, z)); col(x, z, 0.45); { const f = facing(x, z); this.seats.push({ x: x + Math.sin(f) * 0.25, z: z + Math.cos(f) * 0.25, yaw: f, h: 0.65 }); }
       }
 
       /* the backdrop: the castle and the moon to the north, the teacup glasshouse west, the hat tower east */

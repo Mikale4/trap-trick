@@ -530,9 +530,49 @@ def effects4():                                                                 
     d = 1.5; t = T(d); S('soulin', bp(noise(d), 300, 2400) * (t / d) ** 1.8 + bp(noise(d), 60, 260) * (t / d) ** 2 * 0.8, 0.0, 0.6)
 
 
+def effects5():                                                                                   # the part in between, being taken out; and put back
+    def put(y, at, x): i = int(at * SR); n = min(len(x), len(y) - i); y[i:i + n] += x[:n]
+    d = 2.0; t = T(d); y = np.zeros(int(2.6 * SR)); rise = np.minimum(1, t / 1.25) ** 1.8 * (t < 1.3)
+    put(y, 0, sweep(d, 90, 760, 1.7) * rise * 0.35 + bp(noise(d), 500, 5200) * rise * 0.45 + np.sin(TAU * 52 * t) * rise * 0.5)
+    for k in range(26): q = T(0.3); put(y, 0.1 + (k / 26) ** 0.7 * 1.15, np.sin(TAU * hz(62 + [0, 3, 7, 10][k % 4] + 12 * (k // 7)) * q) * np.exp(-q * 14) * (0.12 + k * 0.012))
+    q = T(0.5); put(y, 1.28, sweep(0.5, 420, 34) * np.exp(-q * 9) * 1.1 + bp(noise(0.5), 1500, 8000) * np.exp(-q * 40) * 0.5)
+    S('warpout', y, 1.8, 0.62)
+    y = np.zeros(int(2.4 * SR)); q = T(0.9); put(y, 0.0, sweep(0.9, 130, 40) * np.exp(-q * 5) * 1.2 + bp(noise(0.9), 200, 3000) * np.exp(-q * 7) * 0.7)
+    for k in range(30): q = T(0.4); put(y, 0.04 + rng.gamma(1.6, 0.22), np.sin(TAU * hz(86 + [0, 3, 7, 10][k % 4] - 12 * (k // 10)) * q) * np.exp(-q * 11) * rng.uniform(0.06, 0.2))
+    S('warpin', y, 2.2, 0.62)
+
+
+def effects6():                                                                                   # the fire, learning to talk; a cat, thinking
+    def put(y, at, x): i = int(at * SR); n = min(len(x), len(y) - i); y[i:i + n] += x[:n]
+    vow = {'a': (730, 1150, 2450), 'o': (520, 900, 2400), 'e': (480, 1750, 2500), 'u': (330, 800, 2300), 'i': (300, 2100, 2850)}
+    def syl(d, f0, v, v2, breath, hum=0.0):
+        t = T(d); ph = TAU * np.cumsum(f0 * (1 + 0.04 * np.sin(np.pi * t / d) + 0.012 * np.sin(TAU * 6 * t))) / SR
+        src = sum(np.sin(ph * h) / h for h in range(1, 18) if f0 * h < 3600) * (1 - breath) + noise(d) * breath * 0.9
+        k = np.clip(t / d * 1.6 - 0.2, 0, 1); A = sum(bp(src, f * 0.86, f * 1.16) * g for f, g in zip(vow[v], (1.0, 0.7, 0.22))); B = sum(bp(src, f * 0.86, f * 1.16) * g for f, g in zip(vow[v2], (1.0, 0.7, 0.22)))
+        y = A * (1 - k) + B * k
+        if hum: m = np.clip(t / 0.09, 0, 1); y = y * m + lp(src, 420) * (1 - m) * hum
+        return y * np.sin(np.pi * np.clip(t / d, 0, 1)) ** 0.6
+    def say(n, seq, total, f0, cut, rev=1.6, gain=0.62):
+        y = np.zeros(int((total + 0.3) * SR))
+        for at, d, v, v2, dp, hum in seq:
+            for det, br, g in ((1.0, 0.4, 1.0), (1.498, 0.85, 0.42), (0.5, 0.2, 0.5)): put(y, at, syl(d, f0 * det * dp, v, v2, br, hum) * g)
+        y = lp(y, cut) * 1.3; t = np.arange(len(y)) / SR; y *= 0.82 + 0.18 * np.sin(TAU * 7.3 * t)
+        for k in range(int(total * 9)): q = T(0.02); put(y, rng.uniform(0, total), bp(noise(0.02), 1400, 6000) * np.exp(-q * 220) * rng.uniform(0.02, 0.12))
+        S(n, y, rev, gain)
+    say('sould', [(0.05, 0.14, 'u', 'u', 1.0, 0.9), (0.28, 0.14, 'u', 'o', 1.02, 0.9), (0.52, 0.16, 'u', 'a', 1.04, 0.9), (0.85, 0.5, 'o', 'a', 1.1, 0.9)], 1.5, 118, 1700)
+    say('soule', [(0.05, 0.2, 'a', 'e', 1.0, 0.8), (0.32, 0.18, 'e', 'i', 1.1, 0.0), (0.62, 0.16, 'a', 'e', 1.02, 0.8), (0.84, 0.16, 'a', 'e', 1.04, 0.8), (1.08, 0.2, 'e', 'i', 1.14, 0.0), (1.4, 0.34, 'a', 'u', 1.2, 0.5)], 2.0, 122, 2000)
+    say('soulf', [(0.05, 0.22, 'o', 'a', 1.0, 0.8), (0.34, 0.26, 'a', 'i', 1.12, 0.0), (0.72, 0.2, 'e', 'a', 1.06, 0.7), (1.0, 0.18, 'u', 'o', 1.12, 0.8), (1.26, 0.3, 'a', 'e', 1.24, 0.0), (1.7, 0.2, 'i', 'a', 1.2, 0.6), (2.0, 0.95, 'o', 'a', 1.5, 0.8)], 3.1, 130, 2500, 2.6, 0.68)
+    d = 0.7; t = T(d); S('flit', bp(noise(d), 300, 2600) * np.sin(np.pi * (t / d) ** 0.6) ** 2 * (0.8 + 0.2 * np.sin(TAU * 19 * t)) + sweep(d, 240, 520, 1.0) * np.sin(np.pi * t / d) * 0.06, 0.6, 0.4)
+    d = 1.5; t = T(d); S('whoof', bp(noise(d), 40, 420) * np.exp(-((t - 0.28) / 0.24) ** 2) * 1.6 + bp(noise(d), 300, 2400) * np.exp(-((t - 0.36) / 0.4) ** 2) * 0.6, 0.8, 0.6)
+    d = 1.1; t = T(d); y = np.zeros(int(1.5 * SR))
+    for k, m in enumerate((69, 76, 81)): q = T(1.0); put(y, k * 0.05, np.sin(TAU * hz(m) * q + 0.8 * np.sin(TAU * 4 * q)) * np.sin(np.pi * np.clip(q / 1.0, 0, 1)) ** 2 * 0.3)
+    S('mindin', y + np.concatenate([bp(noise(d), 1800, 5200) * np.sin(np.pi * t / d) ** 3 * 0.12, np.zeros(len(y) - len(t))]), 1.6, 0.3)
+    for k in range(3): d = 0.13; t = T(d); f = (392, 440, 494)[k]; S('voice_mind%d' % k, (np.sin(TAU * f * t) + 0.4 * np.sin(TAU * f * 1.5 * t)) * np.sin(np.pi * t / d) ** 2 * 0.6 + bp(noise(d), 1500, 4200) * np.sin(np.pi * t / d) ** 2 * 0.2, 0.9, 0.16)
+
+
 if __name__ == '__main__':
     only = sys.argv[1:]
-    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, m_high, m_duel, m_sneak, m_founder, m_bucket, m_wits, m_low, m_roofs, m_chase, m_staff, m_drowse, m_storm, m_deep, m_still, m_train, m_cat, a_farm, a_town, a_school, a_night, a_rain, a_room, a_wind, a_fountain, effects, effects2, effects3, effects4]
+    jobs = [m_dawn, m_letter, m_road, m_town, m_academy, m_school, m_lesson, m_evening, m_wonder, m_night, m_high, m_duel, m_sneak, m_founder, m_bucket, m_wits, m_low, m_roofs, m_chase, m_staff, m_drowse, m_storm, m_deep, m_still, m_train, m_cat, a_farm, a_town, a_school, a_night, a_rain, a_room, a_wind, a_fountain, effects, effects2, effects3, effects4, effects5, effects6]
     for j in jobs:
         if only and j.__name__ not in only: continue
         j(); print(j.__name__)

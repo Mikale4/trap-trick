@@ -31,14 +31,16 @@ ends up tutoring him. He doesn't know who she is after school.
   remember his name gets them out, and she gives him one. Then the Academy: Reiner's baton (some call it pity), and two weeks
   of learning that a wand awake drains its mage, so it must be put away again. And a note where nobody could have left one;
   Maron doesn't go and look. Her cat does. Played: Penny's walk, the gusts, making camp; lighting candles and paper birds,
-  the Long Dark; the cat, by scent, through the school at night.
+  the Long Dark; the cat, by scent, through the school at night. After the end card, his candle's fire gets off its wick and out
+  of the window.
 - **Free afternoons:** four of them in Chapter Two, two meetings each. Whoever you choose to see (friends, the old High
   Table, the Proctor, Maron) has a story of their own, with something for you to say. How well you know them changes who
   stands by Reiner later, who comes to his door, how he gets out, and what he sees. `J` shows everyone, and where they are.
 - **Wicks:** candle duels on the incantation ring. Blue shelters your flame from a breath, gold calls it higher, rose
   breathes on theirs.
 - **Mana (Chapter Three):** hold `F` to wake the staff, let go to put it away. Awake, it spends you; with none left, down you go.
-- **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there.
+- **Incantations:** syllables drift to a ring; press each one's direction (`W A S D` or the arrows) as it gets there. A card warns
+  you first, shows the keys and what's coming, and waits for an arrow; then a count of three.
 - **School Days:** the whole campus, free to roam: a school of three floors (stairs, doors that open and shut), the
   glasshouse, the practice yard, the court, two boarding houses with a warden, common room and bedrooms each. Three years
   of pupils and their masters keep a timetable by a clock and a bell whose ring can be seen. Go to class, talk, read,
@@ -51,15 +53,32 @@ ends up tutoring him. He doesn't know who she is after school.
 | `F` (hold) | wake the staff; as the cat, follow the scent (Chapter Three) |
 | `T` | the timetable (at the Academy) |
 | `Tab` (hold) | skip a scene |
-| `Esc` | pause |
+| `Esc` | pause (and from there, **Demo: let it play from here**); while the Demo plays, Esc takes over |
+| `` ` `` (backquote) | while the Demo plays: faster (1×, 2×, 4×, 8×) |
 
 A gamepad works too: left stick, `B` to run, `A` to hop or go on, `X` to use, right shoulder for `F`, `Y` the timetable, Start to pause.
+
+## Demo
+**Title > Demo** starts a new game that plays itself, start to finish: the runner (`demo.gd`) plays it the way a
+player does, through the game's own keys. It reads each line before going on, answers when asked (in an afternoon,
+the answer that pleases most), presses the arrows as the words reach the ring, finds its way on foot (the school's own
+paths, or a search over the real walls everywhere else), opens doors and goes in at them, sneaks past the Proctor's
+lantern (and gets caught now and then, like anyone), keeps still while a standing wand is watching, wakes the staff by
+the candles without running itself dry, catches the paper birds, and gets in behind a stone when the gust comes. It plays
+to the end of Chapter Three, then hands over.
+- **Esc > Demo: let it play from here** has it take over the game you're in, from where it is.
+- **Esc** while it plays hands it back to you, right where it is. **`** speeds it up: 1×, 2×, 4×, 8×.
+- While it plays, the keyboard, mouse and pad are its own, except Esc and `. A bar along the bottom says DEMO, the
+  speed, the part, what it's doing, and the keys.
+- It saves in a file of its own (`user://demo.json`), never yours: Title > Demo then offers to carry on where it left off.
+- If it can't get on, a watchdog stops it, says what it was trying to do, and hands over.
+- Testing: `-- --demo` (or `--demo=<part>`) starts it straight away; `--scene=keys --bond=demo:0` tests Esc, ` and taking over.
 
 How it's made: `js/cast.js` (the cast, with faces that change, hands, feet), `js/farm.js`, `js/academy.js`,
 `js/snow.js` (the places, their floors, doors, seats and paths), `js/stage.js` (the kit for places), all baked by `node tools/bake_godot.js story`.
 In Godot: `story.gd` (places, camera, speech, the hour, the player), `act1.gd` (the Opening Act, scene by scene),
 `ch1.gd` (Chapter One), `ch2.gd` (Chapter Two: wands and their physics, the forms they take, the afternoons,
-the staff, the candle), `ch3.gd` (Chapter Three: weather, mana, the cat), `fountain.gd` (falling water),
+the staff, the candle), `ch3.gd` (Chapter Three: weather, mana, the cat), `warp.gd` (Erebus's teleporting), `demo.gd` (the Demo's runner), `fountain.gd` (falling water),
 `actor.gd` (one of the cast: springs, IK, gestures, faces), `campus.gd` (the school's life), `stage.gd` (a place: floors,
 stairs, doors, paths), `ui.gd`, `sound.gd`. Sound and music are synthesised by `tools/make_audio.py`.
 

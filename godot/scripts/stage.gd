@@ -14,6 +14,8 @@ var blocks: Array = []
 var slabs: Array = []
 var colliders: Array = []
 var walk: Array = []
+var rock := {}                         # the cliffs, as a map of squares: 1, solid to a body; 2, to the camera
+var rock_m := PackedByteArray()
 var doors := {}                      # id -> { nodes, bases, open, want, hold, block, locked, ... }
 var clouds: Array = []
 var hens: Array = []
@@ -49,6 +51,15 @@ func setup(main_node: Node3D, bake: Dictionary, place: String) -> void:
 	slabs = data.slabs
 	colliders = data.colliders
 	walk = data.walk
+	if data.get("marks") is Dictionary and data.marks.has("rock"):
+		var k: Dictionary = data.marks.rock
+		rock = k
+		rock_m.resize(int(k.nx) * int(k.nz))
+		var o := 0
+		for i in range(0, k.rle.size(), 2):
+			for j in int(k.rle[i + 1]):
+				rock_m[o] = int(k.rle[i])
+				o += 1
 	_ground()
 	var w: Node3D = load("res://assets/%s.glb" % place).instantiate()
 	add_child(w)
@@ -272,7 +283,7 @@ func _blocked(b: Array, y: float) -> bool:
 
 
 ## Push a point out of the walls, the things in the way and shut doors; keep it on a floor.
-func collide(p: Vector3, r: float, from := Vector3.INF, skip = null) -> Vector3:
+func collide(p: Vector3, r: float, from := Vector3.INF, skip = null, doors_ := true, people := true) -> Vector3:
 	for c in colliders:
 		if c.size() > 3 and (p.y + 0.3 > c[4] or p.y + 1.4 < c[3]): continue
 		var dx: float = p.x - c[0]
@@ -283,7 +294,7 @@ func collide(p: Vector3, r: float, from := Vector3.INF, skip = null) -> Vector3:
 		if d < m and d > 0.00001:
 			p.x = c[0] + dx / d * m
 			p.z = c[1] + dz / d * m
-	for a in actors:
+	for a in actors if people else []:
 		if a == skip or not a.solid or absf(a.position.y - p.y) > 1.0: continue
 		var dx: float = p.x - a.position.x
 		var dz: float = p.z - a.position.z
@@ -294,10 +305,11 @@ func collide(p: Vector3, r: float, from := Vector3.INF, skip = null) -> Vector3:
 			p.x = a.position.x + dx / d * m
 			p.z = a.position.z + dz / d * m
 	for b in blocks: p = _out(p, b, r)
-	for k in doors:
+	for k in doors if doors_ else {}:
 		var d: Dictionary = doors[k]
 		if d.open < 0.5: p = _out(p, d.block, r)
 	if not walk.is_empty(): p = _in_walk(p, r)
+	if not rock_m.is_empty(): p = _rock_out(p, r)
 	if not floors.is_empty():
 		var y := ground_y(p)
 		if is_nan(y) or absf(y - p.y) > 0.9 and y < p.y:
@@ -341,6 +353,44 @@ func _in_walk(p: Vector3, r: float) -> Vector3:
 	return best
 
 
+func _rock(i: int, j: int) -> int:
+	if i < 0 or j < 0 or i >= int(rock.nx) or j >= int(rock.nz): return 0
+	return rock_m[j * int(rock.nx) + i]
+
+
+func rock_at(x: float, z: float) -> int: return _rock(floori((x - rock.x) / rock.c), floori((z - rock.z) / rock.c))
+
+
+## Out of the rock, the shortest way, sliding along it.
+func _rock_out(p: Vector3, r: float) -> Vector3:
+	if p.x > 40.0: return p
+	var c: float = rock.c
+	if rock_at(p.x, p.z) & 1:                                       # right inside it: to the nearest clear spot
+		for k in range(1, 14):
+			for a in 16:
+				var q := p + Vector3(cos(a * TAU / 16.0), 0, sin(a * TAU / 16.0)) * c * k
+				if not (rock_at(q.x, q.z) & 1): return q
+		return p
+	for n in 3:
+		var bd := r
+		var bx := 0.0
+		var bz := 0.0
+		for j in range(floori((p.z - r - rock.z) / c), floori((p.z + r - rock.z) / c) + 1):
+			for i in range(floori((p.x - r - rock.x) / c), floori((p.x + r - rock.x) / c) + 1):
+				if not (_rock(i, j) & 1): continue
+				var qx: float = clampf(p.x, rock.x + i * c, rock.x + (i + 1) * c)
+				var qz: float = clampf(p.z, rock.z + j * c, rock.z + (j + 1) * c)
+				var d := Vector2(p.x - qx, p.z - qz).length()
+				if d < bd:
+					bd = d
+					bx = qx
+					bz = qz
+		if bd >= r - 0.0005 or bd < 0.0001: break
+		p.x = bx + (p.x - bx) / bd * r
+		p.z = bz + (p.z - bz) / bd * r
+	return p
+
+
 ## Is a point inside something solid (for the camera)?
 func solid(q: Vector3) -> bool:
 	if q.y < 0.1: return true
@@ -365,6 +415,9 @@ func shut_to_cam(q: Vector3) -> bool:
 			on_ = true
 			break
 	if not on_: return true
+	if q.x < 40.0 and q.y < 4.6:
+		for o in [Vector2(0.14, 0.14), Vector2(-0.14, 0.14), Vector2(0.14, -0.14), Vector2(-0.14, -0.14)]:
+			if rock_at(q.x + o.x, q.z + o.y) & 2: return true
 	if q.x < 100.0 and q.y < 2.9:
 		for c in data.marks.stones:
 			if Vector2(q.x - c[0], q.z - c[1]).length() < 0.8: return true

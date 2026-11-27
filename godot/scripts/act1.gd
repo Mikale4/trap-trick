@@ -18,6 +18,8 @@ var town_lines := {}
 var got := false
 var fol: Array = []                   # things that follow others: { n, f }
 const SAVE := "user://story.json"
+const DEMO_SAVE := "user://demo.json"        # (the Demo's own game: yours is never touched by it)
+var save_path := SAVE
 const PARTS1 := ["Dawn", "Chores", "The letter", "Leaving home", "Thistlewick", "The Academy", "Owl House", "The candle lesson", "A few bad weeks", "The bargain", "The first lesson", "The night"]
 var PARTS: Array = []
 var ch1: Node
@@ -267,6 +269,16 @@ func _to_play(limit := 60.0) -> void:
 	await s.wait(0.4)
 
 
+## (a key, and a few frames: the game's clock stands still while it's paused)
+func _press_frames(code: int) -> void:
+	for on in [true, false]:
+		var e := InputEventKey.new()
+		e.physical_keycode = code
+		e.pressed = on
+		Input.parse_input_event(e)
+		for k in 6: await s.get_tree().process_frame
+
+
 func _hold(code: int, on: bool) -> void:
 	var e := InputEventKey.new()
 	e.physical_keycode = code
@@ -278,7 +290,7 @@ func _hold(code: int, on: bool) -> void:
 func _keys3(what: String) -> void:
 	var path := [Vector3(0, 0, 46), Vector3(0, 0, 30), Vector3(0, 0, 16), Vector3(3, 0, 11), Vector3(6.5, 0, 6), Vector3(6.5, 0, -8), Vector3(3, 0, -13), Vector3(-3.5, 0, -17), Vector3(-3.5, 0, -36)]
 	if what.contains("pen"):
-		start(40)
+		start(41 if what.contains("pen2") else 40)
 		while part < 43:
 			await _to_play()
 			if part >= 43: break
@@ -287,7 +299,7 @@ func _keys3(what: String) -> void:
 				continue
 			var g: Vector3 = s.goal
 			var pts: Array = []
-			if part < 42:
+			if part == 40:
 				for q in path: if q.z < s.hero.position.z - 1.0 and q.z > g.z + 1.0: pts.append(q)
 			pts.append(g + (s.hero.position - g).normalized() * 0.7)
 			var was: int = part
@@ -295,6 +307,67 @@ func _keys3(what: String) -> void:
 			if s.mode == "play" and part == was and part != 41: await _press(KEY_E)
 			await s.wait(1.0)
 		print("pen done, part ", part)
+	if what.contains("demo"):                                          # (Esc > Demo takes over; ` speeds it; Esc hands it back)
+		var D: Node = s.main.demo
+		start(1)
+		await _to_play()
+		var p0: Vector3 = s.hero.position
+		await _press_frames(KEY_ESCAPE)
+		print("keys: paused ", s.paused, "  items ", s.ui.menu_items.map(func(m): return m.id))
+		await _press_frames(KEY_DOWN)
+		await _press_frames(KEY_E)
+		print("keys: demo on ", D.on, "  paused ", s.paused)
+		await s.wait(12.0)
+		print("keys: walked %.1f m by itself, doing '%s'" % [s.hero.position.distance_to(p0), D.doing])
+		for k in 3: await _press(KEY_QUOTELEFT)
+		print("keys: speed ", Engine.time_scale)
+		var r0 := Time.get_ticks_msec()
+		await s.wait(40.0)
+		print("keys: 40 s of game in %.1f s, still on %s, objective '%s', hero %s" % [(Time.get_ticks_msec() - r0) / 1000.0, D.on, s.ui.obj_l.text, s.hero.position])
+		await _press(KEY_QUOTELEFT)
+		print("keys: speed after a fourth ` ", Engine.time_scale)
+		await _press(KEY_ESCAPE)
+		await s.wait(0.3)
+		print("keys: after Esc, demo on ", D.on, "  paused ", s.paused, "  speed ", Engine.time_scale, "  mode ", s.mode)
+		var p1: Vector3 = s.hero.position
+		await _walk([p1 + Vector3(1.5, 0, 0)], "the player again")
+	if what.contains("wall"):                                          # (blundering about on the trail: never into the rock, never out of the pass)
+		start(41)
+		await _to_play()
+		var bad := 0
+		var far := 0
+		var lo := Vector2(99, 99)
+		var hi := Vector2(-99, -99)
+		for run_ in 60:
+			var q: Vector3 = [Vector3(6.5, 0, 4), Vector3(6.4, 0, -10), Vector3(0, 0, -15.5), Vector3(-3.5, 0, -24), Vector3(0, 0, 13)][run_ % 5]
+			var d := randf() * TAU
+			for i in 500:
+				if randf() < 0.04: d = randf() * TAU
+				var was := q
+				q = s.stage.collide(q + Vector3(cos(d), 0, sin(d)) * 0.09, 0.2, q, s.hero)
+				if s.stage.rock_at(q.x, q.z) & 1: bad += 1
+				if q.distance_to(was) > 0.5: far += 1
+				lo = lo.min(Vector2(q.x, q.z))
+				hi = hi.max(Vector2(q.x, q.z))
+		print("keys: in the rock ", bad, "  thrown ", far, "  reached ", lo, " to ", hi)
+	if what.contains("cast"):                                          # (the card waits; E won't do; an arrow will; then the count of three)
+		start(40)
+		await _to_play()
+		var out := []
+		(func(): out.append(await s.cast([["one", "U"], ["two", "L"], ["three", "R"]], { "name": "A test" }))).call()
+		await s.wait(2.0)
+		print("keys: card up ", not s.ui.ready_c.is_empty(), "  words moving ", not s.ui.spell.is_empty())
+		await _press(KEY_E)
+		await s.wait(2.0)
+		print("keys: after E, card still up ", not s.ui.ready_c.is_empty())
+		await _press(KEY_UP)
+		await s.wait(0.1)
+		print("keys: after an arrow, card up ", not s.ui.ready_c.is_empty(), "  first word in %.1f s" % -s.ui.spell.t)
+		for k in [[0.0, KEY_UP], [0.85, KEY_A], [1.7, KEY_RIGHT]]:
+			await s.until(func(): return s.ui.spell.is_empty() or s.ui.spell.t >= k[0] - 0.03, 6.0)
+			await _press(k[1])
+		await s.until(func(): return not out.is_empty(), 5.0)
+		print("keys: cast came to ", out)
 	if what.contains("lamp"):
 		start(47)
 		await _to_play()
@@ -545,6 +618,12 @@ func title() -> void:
 	s.move(Vector3(20, 5.2, 20), Vector3(0, 3.0, 0), Vector3(-14, 4.2, 24), Vector3(-1, 3.0, -2), 60.0, 44)
 	s.main.sound.music("dawn")
 	s.main.sound.air("farm")
+	if save_path != SAVE:                               # (back from the Demo's game to yours)
+		save_path = SAVE
+		bond = {}
+		flag = {}
+		snaps = {}
+		_load_bonds()
 	s.ui.title("TRAP TRICK", "")
 	s.ui.title_l.modulate.a = 1.0
 	s.ui.title_l.offset_top = -230
@@ -559,6 +638,7 @@ func title() -> void:
 	items.append(["chapters", "Chapters"])
 	items.append(["school", "School Days"])
 	items.append(["free", "Roam as Trap Trick"])
+	items.append(["demo", "Demo"])
 	items.append(["quit", "Quit"])
 	s.ui.show_menu(items, 0.18)
 
@@ -589,6 +669,23 @@ func menu(id: String) -> void:
 		"free":
 			_shut()
 			s.main.start_free()
+		"demo":
+			var dv := _saved(DEMO_SAVE)
+			if dv <= 0 or dv >= PARTS.size():
+				_shut()
+				s.main.demo.begin()
+				return
+			s.ui.show_menu([["demo_new", "Demo: from the beginning"], ["demo_on", "Demo: carry on from  " + PARTS[dv]], ["title", "Back"]], 0.35)
+			return
+		"demo_new":
+			_shut()
+			s.main.demo.begin()
+		"demo_on":
+			_shut()
+			s.main.demo.carry_on()
+		"demo_here":
+			s.pause(false)
+			s.main.demo.take_over()
 		"quit": s.get_tree().quit()
 		"resume": s.pause(false)
 		"people":
@@ -614,15 +711,15 @@ func _shut() -> void:
 	s.paused = false
 
 
-func _saved() -> int:
-	if not FileAccess.file_exists(SAVE): return 0
-	var d = JSON.parse_string(FileAccess.get_file_as_string(SAVE))
+func _saved(file := SAVE) -> int:
+	if not FileAccess.file_exists(file): return 0
+	var d = JSON.parse_string(FileAccess.get_file_as_string(file))
 	return int(d.get("part", 0)) if d is Dictionary else 0
 
 
 func _save(i: int) -> void:
 	if s.main.shot_path != "" or s.main.film_dir != "" or s.main.dev_auto: return
-	var f := FileAccess.open(SAVE, FileAccess.WRITE)
+	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f: f.store_string(JSON.stringify({ "part": i, "bond": bond, "flag": flag, "snaps": snaps }))
 
 
@@ -661,6 +758,7 @@ func start(i: int) -> void:
 		s.skipping = false
 	_save(0)
 	school(8.0)
+	if save_path == DEMO_SAVE: s.main.demo.finished()
 	ch1.levelled = true                                # (after Chapter One the lanterns hang level)
 
 

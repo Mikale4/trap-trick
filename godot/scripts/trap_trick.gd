@@ -598,6 +598,8 @@ func _dynamics(dt: float) -> void:
 	var axl := accel.x * c + accel.z * sn
 	var azl := -accel.x * sn + accel.z * c
 	var fall := clampf(-vy * 0.11, -0.12, 0.55) if not on_ground else 0.0
+	var sit_lift := _smooth(sit_k)                          # (seated, the skirt lies out over the seat, not down through it)
+	var on_cap: bool = last_seat != null and float(last_seat.h) > 0.6
 	var back := 0.0
 	for pn in panels:
 		var push := 0.0
@@ -605,6 +607,7 @@ func _dynamics(dt: float) -> void:
 			push = maxf(push, maxf((kn[0] * pn.dx + kn[1] * pn.dz - 3.6) * 0.07, (kn[2] * pn.dx + kn[3] * pn.dz - 8.0) * 0.055))
 		var tgt: float = 0.02 + push + fall
 		if absf(pn.dx) > 0.6: tgt += 0.45 * panel_lift
+		if sit_lift > 0.0 and (pn.dz < 0.6 if on_cap else absf(pn.dx) > 0.6): tgt = maxf(tgt, 0.46 * sit_lift)
 		tgt += clampf(-(axl * pn.dx + azl * pn.dz) * 0.018, -0.12, 0.25)
 		tgt += clampf(-(vxl * pn.dx + vzl * pn.dz) * 0.035, -0.14, 0.22)
 		pn.v += (150.0 * (tgt - pn.f) - 13.0 * pn.v) * dt
